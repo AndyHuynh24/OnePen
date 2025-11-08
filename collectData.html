@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Test Stroke Grouping</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href='https://unpkg.com/boxicons@2.1.1/css/boxicons.min.css' rel='stylesheet'>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Mali:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400;1,500;1,600;1,700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <style>
+    html,
+    body {
+      margin: 0;
+      background: white;
+      overflow: hidden;
+      /* ✅ Enable scrolling if needed */
+      font-family: 'Times New Roman', Times, serif;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    canvas {
+      display: block;
+      touch-action: none;
+    }
+
+    button {
+      font-family: 'Mali';
+    }
+
+    #toolbar {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px;
+      border-radius: 8px;
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+    }
+
+    .canvas-container {
+      display: flex;
+      justify-content: space-between;
+      flex: 1;
+      margin-top: 10px;
+    }
+
+    .canvas-container canvas {
+      border: 2px solid black;
+      margin: 0 5px;
+    }
+
+    #backgroundCanvas, #canvas, #movementCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #backgroundCanvas {
+      z-index: 1;
+    }
+    #canvas {
+      z-index: 2;
+    }
+    #movementCanvas {
+      z-index: 3;
+    }
+  </style>
+</head>
+
+<body>
+ 
+  <div id="toolbar">
+    <button onclick="toggleDataMode()">Data mode</button>
+    <select id="modType">
+      <option value="none">No Modifier</option>
+      <option value="underline">Underline</option>
+      <option value="box">Box</option>
+      <option value="curly">Curly Box</option>
+    </select>
+    <span id="count">Count: 0</span>
+    <div id="output"></div>
+  </div>
+  <canvas id="backgroundCanvas"></canvas>
+  <canvas id="canvas"></canvas>
+  <canvas id="movementCanvas"></canvas>
+ 
+  <script src="redrawfuncts.js"></script>
+  <script src="collectdata.js"></script>
+  <script>
+    // Initialize canvas and context
+    let count = 0;
+    const gridSize = 58;
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const backgroundCanvas = document.getElementById("backgroundCanvas");
+    const backgroundctx = backgroundCanvas.getContext("2d");
+    const movementctx = movementCanvas.getContext("2d");
+
+    // Initialize variables
+    let currentStroke = []; ///store latest stroke points (used as modifiers stroke)
+    let drawing = false;
+    let allStrokes = []; // Store all strokes drawn on the canvas
+    let modifiedGroups = {groups:[], label: -1, affectedBBox: {x: null, y: null, w: null, h:null}};
+    let allGroups = []; // Store all predicted groups with their color and highlight info
+
+    canvas.width = backgroundCanvas.width = movementCanvas.width = window.innerWidth;
+    canvas.height = backgroundCanvas.height = movementCanvas.height = 5000;
+    drawGrid(backgroundctx); // Draw grid on initialization
+
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawGrid(backgroundctx);
+      redrawAll();
+    });
+
+    // Draw functions
+    function drawGrid(ctx) {
+      //ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#eeeeee";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawLive(stroke) {
+      if (stroke.length < 2) return;
+      const i = stroke.length - 1;
+      ctx.beginPath();
+      ctx.lineWidth = stroke[i].p * 4;
+      ctx.strokeStyle = "black";
+      ctx.lineCap = "round";
+      ctx.moveTo(stroke[i - 1].x, stroke[i - 1].y);
+      ctx.lineTo(stroke[i].x, stroke[i].y);
+      ctx.stroke();
+    }
+
+    function drawStroke(stroke, color, widthFactor = 4, dash=false) {
+      // Set the dash pattern: [dash length, gap length]
+      if (dash) {
+        ctx.setLineDash([2, 5]); // Customize as needed
+      }
+
+      for (let i = 1; i < stroke.length; i++) {
+        ctx.beginPath();
+        ctx.lineWidth = stroke[i].p * widthFactor;
+        ctx.strokeStyle = color;
+        ctx.lineCap = "round";
+        ctx.moveTo(stroke[i - 1].x, stroke[i - 1].y);
+        ctx.lineTo(stroke[i].x, stroke[i].y);
+        ctx.stroke();
+      }
+
+      // Reset dash pattern to solid line after drawing
+      ctx.setLineDash([]);
+    }
+
+    function drawBox(box, color, label, dashed = false) {
+      ctx.strokeStyle = color;
+      ctx.setLineDash(dashed ? [6, 3] : []);
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.font = '200 48px "Mali"'; // Weight 700
+      ctx.fillText(label, box.x, box.y - 6);
+    }
+
+    function intersect(a, b) {
+      return !(b.x > a.x + a.w ||
+        b.x + b.w < a.x ||
+        b.y > a.y + a.h ||
+        b.y + b.h < a.y);
+    }
+
+    // Event listeners for drawing
+    document.addEventListener("pointerdown", (e) => {
+      drawing = true;
+      currentStroke = [{
+        x: e.offsetX,
+        y: e.offsetY,
+        //p: e.pressure || 0.5
+        p: 0.7
+      }];
+    });
+
+    const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
+    console.log("movement:", moveEvent);
+
+    document.addEventListener(moveEvent, (e) => {
+      if (drawing && e.pointerType == "pen") {
+        // Regular live drawing when not moving a group
+        currentStroke.push({
+          x: e.offsetX,
+          y: e.offsetY,
+          p: 0.7
+        });
+        drawLive(currentStroke);
+      }
+    });
+
+    document.addEventListener("pointerup", async (e) => {
+      if (dataMode && e.pointerType == "pen") {
+        count += 1; 
+        document.getElementById("count").innerText = "Count: " + count;
+        const type = document.getElementById("modType").value;
+        modifiers.push({
+          type,
+          stroke: currentStroke
+        });
+      }
+      drawing = false; 
+    });
+
+    dataMode = false; 
+    function toggleDataMode() {
+        if (dataMode){
+            const output = {
+                modifiers: modifiers,
+            };
+                dataMode = !dataMode;
+                const blob = new Blob([JSON.stringify(output, null, 2)], { type: "application/json" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "collected_stroke_data.json";
+                link.click();
+                URL.revokeObjectURL(link.href);
+        }
+        else {
+            console.log("started collecting data");
+        }
+        dataMode = !dataMode;
+    }
+
+//collect data
+modifiers = []
+
+
+
+  
+  </script>
+</body>
+
+</html>
