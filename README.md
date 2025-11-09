@@ -1,1 +1,2 @@
-# OnePen-HackUmass
+# OnePen
+
