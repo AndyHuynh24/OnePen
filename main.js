@@ -2065,35 +2065,35 @@ function showStatus(msg) {
 
 
 // ======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-(function () {
-  const penOverlay = document.createElement("img");
-  penOverlay.src = "cursor.png"; // your 945×1396 image
-  penOverlay.alt = "pen cursor";
-  penOverlay.style.position = "fixed";
-  penOverlay.style.height = "130px"; // scaled height
-  penOverlay.style.pointerEvents = "none";
-  penOverlay.style.zIndex = "999999";
-  penOverlay.style.display = "block";
+// (function () {
+//   const penOverlay = document.createElement("img");
+//   penOverlay.src = "cursor.png"; // your 945×1396 image
+//   penOverlay.alt = "pen cursor";
+//   penOverlay.style.position = "fixed";
+//   penOverlay.style.height = "130px"; // scaled height
+//   penOverlay.style.pointerEvents = "none";
+//   penOverlay.style.zIndex = "999999";
+//   penOverlay.style.display = "block";
 
-  // --- Top-left anchor: no transform needed ---
-  penOverlay.style.transform = "none";
-  document.body.appendChild(penOverlay);
+//   // --- Top-left anchor: no transform needed ---
+//   penOverlay.style.transform = "none";
+//   document.body.appendChild(penOverlay);
 
-  // --- Update position on move ---
-  const updateCursorPos = (e) => {
-    penOverlay.style.left = `${e.clientX}px`;
-    penOverlay.style.top = `${e.clientY}px`;
-  };
-  window.addEventListener("pointermove", updateCursorPos);
+//   // --- Update position on move ---
+//   const updateCursorPos = (e) => {
+//     penOverlay.style.left = `${e.clientX}px`;
+//     penOverlay.style.top = `${e.clientY}px`;
+//   };
+//   window.addEventListener("pointermove", updateCursorPos);
 
-  // --- Optional press feedback ---
-  window.addEventListener("pointerdown", () => {
-    penOverlay.style.transform = "scale(0.9)";
-  });
-  window.addEventListener("pointerup", () => {
-    penOverlay.style.transform = "scale(1)";
-  });
-})();
+//   // --- Optional press feedback ---
+//   window.addEventListener("pointerdown", () => {
+//     penOverlay.style.transform = "scale(0.9)";
+//   });
+//   window.addEventListener("pointerup", () => {
+//     penOverlay.style.transform = "scale(1)";
+//   });
+// })();
 
 // ======================= TOC BUTTON HANDLER ==========================
 const tocBtn = document.getElementById("tocBtn");
@@ -2345,3 +2345,4 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
 
   return canvas.toDataURL("image/png");
 }
+
