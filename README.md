@@ -43,7 +43,7 @@ Style your strokes, change colors, or trigger advanced actions — **all directl
 
 ## 🛠️ How We Built It  
 #### 📓 Model traiining notebook:
-See the full notebook here: [OnePen_Demo.ipynb](./OnePen_Demo.ipynb)
+See the full notebook here: [OnePen_Demo.ipynb](./FinalOnePenModelTraining.ipynb)
 
 We used:  
 - **Frontend:** Canvas-based custom rendering with zoom, pan, and HiDPI stylus support.  
