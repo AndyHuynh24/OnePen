@@ -1,21 +1,32 @@
-# OnePen
-“Write it. Erase it. Shape it. Create it.— no clicks, no limits, just flow. OnePen understands your writing, your intent, and your rhythm — so you can focus on ideas, not buttons.
+# 🖊️ OnePen  
 
-###What is it?
-Switching tools breaks the flow.
+> “Write it. Erase it. Shape it. Create it — no clicks, no limits, just flow.”  
+> OnePen understands your writing, your intent, and your rhythm — so you can focus on ideas, not buttons.
 
-To make a title, highlight, or draw a box, we stop writing, reach for a toolbar, then return — again and again.
-It’s a small step that, repeated hundreds of times, disrupts thought and creativity.
+---
 
-Note-taking should feel as natural as paper — only smarter. That's why you need OnePen. 
+## 💡 What is it?
+
+Switching tools breaks the flow.  
+
+To make a title, highlight, or draw a box, we stop writing, reach for a toolbar, then return — again and again.  
+It’s a small step that, repeated hundreds of times, disrupts thought and creativity.  
+
+Note-taking should feel as natural as paper — only smarter.  
+That’s why you need **OnePen**.  
 
 **OnePen** is a handwriting-based note-taking web app that uses **AI stroke recognition** to let you write, format, and organize without ever touching a toolbar.  
 You can change colors, thickness, visibility, or even trigger advanced actions — all directly through how you write.
-### Demo and Demonstration
 
-https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b
+---
 
-### 🧠 Key Features
+## 🎥 Demo and Demonstration  
+
+[▶️ Watch Demo](https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b)
+
+---
+
+## 🧠 Key Features  
 
 | Feature | Description |
 |----------|--------------|
@@ -31,12 +42,12 @@ https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b
 
 ---
 
-## 🛠️ How we built it
+## 🛠️ How We Built It  
 
-We used:
+We used:  
 - **Frontend:** Canvas-based custom rendering with zoom, pan, and HiDPI stylus support.  
 - **AI Engine:** TensorFlow.js hybrid model combining image and geometric stroke features.  
 - **Backend:** Flask server with Pix2Text integration and Google Drive API for sync.  
-- **Storage:** IndexedDB for local autosave and persistent settings, synced via JSON to Drive.
+- **Storage:** IndexedDB for local autosave and persistent settings, synced via JSON to Drive.  
 
 ---
