@@ -1,31 +1,35 @@
 
-//Default parameters 
-
-
+//----Default parameters----- 
 //parametesr for scaling
 let scale = 1; // default scale
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4.0;
-//parameters for backgroundf
+
+//parameters for background
 let backgroundColor = 'rgba(32,31,30, 1)';
 let gridlineColor = 'rgba(21,59,87, 1)';
-let viewportOffset = { x: 0, y: 0 }; // default viewport offset
 let gridSize = 58; // default grid size
+
+//parameters for live drawing
 let currentStroke = []; 
 let drawing = false;
 let drawingLock = false;
-let defaultPenColor = 'rgba(255, 255, 255, 1)'; // default pen color
+let id_count = 0; // Unique ID for each group
+let normalHeight = 29;
+let allGroups = [];
+let pastGroups = [];
+let redoGroups = [];
+let title = null;
+
+//parameters for viewport offset
+let viewportOffset = { x: 0, y: 0 }; // default viewport offset
+//screenbox is the coordinate of the rectangle of the viewport
 let screenBox = {
     x: viewportOffset.x,
     y: viewportOffset.y,
     w: window.innerWidth,
     h: window.innerHeight
 };
-let id_count = 0; // Unique ID for each group
-let normalHeight = 29;
-let allGroups = [];
-let pastGroups = [];
-let redoGroups = [];
 
 //parameters for moving
 let movingToggle = false; // Toggle for moving mode
@@ -33,13 +37,20 @@ let dx_record = 0;
 let dy_record = 0;
 let movingColor = null;
 
-//parameters for scrollilng:
+//parameters for scrolling:
 let panningLimit = {left: 0, right:-1, top: 0, bottom: -1}
 let isPanning = false;
 let panStart = { x: 0, y: 0 };
 let isScrollingX = false;
 let isScrollingY = false;
 let lockedAxis = null; // 'x', 'y', or null
+
+let velocity = { x: 0, y: 0 };
+let lastPanPos = { x: 0, y: 0 };
+let lastPanTime = 0;
+let momentumActive = false;
+const friction = 0.92;
+const minVelocity = 0.3;
 
 //parameters for toolbox
 let isClosingToolbox = false;
@@ -49,6 +60,8 @@ const toggleBtn = nav.querySelector(".toggle-btn");
 
 let toolLinks = nav.querySelectorAll("span a");
 let pointerDownForToolbox = false;
+
+//parameters for detecting holds/movement
 let lastPointerX = null;
 let lastPointerY = null;
 let totalMovement = 0;
@@ -65,7 +78,6 @@ let thumbHeight = null;
 let countdownSeconds = 1; // countdown duration
 let remaining = countdownSeconds;
 let timer = null;
-
 
 //parameters for eraser
 let eraserMode = false;
@@ -87,6 +99,7 @@ let shapeMode = false;
 let shapeStartX = null;
 let shapeStartY = null;
 let predictedShape = -1;
+
 //paraemeters for pens
 // -1: normal 
 // 0: underline f
@@ -117,6 +130,9 @@ const indexToLabel = {
   11: 'none', 
   12: 'none'
 };
+
+//parameters for tools/colors setting
+let defaultPenColor = 'rgba(255, 255, 255, 1)'; // default pen color
 let colors = [defaultPenColor, //underline 
             'rgba(255,182,255,1)', //box  
             'rgba(250,110,110,1)', //curly
@@ -143,12 +159,50 @@ let colorTools = null;
 let underlineTools = null;
 let boxTools = null; 
 
+//parameters for google sync
 const accessToken = localStorage.getItem("accessToken");
 const userEmail = localStorage.getItem("userEmail");
 const userName = localStorage.getItem("userName");
 
-//Check function 
+//parameters for canvas
+const canvasGroup = document.querySelector(".canvasGroup");
+const liveCanvas = document.getElementById("liveCanvas");
+const drawCanvas = document.getElementById("drawCanvas");
+const backgroundCanvas = document.getElementById("backgroundCanvas");
 
+let drawCtx = setupHiDPICanvas(drawCanvas);
+let liveCtx = setupHiDPICanvas(liveCanvas);
+let backgroundCtx = setupHiDPICanvas(backgroundCanvas);
+
+//Check function 
+const penColors = {
+    "pen9": "#ffb6ff"
+}
+
+//-----------functions for stickynotes and hyperlink---------
+function flashStickyNote(note) {
+  const originalColor = note.color;
+  note.color = "#FFD700"; // highlight gold
+  reDrawAll(drawCtx);
+
+  setTimeout(() => {
+    note.color = originalColor;
+    reDrawAll(drawCtx);
+  }, 200);
+}
+
+function flashLink(link) {
+  const originalColor = link.color;
+  link.color = "#00b7ff";
+  reDrawAll(drawCtx);
+
+  setTimeout(() => {
+    link.color = originalColor;
+    reDrawAll(drawCtx);
+  }, 200);
+}
+
+//-----functions for toolbox------
 function assignToolBox() {
     colorTools = [
         { icon: 'bx-eraser', label: 'eraser', color: 'rgba(237, 235, 233, 1)' },
@@ -169,7 +223,9 @@ function assignToolBox() {
         { icon: 'bx-capitalize', label: 'title2', color: modifiers.title2.color},
         { icon: 'bx-highlight', label: 'highlight2', color: hexToRgb(modifiers.highlight2.color)},
         { icon: 'bx-highlight', label: 'highlight3', color: hexToRgb(modifiers.highlight3.color) },
-        { icon: 'bx-bold', label: 'bold'}
+        { icon: 'bx-bold', label: 'bold1', color: 'none'},
+        { icon: 'bx-bold', label: 'bold2', color: modifiers.curly.color},
+        { icon: 'bx-pen', label: 'pen9', color: modifiers.box.color}
     ];
 
     boxTools = [
@@ -180,9 +236,11 @@ function assignToolBox() {
         { icon: 'bx-paste', label: 'paste' },
         { icon: 'bx-sticker', label: 'stickynote'}, 
         { icon: 'bx-link-break', label: 'link' }, 
-        { icon: 'bx-bold', label: 'bold'}
+        { icon: 'bx-bold', label: 'bold'},
     ];
 }
+
+//------functions for detect strokes groups--------
 function getBoundingBox(stroke) {
     const xs = stroke.map(p => p.x);
     const ys = stroke.map(p => p.y);
@@ -253,6 +311,7 @@ function strokesIntersect(strokeA, strokeB) {
     return strokeCount;
 }
 
+
 function isPointInBox(point, box) {
   return (
     point.x >= box.x &&
@@ -261,88 +320,58 @@ function isPointInBox(point, box) {
     point.y <= box.y + box.h
   );
 }
+ 
+function isSBoxInLBox(sBox, lBox) {
+    return sBox.x >= lBox.x &&
+            sBox.x + sBox.w <= lBox.x + lBox.w &&
+            sBox.y >= lBox.y &&
+            sBox.y + sBox.h <= lBox.y + lBox.h;
+}
 
 function isInside(stroke, modifier) {
-    const segmentBoxes = sliceStroke(modifier);
-
-    return stroke.every(point => {
-        return segmentBoxes.some(box => isPointInBox(point, box));
-    });
+  const segmentBoxes = sliceStroke(modifier);
+  return stroke.every(point =>
+    segmentBoxes.some(box => isPointInBox(point, box))
+  );
 }
 
-function flashStickyNote(note) {
-  const originalColor = note.color;
-  note.color = "#FFD700"; // highlight gold
-  reDrawAll(drawCtx);
-
-  setTimeout(() => {
-    note.color = originalColor;
-    reDrawAll(drawCtx);
-  }, 200);
-}
-
-function flashLink(link) {
-  const originalColor = link.color;
-  link.color = "#00b7ff";
-  reDrawAll(drawCtx);
-
-  setTimeout(() => {
-    link.color = originalColor;
-    reDrawAll(drawCtx);
-  }, 200);
-}
-
-
-function sliceStroke(stroke, sliceHeight=40) {
-    box = getBoundingBox(stroke);
-
-    const numSlices = Math.ceil(box.h/sliceHeight);
-
-    const y1 = box.y; 
-
-    const slices = [];
-    for (let i = 0; i < numSlices; i++) {
-        const top = y1 + i * sliceHeight;
-        let bottom = top + sliceHeight;
-
-        if (i+1 == numSlices) {
-            bottom = box.y + box.h;
-        }
-
-        const slice = stroke.filter(p => p.y >= top && p.y < bottom);
-
-        const xs = slice.map(p => p.x);
-        const sliceBox = {
-            x: Math.min(...xs), 
-            y: top, 
-            w: Math.max(...xs) - Math.min(...xs), 
-            h: bottom - top,
-        }
-
-        slices.push(sliceBox);
-        //drawBox(sliceBox, "gray", "", false, liveCtx);
+function sliceStroke(stroke, sliceHeight = 25) {
+  const box = getBoundingBox(stroke);
+  const numSlices = Math.ceil(box.h / sliceHeight);
+  const slices = [];
+  for (let i = 0; i < numSlices; i++) {
+    const top = box.y + i * sliceHeight;
+    const bottom = (i + 1 === numSlices) ? box.y + box.h : top + sliceHeight;
+    const slicePoints = stroke.filter(p => p.y >= top && p.y < bottom);
+    if (slicePoints.length === 0) continue;
+    const xs = slicePoints.map(p => p.x);
+    const sliceBox = {
+        x: Math.min(...xs), 
+        y: top, 
+        w: Math.max(...xs) - Math.min(...xs), 
+        h: bottom - top,
     }
-
-    console.log("slices", slices);
-
-    return slices;
+    slices.push({ x: Math.min(...xs), y: top, w: Math.max(...xs) - Math.min(...xs), h: bottom - top });
+    //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
 }
+  return slices;
+}
+
 
 async function classifyStroke(stroke, hold = false) {
     let modifiedGroups = [];
     let intersectGroups = [];
     let intersectPointsCount = 0;
-    let newGroups = [];
     let shownModifier = true;
-    let tempVar = true;
     let predictedLabel = -1;
 
+    //for underline
     const newBox = getBoundingBox(stroke);
     let maxY = 100000;
     let minY = newBox.y + newBox.h - normalHeight * 0.55;
-    
     const wideenough = (newBox.w > 30) || (newBox.h > 52 );
 
+    //normal stroke
     if (!wideenough) {
         const modifier = {
             id: id_count ++, // Unique ID for the group
@@ -367,17 +396,16 @@ async function classifyStroke(stroke, hold = false) {
         }
     }
 
+    //
     let activeGroupsCount = 0
     for (const group of allGroups) {
-        if (!group.bbox || !intersect(group.bbox, screenBox) || !group?.stroke) continue;
+        //only proceed with Groups that are in screenbox/visible and have stroke.
+        if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || !group?.stroke) continue;
         activeGroupsCount++;
 
         if (group.predictedLabel <= 7 && group.predictedLabel != 3) {
             const box = group.bbox;
             const isBBoxIntersecting = intersect(newBox, box);
-            
-            //console.log('strokecount', strokesIntersect(currentStroke, group.stroke));
-            //const strokeIntersects = isBBoxIntersecting && strokesIntersect(currentStroke, group.stroke);
 
             if (isBBoxIntersecting) {
                 intersectPointsCount += strokesIntersect(currentStroke, group.stroke);
@@ -386,16 +414,10 @@ async function classifyStroke(stroke, hold = false) {
                 }
             }
 
-            // const inside = isBBoxIntersecting &&
-            //     group.stroke.every(p =>
-            //         p.x >= newBox.x && p.x <= newBox.x + newBox.w &&
-            //         p.y >= newBox.y && p.y <= newBox.y + newBox.h
-            //     );
-
-            const inside = isInside(group.stroke, currentStroke);
-
-            if (inside) {
+            //check if inside box
+            if (isInside(group.stroke, currentStroke)) {
                 modifiedGroups.push(group);
+            //else set maxY to detect underline for later on
             } else {
                 if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, newBox.y);
                     const withinBand = (box.y + box.h) > maxY;
@@ -410,38 +432,35 @@ async function classifyStroke(stroke, hold = false) {
         } 
     }
 
-    console.log('activeGroups',activeGroupsCount);
-    console.log("intersect groups", intersectGroups);
-    console.log("intersect count", intersectPointsCount);
+    // console.log('activeGroups',activeGroupsCount);
+    // console.log("intersect groups", intersectGroups);
+    // console.log("intersect count", intersectPointsCount);
 
-    const continueCheck = modifiedGroups.length <= 2;
+    //only continue underline and delete check if there isn't more than
+    //2 stroke inside the current modifer
+    const continueCheck = modifiedGroups.length <= 2 || intersectGroups.length >= 2;
 
-    if (continueCheck || intersectGroups.length >= 2) {
+    if (continueCheck) {
         const latestbox = {
-            x: newBox.x - 16,
-            y: maxY - 10,
-            w: newBox.w + 16,
-            h: minY - maxY + 20
+            x: newBox.x - 14,
+            y: maxY - 8,
+            w: newBox.w + 14,
+            h: minY - maxY + 18
         }
-        //drawBox(latestbox, 'rgba(255, 0, 0, 0.5)', 'Modifier', true, drawCtx);
+        //drawBox(latestbox, 'rgba(255, 0, 0, 0.5)', 'Modifier', true, backgroundCtx);
         for (const group of allGroups) {
             if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox)) continue;
-            if (tempVar) {
-                const box = group.bbox;
-                const insidelatestbox =
-                    box.x >= latestbox.x &&
-                    box.x + box.w <= latestbox.x + latestbox.w &&
-                    box.y >= latestbox.y &&
-                    box.y + box.h <= latestbox.y + latestbox.h;
-                if (insidelatestbox && !modifiedGroups.some(element => element.bbox === group.bbox)){
-                    modifiedGroups.push(group);
-                }
+                    
+            const box = group.bbox;
+            const insidelatestbox = isSBoxInLBox(box, latestbox);
+            if (insidelatestbox && !modifiedGroups.some(element => element.bbox === group.bbox)){
+                modifiedGroups.push(group);
             }
         }
     }
 
     if (modifiedGroups.length >= 3 || intersectPointsCount >= 4)  {
-        imgData = extractImageData(stroke);
+        imgData = extractImageData(stroke, 136);
         // Preview
         const viewerCanvas = document.getElementById('viewer');
         const viewerCtx = viewerCanvas.getContext('2d');
@@ -491,9 +510,19 @@ async function classifyStroke(stroke, hold = false) {
     if (predictedLabel != 3) {
         allGroups.push(modifier);
         modifiedGroups.push(modifier);
-    } else {
-        newGroups.push(modifier);
-    }
+    } 
+    //recalculate modified groups for delete
+    else {
+        modifiedGroups = [];
+        for (const group of allGroups) {
+            if (!group.bbox || !intersect(group.bbox, screenBox)) continue;
+            const box = group.bbox;
+            const insideNewBox = isSBoxInLBox(box, newBox);
+            if (insideNewBox || intersect(box, newBox)){
+                modifiedGroups.push(group);
+            }
+        }
+    } 
 
     //save changes to pastgroups
     if (predictedLabel == 1 || predictedLabel == 2 || predictedLabel == 4 || predictedLabel == 5 || predictedLabel == 6) {
@@ -530,7 +559,9 @@ async function classifyStroke(stroke, hold = false) {
         if (predictedLabel === 3) {
             allGroups.splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == 1 || predictedLabel == 2 || predictedLabel == 4 || predictedLabel == 5 || predictedLabel == 6) {
-            group.color = color; 
+            if (group.predictedLabel != 7) {
+                group.color = color;    
+            }
         }
     }
 
@@ -543,24 +574,19 @@ async function classifyStroke(stroke, hold = false) {
     return {
         modifiedGroups,
         predictedLabel,
-        newGroups,
         modifier,
     }
 }
 
-const canvasGroup = document.querySelector(".canvasGroup");
-const liveCanvas = document.getElementById("liveCanvas");
-const drawCanvas = document.getElementById("drawCanvas");
-const backgroundCanvas = document.getElementById("backgroundCanvas");
-
 const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     if (e.pointerType == 'touch') return;
+    //updat toolbox
     assignToolBox();
     modifiedGroups = await classifyStroke(currentStroke, true);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     drawing = false; 
-    console.log("Pointer hold detected! Classifying stroke...", modifiedGroups.modifiedGroups);
 
+    console.log("Pointer hold detected! Classifying stroke...", modifiedGroups.modifiedGroups);
 
     //console.log("Pointer held for 0.7 seconds!", e);
     if (modifiedGroups.predictedLabel == -1 || modifiedGroups.predictedLabel == 4 || modifiedGroups.predictedLabel == 2 || modifiedGroups.predictedLabel == 6 || modifiedGroups.predictedLabel == 5) {
@@ -572,32 +598,17 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     }
     
     pointerDownForToolbox = true; 
-
     isPointerInside = true;
 
     shapeHoldTimer = setTimeout(() => {
         if (isPointerInside) {
             hideToolbox();
             toggleShape(e);
-        // your hold logic here (e.g., show toolbox)
         }
-    }, 700); // 0.5s hold
+    }, 700); 
 });
 
-let title = null;
-
-let drawCtx = setupHiDPICanvas(drawCanvas);
-let liveCtx = setupHiDPICanvas(liveCanvas);
-let backgroundCtx = setupHiDPICanvas(backgroundCanvas);
-
-let velocity = { x: 0, y: 0 };
-let lastPanPos = { x: 0, y: 0 };
-let lastPanTime = 0;
-let momentumActive = false;
-const friction = 0.92;
-const minVelocity = 0.3;
-
-
+//---App start up function---
 window.addEventListener('beforeunload', (event) => {
     // Your function or logic here
     if (title) {
@@ -640,9 +651,9 @@ window.onload = async () => {
         console.log(lastSaveNote?.scale);
         if (lastSaveNote) {
             pathSegments = lastSaveNote.path.split('/');
-            viewportOffset = lastSaveNote.viewportOffset;
-            screenBox.x = viewportOffset.x;
-            screenBox.y = viewportOffset.y;
+            //viewportOffset = lastSaveNote.viewportOffset;
+            // screenBox.x = viewportOffset.x;
+            // screenBox.y = viewportOffset.y;
             //scale = lastSaveNote.scale;
             title = lastSaveNote.path;
             
@@ -703,30 +714,25 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
-    let selectedImage = null;
-    let isImageDragging = false;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
-
     canvasGroup.addEventListener("pointerdown", (e) => {
         const pos = toCanvasCoords(e);
 
         currentStroke = [];
         e.preventDefault();
+
         // Reset movement tracking
         lastPointerX = e.offsetX/scale;
         lastPointerY = e.offsetY/scale;
         totalMovement = 0;
 
         // === 🟨 Sticky Note / 🔗 Link Click Detection ===
-        {
         const worldX = (e.offsetX / scale) + viewportOffset.x;
         const worldY = (e.offsetY / scale) + viewportOffset.y;
 
         // One pass through allGroups for both link and stickynote
         const clicked = allGroups.find(
             (g) =>
-            (g.type === "stickynote" || g.type === "link") &&
+            (g?.type === "stickynote" || g?.type === "link") &&
             g.visibility !== false &&
             g.bbox &&
             worldX >= g.bbox.x &&
@@ -750,10 +756,8 @@ window.onload = async () => {
 
             return; // Prevents other canvas actions
         }
-        }
 
-
-
+        //for scrolling
         if (((e.shiftKey && e.pointerType === "mouse") || (e.pointerType === "touch"))) {
             isPanning = true;
             momentumActive = false; // Stop any ongoing momentum
@@ -793,17 +797,6 @@ window.onload = async () => {
     console.log("movement:", moveEvent);
 
     canvasGroup.addEventListener(moveEvent, (e) => {
-        if (isImageDragging && selectedImage) {
-            const pos = toCanvasCoords(e);
-
-            selectedImage.x = pos.x - dragOffsetX;
-            selectedImage.y = pos.y - dragOffsetY;
-
-            reDrawAll(drawCtx);
-            e.preventDefault();
-            return;
-        }
-
         // Check if the pointer has moved significantly
         const movement_dx = e.offsetX/scale - lastPointerX;
         const movement_dy = e.offsetY/scale - lastPointerY;
@@ -908,8 +901,6 @@ window.onload = async () => {
             drawShape(liveCtx, e);
         }
         else if (movingToggle) {
-            // let moveStartX;
-            // let moveStartY;
             let dx = 0;
             let dy = 0;
             
@@ -967,12 +958,6 @@ window.onload = async () => {
     });
 
     canvasGroup.addEventListener("pointerup", (e) => {
-        if (isImageDragging) {
-            isImageDragging = false;
-            selectedImage = null;
-            e.preventDefault();
-            return;
-        }
         if (isPanning) {
             isPanning = false;
 
@@ -996,10 +981,6 @@ window.onload = async () => {
                 modifiedGroups: modifiedGroups.modifiedGroups,
             };
             pastGroups.push(change);
-
-            modifiedGroups.modifiedGroups.forEach(group => {
-                group.color = movingColor; // Set to white
-            });
 
             dx_record = 0;
             dy_record = 0;  
@@ -1127,7 +1108,7 @@ window.onload = async () => {
     });
 
     modifiers = {
-        title1: {color: '#ffa052', visibility: false}, 
+        title1: {color: '#ffa052', visibility: true}, 
         title2: {color: '#f4c64a', visibility: true}, 
         highlight1: {color: '#ffff00', visibility: true}, // red
         highlight2: {color: '#ffff00', visibility: true}, // green
@@ -1187,6 +1168,7 @@ window.onload = async () => {
     // });  
 }
 
+//---UI update function---
 function updateScaleIndicator() {
     const percent = Math.round(scale * 100);
     document.getElementById("scaleIndicator").textContent = `Zoom: ${percent}%`;
@@ -1276,15 +1258,63 @@ function applyMomentum() {
     requestAnimationFrame(step);
 }
 
+//------scroll bar---------
+function updateScrollbar() {
+    const maxScroll = contentHeight - viewportHeight;
+    const maxThumb = viewportHeight * 0.86 - thumbHeight;
+
+    //convert viewportoffset.y to thumb position
+    const scrollRatio = viewportOffset.y/maxScroll;
+
+    //console.log("thumb height top", scrollRatio * maxThumb+thumbHeight);
+
+    if (((scrollRatio * maxThumb) + thumbHeight) >= viewportHeight * 0.86) {
+        console.log('end of scroill');
+        lockScroll = true;
+    } else {
+        lockScroll = false;
+    }
+
+    thumb.style.top = scrollRatio * maxThumb + "px";
+}
+
+
+function startScrollBarCountdown() {
+
+    // Reset countdown
+    remaining = countdownSeconds;
+
+
+    // Clear any old timer
+    if (timer) clearInterval(timer);
+
+    // Start new timer
+    timer = setInterval(() => {
+    remaining--;
+    if (remaining > 0) {
+
+    } else {
+        scrollbar.style.display = "none"; // hide scrollbar
+        clearInterval(timer);
+        timer = null;
+    }
+    }, 1000);
+}
+
 function executeTool(selectedTool, isShortcut) {
-    if (selectedTool.includes("pen")) {
+    if (selectedTool == 'pen9') {
+        allGroups.pop();
+        modifiedGroups.modifiedGroups.pop();
+        modifiedGroups.modifiedGroups.forEach(group => {
+            group.color = penColors[selectedTool];
+        });
+    }
+    else if (selectedTool.includes("pen")) {
         eraserMode = false; 
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
         let lastChar = selectedTool.charAt(selectedTool.length - 1);
         let lastNum = parseInt(lastChar); 
-
-        console.log(lastNum);
 
         if (isShortcut) {
             modifiedGroups.modifiedGroups.forEach(group => {
@@ -1320,12 +1350,19 @@ function executeTool(selectedTool, isShortcut) {
         allGroups.pop();
         selectHighlight(modifiers.highlight3.color);
     } 
-    else if (selectedTool == "bold") {
+    else if (selectedTool.includes('bold')) {
+        let lastChar = selectedTool.charAt(selectedTool.length - 1);
+        let lastNum = parseInt(lastChar); 
+
         allGroups.pop();
         modifiedGroups.modifiedGroups.forEach(group => {
             group.titleStatus = true;
             //group.color = 'pink';
-            group.color = alterRgbaBrightness(group.color);
+            if (underlineTools[lastNum + 3].color == 'none') {
+                group.color = alterRgbaBrightness(group.color);
+            } else {
+                group.color = underlineTools[lastNum + 3].color;
+            }
         });
     }
     else if (selectedTool == "title1") {
@@ -1338,9 +1375,9 @@ function executeTool(selectedTool, isShortcut) {
         allGroups.pop();
         modifiedGroups.modifiedGroups.pop();
         movingColor = modifiedGroups.modifiedGroups[0].color;
-        modifiedGroups.modifiedGroups.forEach(group => {
-            group.color = 'lightgray'; // Set to white
-        });
+        // modifiedGroups.modifiedGroups.forEach(group => {
+        //     group.color = 'lightgray'; // Set to white
+        // });
         movingToggle = true;
     }
     else if (selectedTool == "eraser") {
@@ -1701,52 +1738,9 @@ async function exportCanvasToPDF(allGroups, mode = "continuous", penColor = "#00
     }
 }
 
-
-//------scroll bar---------
-function updateScrollbar() {
-    const maxScroll = contentHeight - viewportHeight;
-    const maxThumb = viewportHeight * 0.86 - thumbHeight;
-
-    //convert viewportoffset.y to thumb position
-    const scrollRatio = viewportOffset.y/maxScroll;
-
-     console.log("thumb height top", scrollRatio * maxThumb+thumbHeight);
-
-    if (((scrollRatio * maxThumb) + thumbHeight) >= viewportHeight * 0.86) {
-        console.log('end of scroill');
-        lockScroll = true;
-    } else {
-        lockScroll = false;
-    }
-
-    thumb.style.top = scrollRatio * maxThumb + "px";
-}
-
-
-function startScrollBarCountdown() {
-
-    // Reset countdown
-    remaining = countdownSeconds;
-
-
-    // Clear any old timer
-    if (timer) clearInterval(timer);
-
-    // Start new timer
-    timer = setInterval(() => {
-    remaining--;
-    if (remaining > 0) {
-
-    } else {
-        scrollbar.style.display = "none"; // hide scrollbar
-        clearInterval(timer);
-        timer = null;
-    }
-    }, 1000);
-}
 // =============== SMART SUMMARIZE FEATURE ===================
 document.getElementById("sendToTotalBtn").onclick = () => {
-  if (!selectedFolder) return alert("⚠️ Hãy chọn folder trước.");
+  if (!selectedFolder) return alert("Please choose a folder first");
   showSummarizePopup();
 };
 
@@ -1788,8 +1782,8 @@ function showSummarizePopup() {
       <input id="chkBox" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Boxes
     </label>
     <div style="text-align:center;margin-top:10px;">
-      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer;">Start</button>
-      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer;">Cancel</button>
+      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Start</button>
+      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Cancel</button>
     </div>
   `;
 
@@ -2014,37 +2008,6 @@ function translateGroup(group, dx, dy) {
 
 }
 
-function isPointInBox(point, box) {
-  return (
-    point.x >= box.x &&
-    point.x <= box.x + box.w &&
-    point.y >= box.y &&
-    point.y <= box.y + box.h
-  );
-}
-
-function isInside(stroke, modifier) {
-  const segmentBoxes = sliceStroke(modifier);
-  return stroke.every(point =>
-    segmentBoxes.some(box => isPointInBox(point, box))
-  );
-}
-
-function sliceStroke(stroke, sliceHeight = 40) {
-  const box = getBoundingBox(stroke);
-  const numSlices = Math.ceil(box.h / sliceHeight);
-  const slices = [];
-  for (let i = 0; i < numSlices; i++) {
-    const top = box.y + i * sliceHeight;
-    const bottom = (i + 1 === numSlices) ? box.y + box.h : top + sliceHeight;
-    const slicePoints = stroke.filter(p => p.y >= top && p.y < bottom);
-    if (slicePoints.length === 0) continue;
-    const xs = slicePoints.map(p => p.x);
-    slices.push({ x: Math.min(...xs), y: top, w: Math.max(...xs) - Math.min(...xs), h: bottom - top });
-  }
-  return slices;
-}
-
 function showStatus(msg) {
   console.log("📢", msg);
   const div = document.createElement("div");
@@ -2065,35 +2028,7 @@ function showStatus(msg) {
 
 
 // ======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-// (function () {
-//   const penOverlay = document.createElement("img");
-//   penOverlay.src = "cursor.png"; // your 945×1396 image
-//   penOverlay.alt = "pen cursor";
-//   penOverlay.style.position = "fixed";
-//   penOverlay.style.height = "130px"; // scaled height
-//   penOverlay.style.pointerEvents = "none";
-//   penOverlay.style.zIndex = "999999";
-//   penOverlay.style.display = "block";
 
-//   // --- Top-left anchor: no transform needed ---
-//   penOverlay.style.transform = "none";
-//   document.body.appendChild(penOverlay);
-
-//   // --- Update position on move ---
-//   const updateCursorPos = (e) => {
-//     penOverlay.style.left = `${e.clientX}px`;
-//     penOverlay.style.top = `${e.clientY}px`;
-//   };
-//   window.addEventListener("pointermove", updateCursorPos);
-
-//   // --- Optional press feedback ---
-//   window.addEventListener("pointerdown", () => {
-//     penOverlay.style.transform = "scale(0.9)";
-//   });
-//   window.addEventListener("pointerup", () => {
-//     penOverlay.style.transform = "scale(1)";
-//   });
-// })();
 
 // ======================= TOC BUTTON HANDLER ==========================
 const tocBtn = document.getElementById("tocBtn");
@@ -2345,4 +2280,3 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
 
   return canvas.toDataURL("image/png");
 }
-

@@ -15,6 +15,7 @@ function setupHiDPICanvas(canvas) {
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0); // apply scale
     return ctx;
 };
+
 //get draw coordinates according to viewport offset and scale
 function toCanvasCoords(e) {
     return {
@@ -61,6 +62,7 @@ function drawGrid(ctx) {
 
     ctx.restore();
 }
+
 function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
     drawctx.save();
     //liveCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -74,6 +76,7 @@ function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
     drawctx.fillText(label, box.x, box.y - 6);
     drawctx.restore();
 }
+
 function detectEdgeOfPointInBBox(shapeStartX, shapeStartY, bbox) {
     const { x, y, width, height } = bbox;
 
@@ -941,12 +944,11 @@ function showToolbox(x, y, tools) {
 
     pointerDownForToolbox = true; 
 }
-function extractImageData(inputStroke) {
+function extractImageData(inputStroke, imgSize = 136) {
   if (!inputStroke || inputStroke.length <= 0) {
     return -1;
   }
 
-  const imgSize = 136; // Target image size for model
   const lineWidth = 3;
   const margin = lineWidth; // ✅ same as Python version
 
