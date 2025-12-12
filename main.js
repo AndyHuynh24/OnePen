@@ -174,6 +174,8 @@ let drawCtx = setupHiDPICanvas(drawCanvas);
 let liveCtx = setupHiDPICanvas(liveCanvas);
 let backgroundCtx = setupHiDPICanvas(backgroundCanvas);
 
+let isDetectionOn = true;
+
 //Check function 
 const penColors = {
     "pen9": "#ffb6ff"
@@ -372,7 +374,7 @@ async function classifyStroke(stroke, hold = false) {
     const wideenough = (newBox.w > 30) || (newBox.h > 52 );
 
     //normal stroke
-    if (!wideenough) {
+    if (!wideenough || !isDetectionOn) {
         const modifier = {
             id: id_count ++, // Unique ID for the group
             stroke: currentStroke, //strokes data
@@ -1615,6 +1617,18 @@ function toggleViewer() {
 function toggleSetting() {
   document.getElementById('settings-wrapper').classList.toggle('show');
 }
+
+function toggleDetection() {
+    isDetectionOn = !isDetectionOn;
+    if (isDetectionOn) {
+        document.querySelector(".aiText").innerHTML = "AI ON"
+    }else {
+        document.querySelector(".aiText").innerHTML = "AI OFF"
+    }
+    console.log("detection:", isDetectionOn);
+    
+}
+
 async function exportCanvasToPDF(allGroups, mode = "continuous", penColor = "#000") {
     const { jsPDF } = window.jspdf;
 
