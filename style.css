@@ -572,7 +572,13 @@ body {
     overflow: hidden;
     margin: 0;
     background-color: transparent;
-    border: none;
+    
+    /* add border */
+    border: 1.5px solid #dcdcdc;
+    margin-bottom: 1px;
+    font-family: 'Mali';
+    border-radius: 6px;
+
     font-family: 'Mali';
     border-radius: 6px;
     /* border: 2px lightgray dashed; */
@@ -583,12 +589,24 @@ body {
 }
 .note-button::after {
     position: absolute;
-    content: "....................................................................................................................................................";
+    /* content: "...................................................................................................................................................."; */
     flex-grow: 1;
     margin-left: 2px;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: clip;
+}
+
+.note-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+}
+
+.note-button .note-date {
+  opacity: 0.55;
+  font-size: 12px;
 }
 
 .subnote-container {
