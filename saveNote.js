@@ -39,22 +39,26 @@ function renderAllNotes() {
 }
 
 function saveNote(path, content) {
+
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
     const store = tx.objectStore("notes");
 
-    store.put({
-      path: path,
-      content: content,
-      created_at: new Date().toISOString()
-    });
+    const getReq = store.get(path);
+    getReq.onsuccess = () => {
+      const existing = getReq.result || {};
+
+      store.put({
+        ...existing,
+        path,
+        content,                     // ✅ chỉ update nội dung
+        created_at: existing.created_at || new Date().toISOString() 
+        // ✅ nếu note chưa có created_at (thích hợp cho file cũ) thì thêm
+      });
+    };
 
     tx.oncomplete = () => {
       console.log("✅ Note saved:", path);
-      done();
-    };
-    tx.onerror = () => {
-      console.error("❌ Failed to save note:", path);
       done();
     };
   });
@@ -215,28 +219,67 @@ function promptNewNote(folderName) {
   if (!noteName || !folderName) return;
 
   const fullPath = `${folderName}/${noteName}.json`;
-  saveNote(fullPath);
-  title = fullPath;
-  allGroups = [];
-  viewportOffset = { x: 0, y: 0 }; 
-  reDrawAll(drawCtx);
-  noteButton = createSubnoteButton(noteName, folderName);
-  loadNoteOnBtn(title, noteButton);
+  
+  openNoteDB((db, done) => {
+    const tx = db.transaction("notes", "readwrite");
+    const store = tx.objectStore("notes");
+
+    store.put({
+      path: fullPath,
+      content: [],
+      created_at: new Date().toISOString()   // ✅ Lưu ngày tạo chỉ 1 lần
+    });
+
+    tx.oncomplete = () => {
+      title = fullPath;
+      allGroups = [];
+      viewportOffset = { x: 0, y: 0 };
+      reDrawAll(drawCtx);
+      const noteButton = createSubnoteButton(noteName, folderName);
+      loadNoteOnBtn(title, noteButton);
+      done();
+    };
+
+    tx.onerror = () => {
+      console.error("❌ Failed to create note:", fullPath);
+      done();
+    };
+  });
 }
 
 
 function createSubnoteButton(noteName, folderName) {
   const fullPath = folderName ? `${folderName}/${noteName}.json` : noteName;
-  const noteText = fullPath.split('/')[1].replace('.json', '');
+  
+  openNoteDB((db, done) => {
+    const tx = db.transaction("notes", "readonly");
+    const store = tx.objectStore("notes");
+    const req = store.get(fullPath);
 
-  const noteButton = document.createElement('button');
-  noteButton.className = 'note-button';
-  noteButton.id = fullPath.replace('/', '_').replace('.json', '');
-  noteButton.textContent = noteText;
+    req.onsuccess = () => {
+      const note = req.result || {};
+      const noteText = fullPath.split('/')[1].replace('.json', '');
 
-  noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
-  document.getElementById('note-list').appendChild(noteButton);
-  return noteButton;
+      // Format ngày tạo
+      const created = note.created_at
+        ? new Date(note.created_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'2-digit' })
+        : "—";
+
+      const noteButton = document.createElement('button');
+      noteButton.className = 'note-button';
+      noteButton.id = fullPath.replace('/', '_').replace('.json', '');
+  
+      // ✅ hiển thị tên + ngày tạo
+      noteButton.innerHTML = `
+        <span>${noteText}</span>
+        <span class="note-date">${created}</span>
+      `;
+
+      noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
+      document.getElementById('note-list').appendChild(noteButton);
+      done();
+    };
+  });
 }
 
 
