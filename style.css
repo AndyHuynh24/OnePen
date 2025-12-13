@@ -6,6 +6,7 @@ body {
     position: relative;
 }
 
+
 #toolbar {
     position: fixed;
     top: 10px;
@@ -29,6 +30,124 @@ body {
     border: none;
     background-color: transparent;
     padding: 4px 6px;
+}
+
+/* AI Toggle wrapper styled like a toolbar button */
+#toolbar .aiToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 5px;
+    padding: 4px 6px;          /* matches #toolbar button */
+    height: 100%;              /* perfect vertical centering */
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* Hide raw checkbox */
+#toolbar .aiToggle input {
+    display: none;
+}
+
+/* Slider */
+#toolbar .aiSlider {
+    width: 32px;
+    height: 16px;
+    background: #aaa;
+    border-radius: 20px;
+    position: relative;
+    transition: background 0.25s;
+}
+
+/* Slider knob */
+#toolbar .aiSlider::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.25s;
+}
+
+/* ON State */
+#toolbar .aiToggle input:checked + .aiSlider {
+    background: #4caf50;
+}
+
+#toolbar .aiToggle input:checked + .aiSlider::before {
+    transform: translateX(16px);
+}
+
+/* Label text (14px EXACT) */
+#toolbar .aiText {
+    font-size: 14px;
+    line-height: 14px;    /* ← this ensures the visual height is truly 14px */
+    height: 14px;         /* ← explicit height as you requested */
+    display: flex;
+    align-items: center;  /* keeps the text vertically perfect */
+    color: white;
+    user-select: none;
+}
+/* Main toggle container (height = 14px EXACT) */
+#toolbar .aiToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+
+    height: 14px;        /* ← THE HEIGHT YOU WANT */
+    padding: 0 4px;      /* keeps spacing similar */
+    border-radius: 3px;
+    cursor: pointer;
+}
+/* Hide checkbox */
+#toolbar .aiToggle input {
+    display: none;
+}
+
+/* Slider fits the 14px height */
+#toolbar .aiSlider {
+    width: 24px;
+    height: 12px;
+    background: #aaa;
+    border-radius: 12px;
+    position: relative;
+    transition: background 0.25s;
+}
+
+/* Knob fits inside 12px track */
+#toolbar .aiSlider::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    transition: transform 0.25s;
+}
+
+/* ON state */
+#toolbar .aiToggle input:checked + .aiSlider {
+    background: #4caf50;
+}
+
+#toolbar .aiToggle input:checked + .aiSlider::before {
+    transform: translateX(12px);
+}
+
+/* Label scaled to match 14px height */
+#toolbar .aiText {
+    font-size: 12px;
+    line-height: 14px;
+    height: 14px;
+    color: white;
+    user-select: none;
 }
 
 #toolbar button:hover {

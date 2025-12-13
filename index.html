@@ -33,7 +33,13 @@
         <div id="scaleIndicator"><i class='bx bx-move-diagonal-left'></i> 100%</div>
         <span class="break"></span>
         <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
-        
+        <span class="break"></span> 
+        <label class="aiToggle">
+          <input type="checkbox" id="aiToggleInput" onchange="toggleDetection()" checked>
+          <span class="aiSlider"></span>
+          <span class="aiText">AI ON</span>
+        </label>
+
         
         <!-- <button onclick="reLabel(currentStroke)">False label</button> -->
         <!-- <button onclick="backupToDrive()">Export Drive</button>
