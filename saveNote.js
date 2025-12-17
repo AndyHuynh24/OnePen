@@ -516,56 +516,80 @@ if (deleteBtn) {
 
 function backupToDrive(filename = "onepen_backup.json") {
   openNoteDB(db => {
-    const noteTx = db.transaction("notes", "readonly");
-    const noteStore = noteTx.objectStore("notes");
+    const allData = {
+      notes: {},
+      setting: {},
+      _report: {
+        corruptedNotes: [],
+        corruptedSettings: [],
+        generatedAt: new Date().toISOString()
+      }
+    };
 
-    const settingTx = db.transaction("setting", "readonly");
-    const settingStore = settingTx.objectStore("setting");
+    // --- Safe clone (prevents circular refs & bad values)
+    function safeClone(value) {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch {
+        return null;
+      }
+    }
 
-    const allData = { notes: {}, setting: {} };
+    function loadStore(storeName, target, reportKey) {
+      return new Promise(resolve => {
+        try {
+          const tx = db.transaction(storeName, "readonly");
+          const store = tx.objectStore(storeName);
 
-    // Load notes
-    const notePromise = new Promise(resolve => {
-      const notes = {};
-      noteStore.openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-          notes[cursor.key] = cursor.value;
-          cursor.continue();
-        } else {
-          resolve(notes);
+          store.openCursor().onsuccess = e => {
+            const cursor = e.target.result;
+            if (!cursor) return resolve();
+
+            try {
+              const cleaned = safeClone(cursor.value);
+              if (cleaned === null) {
+                throw new Error("Unserializable value");
+              }
+              target[cursor.key] = cleaned;
+            } catch (err) {
+              allData._report[reportKey].push({
+                key: cursor.key,
+                error: err.message
+              });
+            }
+
+            cursor.continue();
+          };
+
+          store.openCursor().onerror = () => resolve();
+        } catch {
+          resolve();
         }
-      };
-    });
+      });
+    }
 
-    // Load modifiers (settings)
-    const settingPromise = new Promise(resolve => {
-      const settings = {};
-      settingStore.openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-          settings[cursor.key] = cursor.value;
-          cursor.continue();
-        } else {
-          resolve(settings);
-        }
-      };
-    });
+    Promise.all([
+      loadStore("notes", allData.notes, "corruptedNotes"),
+      loadStore("setting", allData.setting, "corruptedSettings")
+    ]).then(async () => {
+      let jsonContent;
+      try {
+        jsonContent = JSON.stringify(allData, null, 2);
+      } catch {
+        jsonContent = JSON.stringify({
+          error: "Critical serialization failure",
+          report: allData._report
+        });
+      }
 
-    // When both are done
-    Promise.all([notePromise, settingPromise]).then(async ([notes, modifiers]) => {
-      allData.notes = notes;
-      allData.setting = modifiers;
-
-      const jsonContent = JSON.stringify(allData, null, 2);
-      const accessToken = localStorage.getItem('accessToken');
+      const accessToken = localStorage.getItem("accessToken");
       if (!accessToken) {
         alert("❌ Not signed in");
         return;
       }
 
       try {
-        // 🔍 Search for existing file
+        // 🔍 Search existing backup
         const searchRes = await fetch(
           `https://www.googleapis.com/drive/v3/files?q=name='${filename}' and trashed=false`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -573,17 +597,17 @@ function backupToDrive(filename = "onepen_backup.json") {
         const searchData = await searchRes.json();
         const existingFile = searchData.files?.[0];
 
-        // 📤 Prepare upload
         const metadata = { name: filename, mimeType: "application/json" };
         const boundary = "-------314159265358979323846";
-        const delimiter = "\r\n--" + boundary + "\r\n";
-        const closeDelimiter = "\r\n--" + boundary + "--";
+        const delimiter = `\r\n--${boundary}\r\n`;
+        const closeDelimiter = `\r\n--${boundary}--`;
+
         const body =
           delimiter +
-          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+          "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
           JSON.stringify(metadata) +
           delimiter +
-          'Content-Type: application/json\r\n\r\n' +
+          "Content-Type: application/json\r\n\r\n" +
           jsonContent +
           closeDelimiter;
 
@@ -602,12 +626,18 @@ function backupToDrive(filename = "onepen_backup.json") {
           body
         });
 
-        const result = await uploadRes.json();
-        if (uploadRes.ok) {
-          alert("✅ Backup saved as: " + result.name);
-        } else {
-          throw new Error(result.error?.message || "Upload failed");
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          throw new Error(err.error?.message || "Upload failed");
         }
+
+        alert(
+          `✅ Backup complete\n\n` +
+          `Notes saved: ${Object.keys(allData.notes).length}\n` +
+          `Settings saved: ${Object.keys(allData.setting).length}\n\n` +
+          `⚠️ Corrupted notes: ${allData._report.corruptedNotes.length}\n` +
+          `⚠️ Corrupted settings: ${allData._report.corruptedSettings.length}`
+        );
       } catch (err) {
         alert("❌ Backup failed: " + err.message);
       }
@@ -739,3 +769,303 @@ async function reloadSetting() {
       }
      });    
   }
+
+
+  //shareable feature
+  function collectNotesSafe() {
+  return new Promise(resolve => {
+    openNoteDB(db => {
+      const notes = {};
+      const report = { corruptedNotes: [] };
+
+      function safeClone(value) {
+        try {
+          return JSON.parse(JSON.stringify(value));
+        } catch {
+          return null;
+        }
+      }
+
+      try {
+        const tx = db.transaction("notes", "readonly");
+        const store = tx.objectStore("notes");
+
+        store.openCursor().onsuccess = e => {
+          const cursor = e.target.result;
+          if (!cursor) {
+            resolve({ notes, report });
+            return;
+          }
+
+          try {
+            const cleaned = safeClone(cursor.value);
+            if (!cleaned) throw new Error("Unserializable note");
+            notes[cursor.key] = cleaned;
+          } catch (err) {
+            report.corruptedNotes.push({
+              key: cursor.key,
+              error: err.message
+            });
+          }
+
+          cursor.continue();
+        };
+
+        store.openCursor().onerror = () => resolve({ notes, report });
+      } catch {
+        resolve({ notes, report });
+      }
+    });
+  });
+}
+
+function buildFolderTree(notes) {
+  const tree = {};
+
+  Object.entries(notes).forEach(([path, note]) => {
+    if (!path.endsWith(".json")) return;
+    if (path.endsWith("__folder__.meta")) return;
+
+    const parts = path.split("/");
+    let node = tree;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const folder = parts[i];
+      node[folder] ??= { __notes: [], __children: {} };
+      node = node[folder].__children;
+    }
+
+    const filename = parts[parts.length - 1];
+    const folderNode = parts.length > 1
+      ? tree[parts[0]].__notes
+      : tree.__notes;
+
+    node.__notes ??= [];
+    node.__notes.push({ path, note });
+  });
+
+  return tree;
+}
+
+function flattenFolders(notes) {
+  const folders = {};
+
+  Object.entries(notes).forEach(([path, note]) => {
+    if (!path.endsWith(".json")) return;
+    if (path.endsWith("__folder__.meta")) return;
+
+    const folderPath = path.includes("/")
+      ? path.substring(0, path.lastIndexOf("/"))
+      : "Root";
+
+    folders[folderPath] ??= [];
+    folders[folderPath].push({ path, note });
+  });
+
+  return folders;
+}
+async function showSharePopup() {
+  const { notes, report } = await collectNotesSafe();
+  const folders = flattenFolders(notes);
+
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,.4);
+    display:flex; justify-content:center; align-items:center; z-index:9999;
+  `;
+
+  const modal = document.createElement("div");
+  modal.style.cssText = `
+    background:#fff; padding:20px; width:460px; max-height:70vh;
+    overflow:auto; border-radius:12px; font-family:sans-serif;
+  `;
+
+  modal.innerHTML = `
+    <h3>Share Notes</h3>
+    <label><input type="checkbox" id="selectAll"> Select All</label>
+    <hr />
+    <div id="folderList"></div>
+    <hr />
+    <button id="exportBtn">Export Selected</button>
+    <button id="cancelBtn">Cancel</button>
+    <p style="font-size:12px;color:#666;">
+      ⚠️ Corrupted notes skipped: ${report.corruptedNotes.length}
+    </p>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const folderList = modal.querySelector("#folderList");
+
+  Object.entries(folders).forEach(([folderPath, items]) => {
+    const folderId = folderPath.replace(/\W/g, "_");
+
+    const block = document.createElement("div");
+    block.style.marginBottom = "10px";
+
+    block.innerHTML = `
+      <label style="font-weight:bold;">
+        <input type="checkbox" class="folderCheck" data-folder="${folderId}">
+        📁 ${folderPath}
+      </label>
+      <div style="margin-left:20px;" id="${folderId}"></div>
+    `;
+
+    const container = block.querySelector(`#${folderId}`);
+
+    items.forEach(({ path, note }) => {
+      const name = path.split("/").pop().replace(".json", "");
+      container.innerHTML += `
+        <label>
+          <input type="checkbox"
+                 class="noteCheck"
+                 data-path="${path}"
+                 data-folder="${folderId}">
+          📝 ${name}
+        </label><br/>
+      `;
+    });
+
+    folderList.appendChild(block);
+  });
+
+  // Folder → notes
+  modal.querySelectorAll(".folderCheck").forEach(cb => {
+    cb.onchange = () => {
+      const id = cb.dataset.folder;
+      modal.querySelectorAll(`.noteCheck[data-folder="${id}"]`)
+        .forEach(n => n.checked = cb.checked);
+    };
+  });
+
+  // Notes → folder
+  modal.querySelectorAll(".noteCheck").forEach(cb => {
+    cb.onchange = () => {
+      const id = cb.dataset.folder;
+      const all = modal.querySelectorAll(`.noteCheck[data-folder="${id}"]`);
+      const folderCb = modal.querySelector(`.folderCheck[data-folder="${id}"]`);
+      folderCb.checked = [...all].every(n => n.checked);
+    };
+  });
+
+  modal.querySelector("#selectAll").onchange = e => {
+    modal.querySelectorAll("input[type=checkbox]")
+      .forEach(cb => cb.checked = e.target.checked);
+  };
+
+  modal.querySelector("#cancelBtn").onclick = () => overlay.remove();
+
+  modal.querySelector("#exportBtn").onclick = () => {
+    const selected = {};
+    modal.querySelectorAll(".noteCheck:checked").forEach(cb => {
+      selected[cb.dataset.path] = notes[cb.dataset.path];
+    });
+
+    if (!Object.keys(selected).length) {
+      alert("Select at least one note");
+      return;
+    }
+
+    exportSelectedNotes(selected);
+    overlay.remove();
+  };
+}
+
+function exportSelectedNotes(notes) {
+  const payload = {
+    type: "onepen-share",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    notes
+  };
+
+  const blob = new Blob(
+    [JSON.stringify(payload, null, 2)],
+    { type: "application/json" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "onepen_shared_notes.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+//import function 
+function rewriteSharedPath(originalPath) {
+  const parts = originalPath.split("/");
+
+  // No folder → create one
+  if (parts.length === 1) {
+    return `share_Root/${parts[0]}`;
+  }
+
+  parts[0] = `share_${parts[0]}`;
+  return parts.join("/");
+}
+
+async function importSharedNotesFromFile() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      alert("❌ Invalid JSON file");
+      return;
+    }
+
+    if (data.type !== "onepen-share" || typeof data.notes !== "object") {
+      alert("❌ Not a valid OnePen shared file");
+      return;
+    }
+
+    openNoteDB(db => {
+      const tx = db.transaction("notes", "readwrite");
+      const store = tx.objectStore("notes");
+
+      let importedCount = 0;
+      let skippedCount = 0;
+
+      Object.entries(data.notes).forEach(([path, note]) => {
+        try {
+          const newPath = rewriteSharedPath(path);
+
+          store.put({
+            ...note,
+            path: newPath,
+            importedFromShare: true,
+            importedAt: new Date().toISOString()
+          }, newPath);
+
+          importedCount++;
+        } catch {
+          skippedCount++;
+        }
+      });
+
+      tx.oncomplete = () => {
+        alert(
+          `✅ Shared notes imported\n\n` +
+          `Imported: ${importedCount}\n` +
+          `Skipped: ${skippedCount}`
+        );
+        renderAllNotes();
+      };
+
+      tx.onerror = () => {
+        alert("❌ Failed to import shared notes");
+      };
+    });
+  };
+
+  input.click();
+}
