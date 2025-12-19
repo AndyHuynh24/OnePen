@@ -131,6 +131,8 @@ const indexToLabel = {
   12: 'none'
 };
 
+const shortcutGroup = [STROKE_TYPE.BOXS, STROKE_TYPE.CURLYS, STROKE_TYPE.CIRCLES];
+
 //parameters for tools/colors setting
 let defaultPenColor = 'rgba(255, 255, 255, 1)'; // default pen color
 let colors = [defaultPenColor, //underline 
@@ -180,6 +182,7 @@ let isDetectionOn = true;
 const penColors = {
     "pen9": "#ffb6ff"
 }
+
 
 //-----------functions for stickynotes and hyperlink---------
 function flashStickyNote(note) {
@@ -405,7 +408,7 @@ async function classifyStroke(stroke, hold = false) {
         if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || !group?.stroke) continue;
         activeGroupsCount++;
 
-        if (group.predictedLabel <= 7 && group.predictedLabel != 3) {
+        if (group.predictedLabel <= 7 && group.predictedLabel != STROKE_TYPE.DELETE) {
             const box = group.bbox;
             const isBBoxIntersecting = intersect(newBox, box);
 
@@ -470,23 +473,23 @@ async function classifyStroke(stroke, hold = false) {
         viewerCtx.drawImage(imgData, 0, 0);
 
         predictedLabel = await predictImageFromCanvas(currentStroke, imgData, model);
-        if (predictedLabel == 0 || predictedLabel >= 10 || predictedLabel ==  3) {
+        console.log("predictedLabel", predictedLabel);
+        if (predictedLabel == STROKE_TYPE.UNDERLINE || predictedLabel == STROKE_TYPE.NONE || predictedLabel == STROKE_TYPE.DELETE) {
             color = defaultPenColor;
             shownModifier = true;   
         }
         else {
-            console.log(indexToLabel[predictedLabel]);
-            color = modifiers[indexToLabel[predictedLabel]].color || defaultPenColor;
-            shownModifier = modifiers[indexToLabel[predictedLabel]].visibility;
+            color = modifiers[predictedLabel].color || defaultPenColor;
+            shownModifier = modifiers[predictedLabel].visibility;
         }
 
-        if (predictedLabel == 3) {
+        if (predictedLabel == STROKE_TYPE.DELETE) {
             intersectGroups.forEach(group => {
                 if (!modifiedGroups.some(element => element.stroke === group.stroke)){
                     modifiedGroups.push(group);
                 }
             })
-        } else if (predictedLabel == 4 || predictedLabel == 5 || predictedLabel == 6) {
+        } else if (shortcutGroup.includes(predictedLabel)) {
             modifiedGroups = [];
             allGroups.forEach(group => {
                 if (group.visibility == false || (!group.bbox || !intersect(group.bbox, screenBox))) return;
@@ -509,7 +512,7 @@ async function classifyStroke(stroke, hold = false) {
         visibility: shownModifier
     };
     
-    if (predictedLabel != 3) {
+    if (predictedLabel != STROKE_TYPE.DELETE) {
         allGroups.push(modifier);
         modifiedGroups.push(modifier);
     } 
@@ -527,7 +530,7 @@ async function classifyStroke(stroke, hold = false) {
     } 
 
     //save changes to pastgroups
-    if (predictedLabel == 1 || predictedLabel == 2 || predictedLabel == 4 || predictedLabel == 5 || predictedLabel == 6) {
+    if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
         const idToColorMap = {};
             modifiedGroups.forEach(group => {
             idToColorMap[group.id] = group.color;
@@ -539,7 +542,7 @@ async function classifyStroke(stroke, hold = false) {
         }
         pastGroups.push(change);
         //console.log('sample', change.modifiedGroups['1'])
-    } else if (predictedLabel == -1) {
+    } else if (predictedLabel == STROKE_TYPE.NONE) {
         const change = {
             change: 'normalStroke',
             modifiedGroups: modifier
@@ -560,8 +563,8 @@ async function classifyStroke(stroke, hold = false) {
         }
         if (predictedLabel === 3) {
             allGroups.splice(allGroups.indexOf(group), 1);
-        } else if (predictedLabel == 1 || predictedLabel == 2 || predictedLabel == 4 || predictedLabel == 5 || predictedLabel == 6) {
-            if (group.predictedLabel != 7) {
+        } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
+            if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
                 group.color = color;    
             }
         }
@@ -591,11 +594,11 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     console.log("Pointer hold detected! Classifying stroke...", modifiedGroups.modifiedGroups);
 
     //console.log("Pointer held for 0.7 seconds!", e);
-    if (modifiedGroups.predictedLabel == -1 || modifiedGroups.predictedLabel == 4 || modifiedGroups.predictedLabel == 2 || modifiedGroups.predictedLabel == 6 || modifiedGroups.predictedLabel == 5) {
+    if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE || modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
         showToolbox(e.offsetX, e.offsetY, colorTools);
-    } else if (modifiedGroups.predictedLabel == 0 || modifiedGroups.predictedLabel >= 10) {
+    } else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE || modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
         showToolbox(e.offsetX, e.offsetY, underlineTools);
-    } else if (modifiedGroups.predictedLabel == 1) {
+    } else if (modifiedGroups.predictedLabel == STROKE_TYPE.BOX) {
         showToolbox(e.offsetX, e.offsetY, boxTools);
     }
     
@@ -1023,14 +1026,14 @@ window.onload = async () => {
             });
 
             // Execute tools
-            if (modifiedGroups.predictedLabel == -1) {
+            if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
                 allGroups.pop();
             }
             if (selectedTool) {
                 let isShortcut = false;
-                if (modifiedGroups.predictedLabel == 4 || modifiedGroups.predictedLabel == 2 || modifiedGroups.predictedLabel == 6 || modifiedGroups.predictedLabel == 5){
+                if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)){
                     isShortcut = true;
-                    if (modifiedGroups.predictedLabel == 2) {
+                    if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
                         allGroups.pop();
                     }
                 }   
@@ -1525,7 +1528,7 @@ function undo() {
         const dx = action.dx;
         const dy = action.dy;
         action.modifiedGroups.forEach(group => {
-          if (group.predictedLabel != 3) {
+          if (group.predictedLabel != STROKE_TYPE.DELETE) {
             group.stroke.forEach(p => {
               p.x -= dx;
               p.y -= dy;
@@ -1595,7 +1598,7 @@ function redo() {
         const dy = action.dy;
 
         action.modifiedGroups.forEach(group => {
-          if (group.predictedLabel != 3) {
+          if (group.predictedLabel != STROKE_TYPE.DELETE) {
             group.stroke.forEach(p => {
               p.x += dx;
               p.y += dy;

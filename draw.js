@@ -472,7 +472,7 @@ function reDrawMovement() {
         moveBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
         drawBox(moveBBox, 'lightgray', '', true, liveCtx);
         for (const group of modifiedGroups.modifiedGroups) {
-            if (group.predictedLabel === 7) { //highlighter
+            if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) { //highlighter
                 drawHighlight(liveCtx, group.bbox, group.color)
             } else {
                 drawStroke(liveCtx, group.stroke, group.color, 2);
@@ -860,17 +860,14 @@ function reDrawAll(ctx) {
             else if (group.titleStatus) {
                 drawStroke(drawCtx, group.stroke, group.color, 3);
             } 
-            else if (group.predictedLabel <= 6) {
+            else if (group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE || group.predictedLabe != STROKE_TYPE.HIGHLIGHT) {
                 drawStroke(drawCtx, group.stroke, group.color);
             } 
-            else if (group.predictedLabel === 7) {
+            else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
                 drawHighlight(group.bbox, group.color);
             }
         }
         else {
-            if (group.shape == 0 || group.shape == 1 || group.shape == 2) {
-
-            }
             if (group.shape == 0) {
                 drawFinalLine(ctx, group.bbox, group.color, group.directX, group.directY);
             }
@@ -1061,7 +1058,7 @@ function selectHighlight(highlightColor){
       stroke: [...modifiedGroups.modifiedGroups[0].stroke, ...modifiedGroups.modifiedGroups[modifiedGroups.modifiedGroups.length-1].stroke],
       bbox: bbox,
       color: highlightColor,
-      predictedLabel: 7,
+      predictedLabel: STROKE_TYPE.HIGHLIGHT,
       titleStatus: false,
     };
     //modifiedGroups.groupsToDraw.push(newgroup);
