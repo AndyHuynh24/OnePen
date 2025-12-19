@@ -197,89 +197,112 @@ function normalizeStroke(stroke) {
     }));
 }
 
+const STROKE_TYPE = Object.freeze({
+  UNDERLINE: "underline",
+  BOX: "box",
+  CURLY: "curly",
+  DELETE: "delete",
+  BOXS: "boxshortcut",
+  CURLYS: "curlyshortcut",
+  CIRCLES: "circleshortcut",
+  HIGHLIGHT: "highlight",
+  MOVE: "move",
+  NONE: "none",
+});
+
+const CLASSES = [
+  STROKE_TYPE.UNDERLINE,
+  STROKE_TYPE.BOX,
+  STROKE_TYPE.CURLY,
+  STROKE_TYPE.DELETE,
+  STROKE_TYPE.BOXS,
+  STROKE_TYPE.CURLYS,
+  STROKE_TYPE.CIRCLES,
+  STROKE_TYPE.NONE,
+  STROKE_TYPE.NONE,
+  STROKE_TYPE.NONE,
+];
+
+const CLASS_THRESHOLDS = {
+  underline: 0.65,
+  box: 0.65,
+  curly: 0.65,
+  delete: 0.65,
+  boxshortcut: 0.65,
+  curlyshortcut: 0.65,
+  circleshortcut: 0.65,
+  nonedot: 0.6,
+  nonedaulon: 0.6,
+  nonenhon: 0.6,
+};
+
 async function predictImageFromCanvas(stroke, canvas, model) {
-    // === 1️⃣ Compute geometric feature vector ===
+  let imgTensor, featureTensor;
+
+  try {
+    /* ---------- 1️⃣ Feature tensor ---------- */
     const normStroke = normalizeStroke(stroke);
     const features = computeFastStrokeFeatures(stroke, normStroke);
-    const featureTensor = tf.tensor2d([features], [1, features.length]);
+    featureTensor = tf.tensor2d([features], [1, features.length]);
 
-    // === 2️⃣ Convert canvas image into normalized tensor ===
-    const imgTensor = tf.tidy(() => {
-        return tf.browser.fromPixels(canvas)
-            .resizeBilinear([136, 136])     // must match model input size
-            .toFloat()
-            .div(255.0)
-            .expandDims(0);                 // [1, 136, 136, 3]
+    /* ---------- 2️⃣ Image tensor ---------- */
+    imgTensor = tf.tidy(() =>
+      tf.browser
+        .fromPixels(canvas)
+        .resizeBilinear([136, 136])
+        .toFloat()
+        .div(255)
+        .expandDims(0)
+    );
+
+    /* ---------- 3️⃣ Predict ---------- */
+    const prediction = await model.predict({
+      img_input: imgTensor,
+      feature_input: featureTensor,
     });
 
-    // === 3️⃣ Define class list and thresholds ===
-    const classes = [
-        'underline', 'box', 'curly', 'delete',
-        'boxshortcut', 'curlyshortcut', 'circleshortcut',
-        'nonedot', 'nonedaulon', 'nonenhon'
-    ];
+    const probs = (await prediction.array())[0];
 
-    const classThresholds = {
-        underline: 0.4,
-        box: 0.4,
-        curly: 0.5,
-        delete: 0.5,
-        boxshortcut: 0.6,
-        curlyshortcut: 0.6,
-        circleshortcut: 0.6,
-        nonedot: 0.65,
-        nonedaulon: 0.6,
-        nonenhon: 0.6
-    };
+    /* ---------- 4️⃣ Rank predictions ---------- */
+    const ranked = probs
+      .map((prob, idx) => ({ label: CLASSES[idx], prob }))
+      .sort((a, b) => b.prob - a.prob);
 
-    let result = "";
-    try {
-        // === 4️⃣ Predict using both inputs ===
-        const prediction = await model.predict({
-            img_input: imgTensor,
-            feature_input: featureTensor
-        });
-        const predictionArray = (await prediction.array())[0];
+    const best = ranked[0];
+    const threshold = CLASS_THRESHOLDS[best.label] ?? 0.6;
 
-        // === 5️⃣ Sort by confidence ===
-        const sortedIndices = predictionArray
-            .map((prob, idx) => ({ idx, prob }))
-            .sort((a, b) => b.prob - a.prob);
-
-        const topPrediction = sortedIndices[0];
-        const fallback = sortedIndices.find(({ idx, prob }) => {
-            const label = classes[idx];
-            return prob >= (classThresholds[label] ?? 0.6);
-        });
-
-        const probsStr = predictionArray.map(p => Number(p.toFixed(3))).join(', ');
-
-        // === 6️⃣ Return decision with idx adjustment ===
-        let idx;
-        if (topPrediction.prob >= classThresholds[classes[topPrediction.idx]]) {
-            idx = topPrediction.idx;
-            if (idx >= 7) idx += 3; // apply offset for new label mapping
-            result = `Predicted: ${classes[topPrediction.idx]} (Prob: ${probsStr})`;
-        } else if (fallback) {
-            idx = fallback.idx;
-            if (idx >= 7) idx += 3;
-            result = `Fallback: ${classes[fallback.idx]} (Prob: ${probsStr})`;
-        } else {
-            idx = -1;
-            result = `Prediction too low (Max Prob: ${topPrediction.prob.toFixed(3)} @ ${classes[topPrediction.idx]})`;
-        }
-
-        console.log(result);
-        return idx;
-
-    } catch (err) {
-        console.error("❌ Prediction failed:", err);
-        return -1;
-
-    } finally {
-        imgTensor.dispose();
-        featureTensor.dispose();
+    /* ---------- 5️⃣ Decision ---------- */
+    if (best.prob >= threshold) {
+      console.log(
+        `Predicted: ${best.label} (${best.prob.toFixed(3)})`
+      );
+      return best.label;
     }
+
+    const fallback = ranked.find(
+      r => r.prob >= (CLASS_THRESHOLDS[r.label] ?? 0.6)
+    );
+
+    if (fallback) {
+      console.log(
+        `Fallback: ${fallback.label} (${fallback.prob.toFixed(3)})`
+      );
+      return fallback.label;
+    }
+
+    console.log(
+      `Prediction too low (max=${best.prob.toFixed(3)} @ ${best.label})`
+    );
+    return STROKE_TYPE.NONE;
+
+  } catch (err) {
+    console.error("❌ Prediction failed:", err);
+    return STROKE_TYPE.NONE;
+
+  } finally {
+    imgTensor?.dispose();
+    featureTensor?.dispose();
+  }
 }
 
 
