@@ -425,10 +425,10 @@ async function classifyStroke(stroke, hold = false) {
             //else set maxY to detect underline for later on
             } else {
                 if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, newBox.y);
-                    const withinBand = (box.y + box.h) > maxY;
-                    const approxAboveLine = Math.abs(box.y + box.h - newBox.y - newBox.h) < normalHeight * 0.7;
-                    const overlapsX = box.x + box.w > newBox.x && box.x < newBox.x + newBox.w;
-                    const above = withinBand && approxAboveLine && overlapsX;
+                const withinBand = (box.y + box.h) > maxY;
+                const approxAboveLine = Math.abs(box.y + box.h - newBox.y - newBox.h) < normalHeight * 0.7;
+                const overlapsX = box.x + box.w > newBox.x && box.x < newBox.x + newBox.w;
+                const above = withinBand && approxAboveLine && overlapsX;
                 if (above) {
                     maxY = Math.min(maxY, box.y, newBox.y);
                     minY = Math.max(minY, box.y + box.h, newBox.y + newBox.h)
@@ -561,7 +561,7 @@ async function classifyStroke(stroke, hold = false) {
         if (hold) {
             continue;
         }
-        if (predictedLabel === 3) {
+        if (predictedLabel === STROKE_TYPE.DELETE) {
             allGroups.splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
             if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
@@ -2157,7 +2157,7 @@ function regroupTitles() {
 
   // Step 1️⃣: find all underline modifiers
   const underlineMods = allGroups.filter(
-    g => g?.predictedLabel === 0 && g?.bbox
+    g => g?.predictedLabel === STROKE_TYPE.UNDERLINE && g?.bbox
   );
   console.log("🟪 underline modifiers found:", underlineMods.length);
 
@@ -2176,20 +2176,38 @@ function regroupTitles() {
 
     let maxY = 100000;
     let minY = uBox.y + uBox.h - normalHeight * 0.55;
-    if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
+    //if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
 
     // Step 4️⃣: find possible title groups above
+    for (const group of allGroups) {
+        if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || !group.titleStatus) continue;
+        const box = group.bbox;
+
+        if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
+        const withinBand = (box.y + box.h) > maxY;
+        const approxAboveLine = Math.abs(box.y + box.h - uBox.y - uBox.h) < normalHeight * 0.7;
+        const overlapsX = box.x + box.w > uBox.x && box.x < uBox.x + uBox.w;
+        const above = withinBand && approxAboveLine && overlapsX;
+        if (above) {
+            maxY = Math.min(maxY, box.y, uBox.y);
+            minY = Math.max(minY, box.y + box.h, uBox.y + uBox.h)
+        }
+    }
+
+    const latestbox = {
+            x: uBox.x - 14,
+            y: maxY - 8,
+            w: uBox.w + 14,
+            h: minY - maxY + 18
+        }
+
     const titleGroups = allGroups.filter(group => {
-      if (!group?.bbox || !group?.titleStatus) return false;
+        if (!group?.bbox || !group?.titleStatus) return false;
 
-      const box = group.bbox;
-      const withinBand = (box.y + box.h) > maxY;
-      const approxAboveLine =
-        Math.abs(box.y + box.h - uBox.y - uBox.h) < normalHeight * 0.7;
-      const overlapsX = box.x + box.w > uBox.x && box.x < uBox.x + uBox.w;
-      const above = withinBand && approxAboveLine && overlapsX;
+        const box = group.bbox;
+        const insidelatestbox = isSBoxInLBox(box, latestbox);
 
-      return above;
+        return insidelatestbox;
     });
 
     if (titleGroups.length === 0) {

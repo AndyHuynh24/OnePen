@@ -225,9 +225,9 @@ const CLASSES = [
 
 const CLASS_THRESHOLDS = {
   underline: 0.65,
-  box: 0.65,
+  box: 0.8,
   curly: 0.65,
-  delete: 0.65,
+  delete: 0.50,
   boxshortcut: 0.65,
   curlyshortcut: 0.65,
   circleshortcut: 0.65,
