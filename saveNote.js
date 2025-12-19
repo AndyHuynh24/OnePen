@@ -942,3 +942,60 @@ async function showSharePopup() {
 
   modal.querySelector("#cancelBtn").onclick = () => overlay.remove();
 }
+
+//auto save
+let _dbPromise = null;
+
+function getDB() {
+  if (_dbPromise) return _dbPromise;
+
+  _dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open("dsh-note-db", 2);
+
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("notes")) {
+        db.createObjectStore("notes", { keyPath: "path" });
+      }
+      if (!db.objectStoreNames.contains("setting")) {
+        db.createObjectStore("setting");
+      }
+    };
+
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = reject;
+  });
+
+  return _dbPromise;
+}
+
+function saveNoteFast(path, content) {
+  getDB().then(db => {
+    const tx = db.transaction("notes", "readwrite");
+    const store = tx.objectStore("notes");
+
+    store.put({
+      path,
+      content
+      // ❌ no created_at here
+    });
+  });
+}
+
+
+let autosaveTimer = null;
+let dirty = false;
+
+function markDirty() {
+  dirty = true;
+
+  if (!autosaveTimer) {
+    autosaveTimer = setTimeout(() => {
+      if (!dirty || !title) return;
+
+      saveNoteFast(title, allGroups);
+      dirty = false;
+      autosaveTimer = null;
+    }, 500); // 300–1000ms sweet spot
+  }
+}
