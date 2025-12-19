@@ -613,9 +613,9 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
 //---App start up function---
 window.addEventListener('beforeunload', (event) => {
     // Your function or logic here
-    if (title) {
-        saveNote(title, allGroups);
-    }
+    // if (title) {
+    //     saveNote(title, allGroups);
+    // }
 
     // event.preventDefault();
     // event.returnValue = '';
@@ -960,6 +960,7 @@ window.onload = async () => {
     });
 
     canvasGroup.addEventListener("pointerup", (e) => {
+        markDirty();
         if (isPanning) {
             isPanning = false;
 
