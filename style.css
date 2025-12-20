@@ -779,7 +779,7 @@ input[type="range"] {
 
 .modifier-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, 300px); 
+    grid-template-columns: repeat(auto-fit, 180px); 
     gap: 20px;
     justify-content: center;
 }

@@ -860,10 +860,12 @@ function reDrawAll(ctx) {
             else if (group.titleStatus) {
                 drawStroke(drawCtx, group.stroke, group.color, 3);
             } 
-            else if (group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE || group.predictedLabe != STROKE_TYPE.HIGHLIGHT) {
-                drawStroke(drawCtx, group.stroke, group.color);
+            else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE) && group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
+                const thickness = group?.thickness ?? 1.7;
+                drawStroke(drawCtx, group.stroke, group.color, thickness);
             } 
             else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
+                console.log("highlight");
                 drawHighlight(group.bbox, group.color);
             }
         }
@@ -901,24 +903,27 @@ function showToolbox(x, y, tools) {
 
     // Only add spans if they don't already exist (e.g., no bx-trash)
     if (!navContent.querySelector('.bx-trash')) {
-      tools.forEach((tool, index) => {
+    tools.forEach((tool, index) => {
         const span = document.createElement('span');
-        span.style = `--i:${index+1};`;
+        span.style = `--i:${index + 1};`;
 
         const a = document.createElement('a');
         a.href = '#';
-        a.style = `background-color: ${tool.color};`
+        a.style = `background-color: ${tool.color || 'transparent'};`;
 
         const icon = document.createElement('i');
         icon.className = `bx ${tool.icon}`;
-        icon.setAttribute('data-label', tool.label);
+        icon.setAttribute('data-label', tool.label);            // base tool ID
+        icon.setAttribute('data-color', tool.color);
+        icon.setAttribute('data-visibility', tool.visibility);
 
         // Build DOM
         a.appendChild(icon);
         span.appendChild(a);
         navContent.appendChild(span);
-      });
-    }
+    });
+}
+
 
     toolLinks = nav.querySelectorAll("span a");
     // Get nav and toggle button sizese
@@ -1052,7 +1057,8 @@ function selectHighlight(highlightColor){
     bbox.h += ((verticalPadding+shiftUp)*2);
 
     //drawBox(bbox, "yellow", "highlighter");
-    
+    //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
+
     newgroup = {
       id: id_count++, 
       stroke: [...modifiedGroups.modifiedGroups[0].stroke, ...modifiedGroups.modifiedGroups[modifiedGroups.modifiedGroups.length-1].stroke],
