@@ -156,11 +156,6 @@ let shownModifiers = [true, //underline
             true, // move
             true]; // normal stroke
 
-let modifiers = null;
-let colorTools = null;
-let underlineTools = null;
-let boxTools = null; 
-
 //parameters for google sync
 const accessToken = localStorage.getItem("accessToken");
 const userEmail = localStorage.getItem("userEmail");
@@ -207,10 +202,13 @@ function flashLink(link) {
   }, 200);
 }
 
+// -------------------- CONSTANTS --------------------
 const TOOL_ID = Object.freeze({
   ERASER: "eraser",
   PEN: "pen",
-  UNDERLINE: "underline",
+  TITLE1: "title1", 
+  TITLE2: "title2", 
+  TITLE3: "title3",
   HIGHLIGHT: "highlight",
   DELETE: "delete",
   MOVE: "move",
@@ -223,69 +221,52 @@ const TOOL_ID = Object.freeze({
 });
 
 const TOOL_REGISTRY = {
-  eraser: {
-    icon: "bx-eraser",
-    defaultColor: "rgba(237,235,233,1)"
-  },
-  pen: {
-    icon: "bx-pen",
-    defaultColor: "#ffffff"
-  },
-  underline: {
-    icon: "bx-capitalize"
-  },
-  highlight: {
-    icon: "bx-highlight"
-  },
-  bold: {
-    icon: "bx-bold",
-    color: "red"
-  },
-  delete: {
-    icon: "bx-trash"
-  },
-  move: {
-    icon: "bx-move"
-  },
-  mathSolver: {
-    icon: "bx-calculator"
-  },
-  copy: {
-    icon: "bx-copy"
-  },
-  paste: {
-    icon: "bx-paste"
-  },
-  stickynote: {
-    icon: "bx-sticker"
-  },
-  link: {
-    icon: "bx-link-break"
-  }
+  eraser: { icon: "bx-eraser", defaultColor: "rgba(237,235,233,1)" },
+  pen: { icon: "bx-pen", defaultColor: "#ffffff" },
+  title1: {icon: "bx-capitalize"},
+  title2: {icon: "bx-capitalize"},
+  title3: {icon: "bx-capitalize"},
+  highlight: { icon: "bx-highlight" },
+  bold: { icon: "bx-bold", color: "red" },
+  delete: { icon: "bx-trash" },
+  move: { icon: "bx-move" },
+  mathSolver: { icon: "bx-calculator" },
+  copy: { icon: "bx-copy" },
+  paste: { icon: "bx-paste" },
+  stickynote: { icon: "bx-sticker" },
+  link: { icon: "bx-link-break" }
 };
 
-const TOOLBOX_LAYOUT = {
+const PEN_TYPES = Object.freeze({
+  NORMAL: "normal",
+  TITLE: "title",
+  HIGHLIGHT: "highlight",
+  BOLD: "bold"
+});
+
+const DEFAULT_MODIFIERS = {
+  box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, visibility: true },
+  curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, visibility: true }
+};
+
+const DEFAULT_TOOLBOX_LAYOUT = {
   color: [
     { id: TOOL_ID.ERASER },
-    { id: TOOL_ID.PEN, color: "#ffffff" },
-    { id: TOOL_ID.PEN, colorFrom: "boxshortcut" },
-    { id: TOOL_ID.PEN, colorFrom: "curly" },
+    { id: TOOL_ID.PEN, color: "#ffffff"},
     { id: TOOL_ID.PEN, colorFrom: "box" },
-    { id: TOOL_ID.PEN, colorFrom: "curlyshortcut" },
-    { id: TOOL_ID.PEN, colorFrom: "circleshortcut" },
-    { id: TOOL_ID.PEN, color: "orange" },
+    { id: TOOL_ID.PEN, colorFrom: "curly" },
+    { id: TOOL_ID.PEN, color: "orange" }
   ],
-
   underline: [
-    { id: TOOL_ID.UNDERLINE, modifier: "title1" },
-    { id: TOOL_ID.UNDERLINE, modifier: "title2" },
-    { id: TOOL_ID.HIGHLIGHT, modifier: "highlight2" },
-    { id: TOOL_ID.HIGHLIGHT, modifier: "highlight3" },
-    { id: TOOL_ID.BOLD },
-    { id: TOOL_ID.BOLD, modifier: "curly" },
-    { id: TOOL_ID.PEN, modifier: "box" }
+    { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true },
+    { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false },
+    { id: TOOL_ID.TITLE3, color: "#ffb6ff", visibility: true },
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
+    { id: TOOL_ID.BOLD, color: "default" },
+    { id: TOOL_ID.BOLD, color: "red", visibility: true },
+    { id: TOOL_ID.PEN, color: "pink" }
   ],
-
   box: [
     { id: TOOL_ID.DELETE },
     { id: TOOL_ID.MOVE },
@@ -297,33 +278,169 @@ const TOOLBOX_LAYOUT = {
     { id: TOOL_ID.BOLD }
   ]
 };
+// -------------------- GLOBAL STATE --------------------
+let modifiers = {};
+let toolboxLayout = {};
+let colorTools = [];
+let underlineTools = [];
+let boxTools = [];
 
+// -------------------- CREATE MODIFIER CARD --------------------
+function createModifierCard(id, mod) {
+  const card = document.createElement("div");
+  card.className = "modifier-card";
+  card.dataset.modifier = id;
 
-//-----functions for toolbox------
+  card.innerHTML = `
+    <div class="modifier-title">${mod.label}</div>
+    <label>Color:</label>
+    <input type="color" class="modifier-color" value="${mod.color}">
+    <label>Pen type:</label>
+    <select class="modifier-penType">
+      ${Object.values(PEN_TYPES).map(t => `
+        <option value="${t}" ${t === mod.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
+      `).join("")}
+    </select>
+    <div class="modifier-footer">
+      <label>Visibility:</label>
+      <label class="toggle-switch">
+        <input type="checkbox" ${mod.visibility ? "checked" : ""}>
+        <span class="slider"></span>
+      </label>
+    </div>
+  `;
+
+  const btn = document.createElement('button');
+  btn.textContent = '✕';
+  btn.className = 'delete-modifier-btn';
+  btn.style.position = 'absolute';
+  btn.style.top = '5px';
+  btn.style.right = '5px';
+  btn.style.border = 'none';
+  btn.style.background = 'transparent';
+  btn.style.cursor = 'pointer';
+  btn.style.color = '#ff4d4f';
+  btn.title = 'Delete Modifier';
+  btn.onclick = () => deleteModifier(id);
+  card.appendChild(btn);
+
+  return card;
+}
+
+// -------------------- RENDER / BIND UI --------------------
+function renderModifiers(mods = modifiers) {
+  const grid = document.getElementById("modifierGrid");
+  if (!grid) return console.warn("No modifier grid found");
+  grid.innerHTML = "";
+  Object.entries(mods).forEach(([id, mod]) => {
+    grid.appendChild(createModifierCard(id, mod));
+  });
+  bindModifierUI(mods);
+}
+
+function bindModifierUI(mods = modifiers) {
+  document.querySelectorAll(".modifier-card").forEach(card => {
+    const id = card.dataset.modifier;
+    const mod = mods[id];
+    if (!mod) return;
+
+    const colorInput = card.querySelector(".modifier-color");
+    const penTypeSelect = card.querySelector(".modifier-penType");
+    const visibilityCheckbox = card.querySelector("input[type=checkbox]");
+
+    if (colorInput) colorInput.oninput = () => { mod.color = colorInput.value; updateTools(); };
+    if (penTypeSelect) penTypeSelect.onchange = () => { mod.penType = penTypeSelect.value; updateTools(); };
+    if (visibilityCheckbox) visibilityCheckbox.onchange = () => { mod.visibility = visibilityCheckbox.checked; updateTools(); };
+  });
+}
+
+function updateTools() {
+  assignToolBox();
+  saveToolboxSettings({ modifiers, toolboxLayout });
+}
+
+// -------------------- ADD / DELETE --------------------
+function addNewModifier({ id, name, type = "pen", color = "#ffffff", penType = PEN_TYPES.NORMAL, visible = true }) {
+  const key = name || `${id}_${Date.now()}`;
+  modifiers[key] = { label: name || id, color, penType, visibility: visible };
+  if (!toolboxLayout[type]) toolboxLayout[type] = [];
+  toolboxLayout[type].push({ id, modifier: key, color });
+  renderModifiers();
+  updateTools();
+  console.log(`✅ Added modifier: ${key}`);
+}
+
+function deleteModifier(id) {
+  if (!modifiers[id]) return console.warn(`Modifier "${id}" does not exist`);
+  delete modifiers[id];
+  for (const type in toolboxLayout) {
+    toolboxLayout[type] = toolboxLayout[type].filter(tool => tool.modifier !== id);
+  }
+  renderModifiers();
+  updateTools();
+  console.log(`❌ Deleted modifier: ${id}`);
+}
+
+// -------------------- TOOLBOX --------------------
 function assignToolBox() {
-  const resolveColor = tool => {
-    if (tool.color) return tool.color;
-    if (tool.colorFrom) return modifiers[tool.colorFrom]?.color;
-    if (tool.modifier) return modifiers[tool.modifier]?.color;
-    return TOOL_REGISTRY[tool.id]?.defaultColor ?? null;
-  };
+//   const resolveColor = tool => {
+//     console.log("modifiers", modifiers);
+//     if (tool.color) return tool.color;
+//     if (tool.colorFrom) {
+//         //console.log(modifiers[tool.colorFrom]);
+//         return modifiers[tool.colorFrom]?.color ?? "#000000"; // safe fallback
+//     }
+//     if (tool.modifier) return modifiers[tool.modifier]?.color ?? "#000000";   // safe fallback
+//     return TOOL_REGISTRY[tool.id]?.defaultColor ?? "#000000";
+//   };
 
-  colorTools = TOOLBOX_LAYOUT.color.map(t => ({
-    icon: TOOL_REGISTRY[t.id].icon,
+  colorTools = toolboxLayout.color.map(t => ({
+    icon: TOOL_REGISTRY[t.id]?.icon ?? "",
     label: t.id,
-    color: resolveColor(t)
+    color: t?.color ?? "#ffffff", 
+    visibility: t?.visibility ?? false,
   }));
 
-  underlineTools = TOOLBOX_LAYOUT.underline.map(t => ({
-    icon: TOOL_REGISTRY[t.id].icon,
+  underlineTools = toolboxLayout.underline.map(t => ({
+    icon: TOOL_REGISTRY[t.id]?.icon ?? "",
     label: t.id,
-    color: resolveColor(t)
+    color: t?.color ?? "#ffffff", 
+    visibility: t?.visibility ?? false,
   }));
 
-  boxTools = TOOLBOX_LAYOUT.box.map(t => ({
-    icon: TOOL_REGISTRY[t.id].icon,
-    label: t.id
+  boxTools = toolboxLayout.box.map(t => ({
+    icon: TOOL_REGISTRY[t.id]?.icon ?? "",
+    label: t.id,
+    color: t?.color ?? "#ffffff", 
+    visibility: t?.visibility ?? false,
   }));
+}
+
+
+// -------------------- INIT --------------------
+async function initModifiers() {
+  //const saved = await loadToolboxSettings(); // may return null
+  const saved = null;
+
+  // Load modifiers: use saved if exists, otherwise defaults
+  if (saved?.modifiers) {
+    modifiers = structuredClone(saved.modifiers);
+  } else {
+    modifiers = structuredClone(DEFAULT_MODIFIERS);
+  }
+
+  // Load toolbox layout: use saved if exists, otherwise defaults
+  if (saved?.toolboxLayout) {
+    toolboxLayout = structuredClone(saved.toolboxLayout);
+  } else {
+    toolboxLayout = structuredClone(DEFAULT_TOOLBOX_LAYOUT);
+  }
+
+  // Render UI and assign tools
+  renderModifiers(modifiers);
+  assignToolBox();
+
+  return modifiers;
 }
 
 
@@ -450,7 +567,7 @@ async function classifyStroke(stroke, hold = false) {
     let intersectGroups = [];
     let intersectPointsCount = 0;
     let shownModifier = true;
-    let predictedLabel = -1;
+    let predictedLabel = STROKE_TYPE.NONE;
 
     //for underline
     const newBox = getBoundingBox(stroke);
@@ -490,7 +607,7 @@ async function classifyStroke(stroke, hold = false) {
         if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || !group?.stroke) continue;
         activeGroupsCount++;
 
-        if (group.predictedLabel <= 7 && group.predictedLabel != STROKE_TYPE.DELETE) {
+        if (group.predictedLabel != STROKE_TYPE.DELETE) {
             const box = group.bbox;
             const isBBoxIntersecting = intersect(newBox, box);
 
@@ -1094,6 +1211,7 @@ window.onload = async () => {
             clearTimeout(shapeHoldTimer);
             isPointerInside = false;
             let selectedTool = null;
+            let icon;
 
             toolLinks.forEach(link => {
             const rect = link.getBoundingClientRect();
@@ -1103,7 +1221,8 @@ window.onload = async () => {
                     e.clientY >= rect.top &&
                     e.clientY <= rect.bottom
                 ) {
-                    selectedTool = link.querySelector('i') ?.getAttribute('data-label') || 'Unknown tool';
+                    icon = link.querySelector('i');
+                    selectedTool = icon?.getAttribute('data-label') || 'Unknown tool';                
                 }
             });
 
@@ -1120,9 +1239,12 @@ window.onload = async () => {
                     }
                 }   
                 
+                toolColor = icon?.getAttribute('data-color') || null;
+                toolVisibility = icon?.getAttribute('data-visibility') || null;
+
                 console.log(`Selected tool: ${selectedTool}`);
                 //delete tool
-                executeTool(selectedTool, isShortcut);
+                executeTool(selectedTool, toolColor, toolVisibility, isShortcut);
             } 
             hideToolbox();
             reDrawAll(drawCtx);
@@ -1195,65 +1317,21 @@ window.onload = async () => {
         updateScaleIndicator();
     });
 
-    modifiers = {
-        title1: {color: '#ffa052', visibility: true}, 
-        title2: {color: '#f4c64a', visibility: true}, 
-        highlight1: {color: '#ffff00', visibility: true}, // red
-        highlight2: {color: '#ffff00', visibility: true}, // green
-        highlight3: {color: '#00ffff', visibility: true}, // blue
-        box: {color: '#ffb6ff', visibility: true},
-        curly: {color: '#fa6e6e', visibility: true},
-        boxshortcut: {color: '#a3fba9', visibility: false},
-        curlyshortcut: {color: '#74e8ff', visibility: false}, 
-        circleshortcut: {color: 'pink', visibility: false}, 
-    }
 
-    // modifiers = await loadModifiers();
-    // if (modifiers == null) {
-    //     modifiers = {
-    //         title1: {color: '#ff6a00', visibility: true}, 
-    //         title2: {color: '#f4c64a', visibility: true}, 
-    //         highlight1: {color: '#ffff00', visibility: true}, // red
-    //         highlight2: {color: '#ffff00', visibility: true}, // green
-    //         highlight3: {color: '#00ffff', visibility: true}, // blue
-    //         box: {color: '#ffb6ff', visibility: true},
-    //         curly: {color: '#fa6e6e', visibility: true},
-    //         boxshortcut: {color: '#a3fba9', visibility: false},
-    //         curlyshortcut: {color: '#74e8ff', visibility: false}, 
-    //         circleshortcut: {color: 'pink', visibility: false}, 
-    //     }
+    // modifiers = {
+    //     title1: {color: '#ffa052', visibility: true}, 
+    //     title2: {color: '#f4c64a', visibility: true}, 
+    //     highlight1: {color: '#ffff00', visibility: true}, // red
+    //     highlight2: {color: '#ffff00', visibility: true}, // green
+    //     highlight3: {color: '#00ffff', visibility: true}, // blue
+    //     box: {color: '#ffb6ff', visibility: true},
+    //     curly: {color: '#fa6e6e', visibility: true},
+    //     boxshortcut: {color: '#a3fba9', visibility: false},
+    //     curlyshortcut: {color: '#74e8ff', visibility: false}, 
+    //     circleshortcut: {color: 'pink', visibility: false}, 
     // }
-    // document.querySelectorAll('.modifier-card').forEach(card => {
-    //     const modifierName = card.getAttribute('data-modifier');
-    //     const colorInput = card.querySelector('#colorInput');
-    //     const checkbox = card.querySelector('.modifier-footer input[type="checkbox"]');
-    //     const isVisible = checkbox.checked;
 
-    //     // Initialize the object with default value from the input
-    //     if (modifiers[modifierName]) {
-    //         colorInput.value = modifiers[modifierName].color;
-    //         checkbox.checked = modifiers[modifierName].visibility;
-    //     }else {
-    //         modifiers[modifierName] = {
-    //             color: colorInput.value,
-    //             visibility: isVisible
-    //         };
-    //     }
-    //     // Listen to changes and update the object
-    //     colorInput.addEventListener('input', () => {
-    //     modifiers[modifierName].color = colorInput.value;
-    //     console.log(`Updated ${modifierName}:`, modifiers);
-    //     saveModifiers(modifiers);
-    //     assignToolBox();
-    //     });
-
-    //     checkbox.addEventListener('change', () => {
-    //     modifiers[modifierName].visibility = checkbox.checked;
-    //     console.log(`Updated ${modifierName}:`, modifiers);
-    //     saveModifiers(modifiers);
-    //     assignToolBox();
-    //     });
-    // });  
+    modifiers = await initModifiers();
 }
 
 //---UI update function---
@@ -1389,15 +1467,8 @@ function startScrollBarCountdown() {
     }, 1000);
 }
 
-function executeTool(selectedTool, isShortcut) {
-    if (selectedTool == 'pen9') {
-        allGroups.pop();
-        modifiedGroups.modifiedGroups.pop();
-        modifiedGroups.modifiedGroups.forEach(group => {
-            group.color = penColors[selectedTool];
-        });
-    }
-    else if (selectedTool.includes("pen")) {
+function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
+    if (selectedTool.includes("pen")) {
         eraserMode = false; 
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
@@ -1406,12 +1477,12 @@ function executeTool(selectedTool, isShortcut) {
 
         if (isShortcut) {
             modifiedGroups.modifiedGroups.forEach(group => {
-                group.color = colorTools[lastNum - 1].color;
+                group.color = toolColor;
             });
         }
         else {
             console.log(lastNum -1);
-            defaultPenColor = colorTools[lastNum - 1].color;
+            defaultPenColor = toolColor;
         }
         
     }
@@ -1427,24 +1498,16 @@ function executeTool(selectedTool, isShortcut) {
         pastGroups.push(change);
         
     //highlighter tool
-    }else if (selectedTool == "highlight1") {
-        selectHighlight(modifiers.highlight1.color);
+    }else if (selectedTool == "highlight") {
+        selectHighlight(toolColor);
     }  
-    else if (selectedTool == "highlight2") {
-        allGroups.pop();
-        selectHighlight(modifiers.highlight2.color);
-    } 
-    else if (selectedTool == "highlight3") {
-        allGroups.pop();
-        selectHighlight(modifiers.highlight3.color);
-    } 
     else if (selectedTool.includes('bold')) {
         let lastChar = selectedTool.charAt(selectedTool.length - 1);
         let lastNum = parseInt(lastChar); 
 
         allGroups.pop();
         modifiedGroups.modifiedGroups.forEach(group => {
-            group.titleStatus = true;
+            group.thickness = 3;
             //group.color = 'pink';
             if (TOOL_REGISTRY.bold.color == 'none') {
                 group.color = alterRgbaBrightness(group.color);
@@ -1454,10 +1517,13 @@ function executeTool(selectedTool, isShortcut) {
         });
     }
     else if (selectedTool == "title1") {
-        selectTitle(modifiers.title1.color, modifiers.title1.visibility, 2);
+        selectTitle(toolColor, toolVisibility, 1);
     }
     else if (selectedTool == "title2") {
-        selectTitle(modifiers.title2.color, modifiers.title2.visibility, 1);
+        selectTitle(toolColor, toolVisibility, 2);
+    }
+    else if (selectedTool == "title3") {
+        selectTitle(toolColor, toolVisibility, 3);
     }
     else if (selectedTool == "move") {
         allGroups.pop();

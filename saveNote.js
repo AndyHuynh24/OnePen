@@ -341,29 +341,52 @@ function loadNote(path, callback) {
 
 
 // -----save modifiers -----------
-function saveModifiers(modifiers) {
+function saveToolboxSettings({ modifiers, toolboxLayout }) {
+  const payload = {
+    version: 2,
+    modifiers,
+    toolboxLayout,
+    updatedAt: Date.now()
+  };
+
   openNoteDB((db, done) => {
     const tx = db.transaction("setting", "readwrite");
     const store = tx.objectStore("setting");
-    store.put(modifiers, "modifiers");
-    tx.oncomplete = () => { console.log("✅ Modifiers saved"); done(); };
-    tx.onerror = () => { console.error("❌ Failed to save modifiers"); done(); };
+
+    store.put(payload, "toolboxSettings");
+
+    tx.oncomplete = () => {
+      console.log("✅ Toolbox settings saved (v2)");
+      done();
+    };
+
+    tx.onerror = () => {
+      console.error("❌ Failed to save toolbox settings");
+      done();
+    };
   });
 }
 
-function loadModifiers() {
-  return new Promise((resolve, reject) => {
+function loadToolboxSettings() {
+  return new Promise(resolve => {
     openNoteDB((db, done) => {
       const tx = db.transaction("setting", "readonly");
       const store = tx.objectStore("setting");
-      const request = store.get("modifiers");
+      const request = store.get("toolboxSettings");
 
-      request.onsuccess = () => { done(); resolve(request.result ?? null); };
-      request.onerror = () => { console.error("❌ Failed to load modifiers"); done(); resolve(null); };
+      request.onsuccess = () => {
+        done();
+        resolve(request.result ?? null);
+      };
+
+      request.onerror = () => {
+        console.error("❌ Failed to load toolbox settings");
+        done();
+        resolve(null);
+      };
     });
   });
 }
-
 
 function saveSetting(key, value) {
   openNoteDB((db, done) => {
