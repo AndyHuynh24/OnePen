@@ -207,43 +207,125 @@ function flashLink(link) {
   }, 200);
 }
 
+const TOOL_ID = Object.freeze({
+  ERASER: "eraser",
+  PEN: "pen",
+  UNDERLINE: "underline",
+  HIGHLIGHT: "highlight",
+  DELETE: "delete",
+  MOVE: "move",
+  BOLD: "bold",
+  COPY: "copy",
+  PASTE: "paste",
+  STICKY: "stickynote",
+  LINK: "link",
+  MATH: "mathSolver",
+});
+
+const TOOL_REGISTRY = {
+  eraser: {
+    icon: "bx-eraser",
+    defaultColor: "rgba(237,235,233,1)"
+  },
+  pen: {
+    icon: "bx-pen",
+    defaultColor: "#ffffff"
+  },
+  underline: {
+    icon: "bx-capitalize"
+  },
+  highlight: {
+    icon: "bx-highlight"
+  },
+  bold: {
+    icon: "bx-bold",
+    color: "red"
+  },
+  delete: {
+    icon: "bx-trash"
+  },
+  move: {
+    icon: "bx-move"
+  },
+  mathSolver: {
+    icon: "bx-calculator"
+  },
+  copy: {
+    icon: "bx-copy"
+  },
+  paste: {
+    icon: "bx-paste"
+  },
+  stickynote: {
+    icon: "bx-sticker"
+  },
+  link: {
+    icon: "bx-link-break"
+  }
+};
+
+const TOOLBOX_LAYOUT = {
+  color: [
+    { id: TOOL_ID.ERASER },
+    { id: TOOL_ID.PEN, color: "#ffffff" },
+    { id: TOOL_ID.PEN, colorFrom: "boxshortcut" },
+    { id: TOOL_ID.PEN, colorFrom: "curly" },
+    { id: TOOL_ID.PEN, colorFrom: "box" },
+    { id: TOOL_ID.PEN, colorFrom: "curlyshortcut" },
+    { id: TOOL_ID.PEN, colorFrom: "circleshortcut" },
+    { id: TOOL_ID.PEN, color: "orange" },
+  ],
+
+  underline: [
+    { id: TOOL_ID.UNDERLINE, modifier: "title1" },
+    { id: TOOL_ID.UNDERLINE, modifier: "title2" },
+    { id: TOOL_ID.HIGHLIGHT, modifier: "highlight2" },
+    { id: TOOL_ID.HIGHLIGHT, modifier: "highlight3" },
+    { id: TOOL_ID.BOLD },
+    { id: TOOL_ID.BOLD, modifier: "curly" },
+    { id: TOOL_ID.PEN, modifier: "box" }
+  ],
+
+  box: [
+    { id: TOOL_ID.DELETE },
+    { id: TOOL_ID.MOVE },
+    { id: TOOL_ID.MATH },
+    { id: TOOL_ID.COPY },
+    { id: TOOL_ID.PASTE },
+    { id: TOOL_ID.STICKY },
+    { id: TOOL_ID.LINK },
+    { id: TOOL_ID.BOLD }
+  ]
+};
+
+
 //-----functions for toolbox------
 function assignToolBox() {
-    colorTools = [
-        { icon: 'bx-eraser', label: 'eraser', color: 'rgba(237, 235, 233, 1)' },
-        // { icon: 'bx-pen', label: 'pen2', color: titleText[0]},
-        // { icon: 'bx-pen', label: 'pen3', color: shownBoxShortcut[0] },
-        // { icon: 'bx-pen', label: 'pen4', color: shownCurlyBoxShortcut[0]},
-        { icon: 'bx-pen', label: 'pen2', color: 'rgba(255, 255, 255, 1)'},
-        { icon: 'bx-pen', label: 'pen3', color: modifiers.boxshortcut.color},
-        { icon: 'bx-pen', label: 'pen4', color: modifiers.curly.color },
-        { icon: 'bx-pen', label: 'pen5', color: modifiers.box.color},
-        { icon: 'bx-pen', label: 'pen6', color: modifiers.curlyshortcut.color}, 
-        { icon: 'bx-pen', label: 'pen7', color: modifiers.circleshortcut.color},
-        { icon: 'bx-pen', label: 'pen8', color: "orange"},
-    ];
+  const resolveColor = tool => {
+    if (tool.color) return tool.color;
+    if (tool.colorFrom) return modifiers[tool.colorFrom]?.color;
+    if (tool.modifier) return modifiers[tool.modifier]?.color;
+    return TOOL_REGISTRY[tool.id]?.defaultColor ?? null;
+  };
 
-    underlineTools = [
-        { icon: 'bx-capitalize', label: 'title1', color: modifiers.title1.color},
-        { icon: 'bx-capitalize', label: 'title2', color: modifiers.title2.color},
-        { icon: 'bx-highlight', label: 'highlight2', color: hexToRgb(modifiers.highlight2.color)},
-        { icon: 'bx-highlight', label: 'highlight3', color: hexToRgb(modifiers.highlight3.color) },
-        { icon: 'bx-bold', label: 'bold1', color: 'none'},
-        { icon: 'bx-bold', label: 'bold2', color: modifiers.curly.color},
-        { icon: 'bx-pen', label: 'pen9', color: modifiers.box.color}
-    ];
+  colorTools = TOOLBOX_LAYOUT.color.map(t => ({
+    icon: TOOL_REGISTRY[t.id].icon,
+    label: t.id,
+    color: resolveColor(t)
+  }));
 
-    boxTools = [
-        { icon: 'bx-trash', label: 'delete' },
-        { icon: 'bx-move', label: 'move' },
-        { icon: 'bx-calculator', label: 'mathSolver' },
-        { icon: 'bx-copy', label: 'copy' },
-        { icon: 'bx-paste', label: 'paste' },
-        { icon: 'bx-sticker', label: 'stickynote'}, 
-        { icon: 'bx-link-break', label: 'link' }, 
-        { icon: 'bx-bold', label: 'bold'},
-    ];
+  underlineTools = TOOLBOX_LAYOUT.underline.map(t => ({
+    icon: TOOL_REGISTRY[t.id].icon,
+    label: t.id,
+    color: resolveColor(t)
+  }));
+
+  boxTools = TOOLBOX_LAYOUT.box.map(t => ({
+    icon: TOOL_REGISTRY[t.id].icon,
+    label: t.id
+  }));
 }
+
 
 //------functions for detect strokes groups--------
 function getBoundingBox(stroke) {
@@ -1364,10 +1446,10 @@ function executeTool(selectedTool, isShortcut) {
         modifiedGroups.modifiedGroups.forEach(group => {
             group.titleStatus = true;
             //group.color = 'pink';
-            if (underlineTools[lastNum + 3].color == 'none') {
+            if (TOOL_REGISTRY.bold.color == 'none') {
                 group.color = alterRgbaBrightness(group.color);
             } else {
-                group.color = underlineTools[lastNum + 3].color;
+                group.color = TOOL_REGISTRY.bold.color;
             }
         });
     }
