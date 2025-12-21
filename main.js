@@ -245,8 +245,11 @@ const PEN_TYPES = Object.freeze({
 });
 
 const DEFAULT_MODIFIERS = {
-  box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, visibility: true },
-  curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, visibility: true }
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, visibility: true }, 
+    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, visibility: false},
+    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, visibility: false},
+    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, visibility: false},
 };
 
 const DEFAULT_TOOLBOX_LAYOUT = {
@@ -263,8 +266,8 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.TITLE3, color: "#ffb6ff", visibility: true },
     { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
     { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
-    { id: TOOL_ID.BOLD, color: "default" },
-    { id: TOOL_ID.BOLD, color: "red", visibility: true },
+    { id: TOOL_ID.BOLD, color: "none" },
+    { id: TOOL_ID.BOLD, color: "purple", visibility: true },
     { id: TOOL_ID.PEN, color: "pink" }
   ],
   box: [
@@ -1227,9 +1230,6 @@ window.onload = async () => {
             });
 
             // Execute tools
-            if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
-                allGroups.pop();
-            }
             if (selectedTool) {
                 let isShortcut = false;
                 if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)){
@@ -1245,6 +1245,8 @@ window.onload = async () => {
                 console.log(`Selected tool: ${selectedTool}`);
                 //delete tool
                 executeTool(selectedTool, toolColor, toolVisibility, isShortcut);
+            } else {
+                allGroups.pop();
             } 
             hideToolbox();
             reDrawAll(drawCtx);
@@ -1469,11 +1471,9 @@ function startScrollBarCountdown() {
 
 function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
     if (selectedTool.includes("pen")) {
+        allGroups.pop();
         eraserMode = false; 
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-
-        let lastChar = selectedTool.charAt(selectedTool.length - 1);
-        let lastNum = parseInt(lastChar); 
 
         if (isShortcut) {
             modifiedGroups.modifiedGroups.forEach(group => {
@@ -1481,10 +1481,8 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
             });
         }
         else {
-            console.log(lastNum -1);
             defaultPenColor = toolColor;
         }
-        
     }
     else if (selectedTool == "delete") {
         //console.log("delete", modifiedGroups.groups);
@@ -1502,17 +1500,14 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         selectHighlight(toolColor);
     }  
     else if (selectedTool.includes('bold')) {
-        let lastChar = selectedTool.charAt(selectedTool.length - 1);
-        let lastNum = parseInt(lastChar); 
-
         allGroups.pop();
         modifiedGroups.modifiedGroups.forEach(group => {
             group.thickness = 3;
             //group.color = 'pink';
-            if (TOOL_REGISTRY.bold.color == 'none') {
+            if (toolColor == 'none') {
                 group.color = alterRgbaBrightness(group.color);
             } else {
-                group.color = TOOL_REGISTRY.bold.color;
+                group.color = toolColor;
             }
         });
     }
@@ -1520,6 +1515,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         selectTitle(toolColor, toolVisibility, 1);
     }
     else if (selectedTool == "title2") {
+        console.log('visiblity', toolVisibility);
         selectTitle(toolColor, toolVisibility, 2);
     }
     else if (selectedTool == "title3") {

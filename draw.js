@@ -783,7 +783,7 @@ function reDrawAll(ctx) {
     let drawCount = 0;
 
     allGroups.forEach((group) => {
-        if (!group?.bbox || group?.visibility === false || !intersect(group?.bbox, screenBox)) return;
+        if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
 
         drawCount ++;
 
@@ -1013,10 +1013,10 @@ function hexToRgb(hex) {
 }
 
 function selectTitle(titleColor, visibility, level=0) {
-    if (!visibility) {
+    if (visibility == 'false') {
         const lastGroup = allGroups[allGroups.length - 1];
+        console.log('lastGroup', lastGroup);
         if (lastGroup) lastGroup.visibility = false;
-    
     } 
     const idToColorMap = {};
     modifiedGroups.modifiedGroups.forEach(group => {
