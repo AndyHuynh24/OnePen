@@ -221,8 +221,8 @@ const TOOL_ID = Object.freeze({
 });
 
 const TOOL_REGISTRY = {
-  eraser: { icon: "bx-eraser", defaultColor: "rgba(237,235,233,1)" },
-  pen: { icon: "bx-pen", defaultColor: "#ffffff" },
+  eraser: { icon: "bx-eraser"},
+  pen: { icon: "bx-pen"},
   title1: {icon: "bx-capitalize"},
   title2: {icon: "bx-capitalize"},
   title3: {icon: "bx-capitalize"},
@@ -254,11 +254,14 @@ const DEFAULT_MODIFIERS = {
 
 const DEFAULT_TOOLBOX_LAYOUT = {
   color: [
-    { id: TOOL_ID.ERASER },
+    { id: TOOL_ID.ERASER},
     { id: TOOL_ID.PEN, color: "#ffffff"},
-    { id: TOOL_ID.PEN, colorFrom: "box" },
-    { id: TOOL_ID.PEN, colorFrom: "curly" },
-    { id: TOOL_ID.PEN, color: "orange" }
+    { id: TOOL_ID.PEN, color: "#f4c64a" },
+    { id: TOOL_ID.PEN, color: "#ff6a00" },
+    { id: TOOL_ID.PEN, color: "#ffff00" }, 
+    { id: TOOL_ID.PEN, color: "#ffb6ff"},
+    { id: TOOL_ID.PEN, color: "#ffff00"},
+    { id: TOOL_ID.PEN, colorFrom: "#ffff00" },
   ],
   underline: [
     { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true },
@@ -358,8 +361,8 @@ function bindModifierUI(mods = modifiers) {
 }
 
 function updateTools() {
-  assignToolBox();
-  saveToolboxSettings({ modifiers, toolboxLayout });
+    console.log("work");
+    saveToolboxSettings({ modifiers, toolboxLayout });
 }
 
 // -------------------- ADD / DELETE --------------------
@@ -386,17 +389,6 @@ function deleteModifier(id) {
 
 // -------------------- TOOLBOX --------------------
 function assignToolBox() {
-//   const resolveColor = tool => {
-//     console.log("modifiers", modifiers);
-//     if (tool.color) return tool.color;
-//     if (tool.colorFrom) {
-//         //console.log(modifiers[tool.colorFrom]);
-//         return modifiers[tool.colorFrom]?.color ?? "#000000"; // safe fallback
-//     }
-//     if (tool.modifier) return modifiers[tool.modifier]?.color ?? "#000000";   // safe fallback
-//     return TOOL_REGISTRY[tool.id]?.defaultColor ?? "#000000";
-//   };
-
   colorTools = toolboxLayout.color.map(t => ({
     icon: TOOL_REGISTRY[t.id]?.icon ?? "",
     label: t.id,
@@ -417,13 +409,127 @@ function assignToolBox() {
     color: t?.color ?? "#ffffff", 
     visibility: t?.visibility ?? false,
   }));
+
 }
+
+const container = document.getElementById("toolboxes");
+
+async function renderTools() {
+    Object.entries(toolboxLayout).forEach(([id, tools]) => {
+        const dial = document.createElement("div");
+        dial.className = "toolbox-dial";
+
+        const title = document.createElement("div");
+        title.className = "toolbox-title";
+        title.innerText = id;
+        dial.appendChild(title);
+
+        const radius = 96;
+        const toolCount = tools.length;
+
+        Object.entries(tools).forEach(([index, tool]) => {
+            const angle = (index / toolCount) * 2 * Math.PI + (Math.PI/2);
+            const x = radius * Math.cos(angle);
+            const y = radius * Math.sin(angle);
+
+            const toolDiv = document.createElement("div");
+            toolDiv.className = "tool";
+            toolDiv.style.left = `${125 + x - 25}px`;
+            toolDiv.style.top = `${125 + y - 25}px`;
+            toolDiv.style.backgroundColor = tool.color || "#fff";
+            
+            const icon = document.createElement('i');
+            icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
+            icon.setAttribute('data-label', tool.id);   
+            toolDiv.appendChild(icon);
+
+            const popup = document.createElement("div");
+            popup.className = "tool-popup";
+
+            toolDiv.appendChild(popup);
+
+            toolDiv.addEventListener("click", function(e) {
+                popup.innerHTML = `
+                    <div class="modifier-title">Tool selection</div>
+                    <label for"toolPicker">Tool:</label>
+                    <select class="modifier-toolType" id="toolPicker">
+                    ${Object.values(TOOL_ID).map(t => `
+                        <option value="${t}" ${t === tool.id ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    `).join("")}
+                    </select>
+                    <label for="colorPicker">Color:</label>
+                    <input type="color" id="colorPicker" class="modifier-color" value="${tool.color}">
+                    <label for="penPicker">Pen type:</label>
+                    <select class="modifier-penType" id="penPicker">
+                    ${Object.values(PEN_TYPES).map(t => `
+                        <option value="${t}" ${t === tool.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    `).join("")}
+                    </select>
+                    <div class="modifier-footer">
+                    <label>Visibility:</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${tool.visibility ? "checked" : ""}>
+                        <span class="slider"></span>
+                    </label>
+                    </div>
+                `;
+
+                const btn = document.createElement('button');
+                btn.textContent = '✕';
+                btn.className = 'delete-modifier-btn';
+                btn.style.position = 'absolute';
+                btn.style.fontSize = "20px";
+                btn.style.top = '5px';
+                btn.style.right = '5px';
+                btn.style.border = 'none';
+                btn.style.background = 'transparent';
+                btn.style.cursor = 'pointer';
+                btn.style.color = '#ff4d4f';
+                btn.title = 'Delete Modifier';
+                btn.onclick = () => {popup.style.display = "none"};
+                popup.appendChild(btn);
+
+                // popup.style.display = popup.style.display === "block" ? "none" : "block";
+                popup.style.display = "flex";
+                console.log("alltools", tools);
+                popup.addEventListener("click", function(e) {
+                    e.stopPropagation(); // so clicks inside popup don't close or interfere
+                });
+                
+                const toolInput = popup.querySelector(".modifier-toolType");
+                const colorInput = popup.querySelector(".modifier-color");
+                const penTypeSelect = popup.querySelector(".modifier-penType");
+                const visibilityCheckbox = popup.querySelector("input[type=checkbox]");
+                
+                if (toolInput) toolInput.oninput = () => { 
+                    tool.id = toolInput.value; 
+                    updateTools();
+                    icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
+                    icon.setAttribute('data-label', tool.id);   
+                };
+                if (colorInput) colorInput.oninput = () => { 
+                    tool.color = colorInput.value; updateTools(); 
+                    toolDiv.style.backgroundColor = tool.color || "#fff";
+
+                };
+                if (penTypeSelect) penTypeSelect.onchange = () => { mod.penType = penTypeSelect.value; updateTools(); };
+                if (visibilityCheckbox) visibilityCheckbox.onchange = () => { mod.visibility = visibilityCheckbox.checked; updateTools(); };
+            });
+
+            dial.appendChild(toolDiv);
+        });
+
+        container.appendChild(dial);
+
+    });
+}
+
 
 
 // -------------------- INIT --------------------
 async function initModifiers() {
-  //const saved = await loadToolboxSettings(); // may return null
-  const saved = null;
+  const saved = await loadToolboxSettings(); // may return null
+  //const saved = null;
 
   // Load modifiers: use saved if exists, otherwise defaults
   if (saved?.modifiers) {
@@ -441,7 +547,8 @@ async function initModifiers() {
 
   // Render UI and assign tools
   renderModifiers(modifiers);
-  assignToolBox();
+  assignToolBox;
+  renderTools();
 
   return modifiers;
 }
@@ -787,43 +894,33 @@ async function classifyStroke(stroke, hold = false) {
 
 const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     if (e.pointerType == 'touch') return;
-    //updat toolbox
-    assignToolBox();
     modifiedGroups = await classifyStroke(currentStroke, true);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     drawing = false; 
 
     console.log("Pointer hold detected! Classifying stroke...", modifiedGroups.modifiedGroups);
+    console.log("toolboxLayout.box", toolboxLayout.box);
+    console.log("tool", boxTools);
 
     //console.log("Pointer held for 0.7 seconds!", e);
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE || modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
-        showToolbox(e.offsetX, e.offsetY, colorTools);
+        showToolbox(e.offsetX, e.offsetY, toolboxLayout.color);
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE || modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
-        showToolbox(e.offsetX, e.offsetY, underlineTools);
+        showToolbox(e.offsetX, e.offsetY, toolboxLayout.underline);
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.BOX) {
-        showToolbox(e.offsetX, e.offsetY, boxTools);
+        showToolbox(e.offsetX, e.offsetY, toolboxLayout.box);
     }
     
     pointerDownForToolbox = true; 
     isPointerInside = true;
 
-    shapeHoldTimer = setTimeout(() => {
-        if (isPointerInside) {
-            hideToolbox();
-            toggleShape(e);
-        }
-    }, 700); 
-});
-
-//---App start up function---
-window.addEventListener('beforeunload', (event) => {
-    // Your function or logic here
-    // if (title) {
-    //     saveNote(title, allGroups);
-    // }
-
-    // event.preventDefault();
-    // event.returnValue = '';
+    //please search for shapeTimer
+    // shapeHoldTimer = setTimeout(() => {
+    //     if (isPointerInside) {
+    //         hideToolbox();
+    //         toggleShape(e);
+    //     }
+    // }, 700); 
 });
 
 window.onload = async () => {
@@ -1099,10 +1196,11 @@ window.onload = async () => {
             y >= rect.top &&
             y <= rect.bottom;
 
-            if (!isPointerInside) {
-                clearTimeout(shapeHoldTimer);
-                toggleBtn.classList.remove("countdown");
-            }
+            //shapeTimer
+            // if (!isPointerInside) {
+            //     clearTimeout(shapeHoldTimer);
+            //     toggleBtn.classList.remove("countdown");
+            // }
         }
         else if (shapeMode) {
             drawShape(liveCtx, e);
@@ -1211,7 +1309,8 @@ window.onload = async () => {
             reDrawAll(drawCtx);
         } 
         else if (pointerDownForToolbox) {
-            clearTimeout(shapeHoldTimer);
+            //shapeTimer
+            //clearTimeout(shapeHoldTimer);
             isPointerInside = false;
             let selectedTool = null;
             let icon;

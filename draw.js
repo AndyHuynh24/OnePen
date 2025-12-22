@@ -909,11 +909,11 @@ function showToolbox(x, y, tools) {
 
         const a = document.createElement('a');
         a.href = '#';
-        a.style = `background-color: ${tool.color || 'transparent'};`;
+        a.style = `background-color: ${tool.color || '#fff'};`;
 
         const icon = document.createElement('i');
-        icon.className = `bx ${tool.icon}`;
-        icon.setAttribute('data-label', tool.label);            // base tool ID
+        icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
+        icon.setAttribute('data-label', tool.id);            // base tool ID
         icon.setAttribute('data-color', tool.color);
         icon.setAttribute('data-visibility', tool.visibility);
 
@@ -941,7 +941,7 @@ function showToolbox(x, y, tools) {
     nav.classList.add("show");
     nav.classList.add("open");
     toggleBtn.classList.remove("hidden");
-    toggleBtn.classList.add("countdown");
+    // toggleBtn.classList.add("countdown");
     
 
     pointerDownForToolbox = true; 
