@@ -512,8 +512,8 @@ async function renderTools() {
                     toolDiv.style.backgroundColor = tool.color || "#fff";
 
                 };
-                if (penTypeSelect) penTypeSelect.onchange = () => { mod.penType = penTypeSelect.value; updateTools(); };
-                if (visibilityCheckbox) visibilityCheckbox.onchange = () => { mod.visibility = visibilityCheckbox.checked; updateTools(); };
+                if (penTypeSelect) penTypeSelect.onchange = () => { tool.penType = penTypeSelect.value; updateTools(); };
+                if (visibilityCheckbox) visibilityCheckbox.onchange = () => { tool.visibility = visibilityCheckbox.checked; updateTools(); };
             });
 
             dial.appendChild(toolDiv);
