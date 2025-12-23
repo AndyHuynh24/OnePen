@@ -8,7 +8,8 @@ const MAX_SCALE = 4.0;
 //parameters for background
 let backgroundColor = 'rgba(32,31,30, 1)';
 let gridlineColor = 'rgba(21,59,87, 1)';
-let gridSize = 58; // default grid size
+let gridSize = Number(document.getElementById("gridWidth").value);
+let penSize = Number(document.getElementById('penSize').value);
 
 //parameters for live drawing
 let currentStroke = []; 
@@ -221,20 +222,20 @@ const TOOL_ID = Object.freeze({
 });
 
 const TOOL_REGISTRY = {
-  eraser: { icon: "bx-eraser"},
-  pen: { icon: "bx-pen"},
-  title1: {icon: "bx-capitalize"},
-  title2: {icon: "bx-capitalize"},
-  title3: {icon: "bx-capitalize"},
-  highlight: { icon: "bx-highlight" },
-  bold: { icon: "bx-bold", color: "red" },
-  delete: { icon: "bx-trash" },
-  move: { icon: "bx-move" },
-  mathSolver: { icon: "bx-calculator" },
-  copy: { icon: "bx-copy" },
-  paste: { icon: "bx-paste" },
-  stickynote: { icon: "bx-sticker" },
-  link: { icon: "bx-link-break" }
+  eraser: { icon: "bx-eraser", customizable: false},
+  pen: { icon: "bx-pen", customizable: true},
+  title1: {icon: "bx-capitalize", customizable: true},
+  title2: {icon: "bx-capitalize", customizable: true},
+  title3: {icon: "bx-capitalize", customizable: true},
+  highlight: { icon: "bx-highlight", customizable: true},
+  bold: { icon: "bx-bold", color: "red", customizable: true},
+  delete: { icon: "bx-trash", customizable: false},
+  move: { icon: "bx-move", customizable: false},
+  mathSolver: { icon: "bx-calculator", customizable: false},
+  copy: { icon: "bx-copy", customizable: false},
+  paste: { icon: "bx-paste", customizable: false},
+  stickynote: { icon: "bx-sticker", customizable: false},
+  link: { icon: "bx-link-break", customizable: false}
 };
 
 const PEN_TYPES = Object.freeze({
@@ -457,16 +458,16 @@ async function renderTools() {
                         <option value="${t}" ${t === tool.id ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     `).join("")}
                     </select>
-                    <label for="colorPicker">Color:</label>
+                    <label for="colorPicker" id="colorLabel">Color:</label>
                     <input type="color" id="colorPicker" class="modifier-color" value="${tool.color}">
-                    <label for="penPicker">Pen type:</label>
+                    <label for="penPicker" id="penLabel">Pen type:</label>
                     <select class="modifier-penType" id="penPicker">
                     ${Object.values(PEN_TYPES).map(t => `
                         <option value="${t}" ${t === tool.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     `).join("")}
                     </select>
                     <div class="modifier-footer">
-                    <label>Visibility:</label>
+                    <label id="visibilityLabel">Visibility:</label>
                     <label class="toggle-switch">
                         <input type="checkbox" ${tool.visibility ? "checked" : ""}>
                         <span class="slider"></span>
@@ -505,12 +506,21 @@ async function renderTools() {
                     tool.id = toolInput.value; 
                     updateTools();
                     icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
-                    icon.setAttribute('data-label', tool.id);   
+                    icon.setAttribute('data-label', tool.id);  
+                    if (TOOL_REGISTRY[tool.id].customizable  == false) { 
+                        popup.querySelector("#colorLabel").style.opacity = 0;
+                        popup.querySelector("#colorPicker").style.opacity = 0; 
+                        popup.querySelector("#penLabel").style.opacity = 0; 
+                        popup.querySelector("#penPicker").style.opacity = 0; 
+                        popup.querySelector("#visibilityLabel").style.opacity = 0; 
+                        popup.querySelector(".toggle-switch").style.opacity = 0;
+                        toolDiv.style.backgroundColor = "#fff";  
+                    } 
                 };
                 if (colorInput) colorInput.oninput = () => { 
-                    tool.color = colorInput.value; updateTools(); 
+                    tool.color = colorInput.value; 
+                    updateTools(); 
                     toolDiv.style.backgroundColor = tool.color || "#fff";
-
                 };
                 if (penTypeSelect) penTypeSelect.onchange = () => { tool.penType = penTypeSelect.value; updateTools(); };
                 if (visibilityCheckbox) visibilityCheckbox.onchange = () => { tool.visibility = visibilityCheckbox.checked; updateTools(); };
@@ -650,24 +660,24 @@ function isInside(stroke, modifier) {
 }
 
 function sliceStroke(stroke, sliceHeight = 25) {
-  const box = getBoundingBox(stroke);
-  const numSlices = Math.ceil(box.h / sliceHeight);
-  const slices = [];
-  for (let i = 0; i < numSlices; i++) {
-    const top = box.y + i * sliceHeight;
-    const bottom = (i + 1 === numSlices) ? box.y + box.h : top + sliceHeight;
-    const slicePoints = stroke.filter(p => p.y >= top && p.y < bottom);
-    if (slicePoints.length === 0) continue;
-    const xs = slicePoints.map(p => p.x);
-    const sliceBox = {
-        x: Math.min(...xs), 
-        y: top, 
-        w: Math.max(...xs) - Math.min(...xs), 
-        h: bottom - top,
+    const box = getBoundingBox(stroke);
+    const numSlices = Math.ceil(box.h / sliceHeight);
+    const slices = [];
+    for (let i = 0; i < numSlices; i++) {
+        const top = box.y + i * sliceHeight;
+        const bottom = (i + 1 === numSlices) ? box.y + box.h : top + sliceHeight;
+        const slicePoints = stroke.filter(p => p.y >= top && p.y < bottom);
+        if (slicePoints.length === 0) continue;
+        const xs = slicePoints.map(p => p.x);
+        const sliceBox = {
+            x: Math.min(...xs), 
+            y: top, 
+            w: Math.max(...xs) - Math.min(...xs), 
+            h: bottom - top,
+        }
+        slices.push({ x: Math.min(...xs), y: top, w: Math.max(...xs) - Math.min(...xs), h: bottom - top });
+        //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
     }
-    slices.push({ x: Math.min(...xs), y: top, w: Math.max(...xs) - Math.min(...xs), h: bottom - top });
-    //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
-}
   return slices;
 }
 
@@ -1000,6 +1010,17 @@ window.onload = async () => {
             drawingLock = true;
         }
     }, 500);
+
+    const gridSlider = document.getElementById("gridWidth");
+    gridSlider.addEventListener("input", () => {
+        gridSize = Number(gridSlider.value);
+        drawGrid(backgroundCtx);
+    });
+
+    const strokeSlider = document.getElementById("penSize");
+    strokeSlider.addEventListener("input", () =>{
+        penSize = Number(strokeSlider.value);
+    });
 
 
 

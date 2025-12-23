@@ -25,43 +25,45 @@ function toCanvasCoords(e) {
 }
 //Drawgrid grid
 function drawGrid(ctx) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
 
-    ctx.save();
-    // Clear canvas normally
-    ctx.clearRect(0, 0, width, height);
+  ctx.save();
 
-    // Fill background
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
+  // Clear
+  ctx.clearRect(0, 0, width, height);
 
-    // Set grid style
-    ctx.strokeStyle = gridlineColor;
-    ctx.lineWidth = 1;
+  // Background
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, width, height);
 
-    // Calculate start/end based on offset
-    const startX = -viewportOffset.x % gridSize;
-    const startY = -viewportOffset.y % gridSize;
+  // Grid style
+  ctx.strokeStyle = gridlineColor;
+  ctx.lineWidth = 1;
 
-    // Draw vertical lines
-    for (let x = startX; x < width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-    }
+  // Offset-aware start positions
+  const startX = (-viewportOffset.x % gridSize + gridSize) % gridSize;
+  const startY = (-viewportOffset.y % gridSize + gridSize) % gridSize;
 
-    // Draw horizontal lines
-    for (let y = startY; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-    }
+  // Vertical lines
+  for (let x = startX; x <= width; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
 
-    ctx.restore();
+  // Horizontal lines
+  for (let y = startY; y <= height; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
+
 
 function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
     drawctx.save();
@@ -315,7 +317,7 @@ function drawFinalLine(ctx, bbox, color, directX, directY, lineWidth = 1.7) {
 }
 
 // --------draw stroke --------------------
-function drawSmoothStrokeCore(ctx, stroke, color, widthFactor = 3, dash = false) {
+function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash = false) {
     if (stroke.length < 2) return;
 
     ctx.save();
@@ -347,14 +349,6 @@ function drawSmoothStrokeCore(ctx, stroke, color, widthFactor = 3, dash = false)
     ctx.stroke();
     ctx.setLineDash([]); // Clear dash style
     ctx.restore();
-}
-
-function drawLive(stroke, ctx = drawCtx, widthFactor = 1.7) {
-    drawSmoothStrokeCore(ctx, stroke, defaultPenColor, widthFactor, false);
-}
-
-function drawStroke(ctx, stroke, color = "black", width = 1.7) {
-    drawSmoothStrokeCore(ctx, stroke, color, width, false);
 }
 
 function drawHighlight(bbox, color, drawctx = drawCtx) {
@@ -861,7 +855,7 @@ function reDrawAll(ctx) {
                 drawStroke(drawCtx, group.stroke, group.color, 3);
             } 
             else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE) && group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
-                const thickness = group?.thickness ?? 1.7;
+                const thickness = group?.thickness ?? 2;
                 drawStroke(drawCtx, group.stroke, group.color, thickness);
             } 
             else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
