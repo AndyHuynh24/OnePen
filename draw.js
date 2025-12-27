@@ -38,7 +38,7 @@ function drawGrid(ctx) {
   ctx.fillRect(0, 0, width, height);
 
   // Grid style
-  ctx.strokeStyle = gridlineColor;
+  ctx.strokeStyle = gridLineColor;
   ctx.lineWidth = 1;
 
   // Offset-aware start positions
@@ -317,7 +317,7 @@ function drawFinalLine(ctx, bbox, color, directX, directY, lineWidth = 1.7) {
 }
 
 // --------draw stroke --------------------
-function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash = false) {
+function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 2, dash = false) {
     if (stroke.length < 2) return;
 
     ctx.save();
@@ -469,7 +469,7 @@ function reDrawMovement() {
             if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) { //highlighter
                 drawHighlight(liveCtx, group.bbox, group.color)
             } else {
-                drawStroke(liveCtx, group.stroke, group.color, 2);
+                drawStroke(liveCtx, group.stroke, group.color);
             }
         }
     } else if (eraserMode) {
@@ -855,8 +855,8 @@ function reDrawAll(ctx) {
                 drawStroke(drawCtx, group.stroke, group.color, 3);
             } 
             else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE) && group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
-                const thickness = group?.thickness ?? 2;
-                drawStroke(drawCtx, group.stroke, group.color, thickness);
+                const groupSize = group?.size ?? 2;
+                drawStroke(drawCtx, group.stroke, group.color, groupSize);
             } 
             else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
                 console.log("highlight");

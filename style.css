@@ -376,7 +376,7 @@ body {
     top: 0;
     right: -100%;
     /* right: 0; */
-    width: 500px;
+    width: 530px;
     height: 100vh;
     background: #ffffff;
     box-shadow: -4px 0 10px rgba(0, 0, 0, 0.1);
@@ -392,10 +392,11 @@ body {
     right: 0;
 }
 .buttonGroup {
-    width: 430px;
+    width: 460px;
     display: flex;
     flex-direction: row;
     margin-bottom: 10px;
+    gap: 1px;
 }
 .buttonGroup #driveGroup{
     display: flex;
@@ -408,7 +409,7 @@ body {
     flex-direction: row;
     justify-content: center;
     gap: 4px;
-    width: 90px;
+    width: 115px;
 }
 .buttonGroup button {
     background-color: whitesmoke;
@@ -455,7 +456,7 @@ body {
     margin: 0;
 }
 .shelf .folder {
-    width: 160px;
+    width: 190px;
     height: 100%;
     gap: 0px;
     display: flex;
@@ -495,7 +496,7 @@ body {
     background-color: #e0e8ff;
 }
 .folder-button p {
-    width: 122px;
+    width: 146px;
     height: 64%;
     display: flex;
     justify-content: center;
@@ -778,6 +779,43 @@ input[type="range"] {
 
 .range-row span {
     font-size: 0.9rem;
+}
+
+/* === Grid slider enhancements === */
+
+.grid-range {
+  gap: 8px;
+}
+
+.grid-range input[type="range"] {
+  flex: 1;
+}
+
+.grid-range input[type="number"] {
+  width: 64px;
+  padding: 4px 6px;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.modifier-section .grid-range input[type="number"] {
+    width: fit-content;
+    font-size: 12px;
+}
+
+.grid-range input[type="number"]:focus {
+  outline: none;
+  border-color: #aaa;
+  background-color: #555;
+}
+
+.range-label {
+  font-size: 0.85rem;
+  opacity: 0.8;
 }
 
 .modifier-grid {

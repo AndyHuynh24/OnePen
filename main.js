@@ -6,10 +6,12 @@ const MIN_SCALE = 0.5;
 const MAX_SCALE = 4.0;
 
 //parameters for background
-let backgroundColor = 'rgba(32,31,30, 1)';
-let gridlineColor = 'rgba(21,59,87, 1)';
+let backgroundColor;
+let gridLineColor;
 let gridSize = Number(document.getElementById("gridWidth").value);
 let penSize = Number(document.getElementById('penSize').value);
+const backgroundColorPicker = document.getElementById("backgroundColorPicker");
+const gridLineColorPicker = document.getElementById("gridLineColorPicker");
 
 //parameters for live drawing
 let currentStroke = []; 
@@ -245,13 +247,15 @@ const PEN_TYPES = Object.freeze({
   BOLD: "bold"
 });
 
-const DEFAULT_MODIFIERS = {
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, visibility: true }, 
-    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, visibility: false},
-    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, visibility: false},
-    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, visibility: false},
-};
+const DEFAULT_MODIFIERS = { 
+    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 3, visibility: true},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2, visibility: true }, 
+    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
+    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 3, visibility: false},
+    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
+    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58}
+}; 
 
 const DEFAULT_TOOLBOX_LAYOUT = {
   color: [
@@ -275,6 +279,16 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "pink" }
   ],
   box: [
+    { id: TOOL_ID.DELETE },
+    { id: TOOL_ID.MOVE },
+    { id: TOOL_ID.MATH },
+    { id: TOOL_ID.COPY },
+    { id: TOOL_ID.PASTE },
+    { id: TOOL_ID.STICKY },
+    { id: TOOL_ID.LINK },
+    { id: TOOL_ID.BOLD }
+  ],
+  curly: [
     { id: TOOL_ID.DELETE },
     { id: TOOL_ID.MOVE },
     { id: TOOL_ID.MATH },
@@ -308,6 +322,26 @@ function createModifierCard(id, mod) {
         <option value="${t}" ${t === mod.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
       `).join("")}
     </select>
+    <label>Stroke size:</label>
+    <div class="range-row grid-range">
+        <input
+          type="range"
+          id="penSize"
+          min="0.4"
+          max="15"
+          step="0.2"
+          value="2"
+        />
+
+        <input
+          type="number"
+          id="penSizeValue"
+          min="0.4"
+          max="15"
+          step="0.2"
+          value="2"
+        />
+    </div>
     <div class="modifier-footer">
       <label>Visibility:</label>
       <label class="toggle-switch">
@@ -331,6 +365,54 @@ function createModifierCard(id, mod) {
   btn.onclick = () => deleteModifier(id);
   card.appendChild(btn);
 
+    if (mod.label == "Default Pen") {
+        card.style.backgroundColor = "#142231ff"
+    }
+
+    if (mod.label == "Default Pen"  || mod.label.includes("Shortcut")) {
+        card.querySelector(".modifier-footer").style.display = "none";
+    }
+
+    const penSizeSlider = card.querySelector("#penSize");
+    const penSizeInput  = card.querySelector("#penSizeValue");
+
+    const MIN_penSize = Number(penSizeSlider.min);
+    const MAX_penSize = Number(penSizeSlider.max);
+
+    function clampPenSize(value) {
+    return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+    }
+
+    function setPenSize(value) {
+        const v = clampPenSize(Number(value) || MIN_penSize);
+        penSizeSlider.value = v;
+        penSizeInput.value = v;
+        penSize = v;        // <-- your existing gridSize
+    }
+
+    setPenSize(mod?.size ?? 0);
+
+    // Slider → number
+    penSizeSlider.addEventListener("input", e => {
+        setPenSize(e.target.value);
+        mod.size = clampPenSize(Number(e.target.value) || MIN_penSize);
+        updateTools();
+    });
+
+    // Number typing → slider
+    penSizeInput.addEventListener("input", e => {
+        setPenSize(e.target.value);
+        mod.size = e.target.value; 
+        updateTools();
+    });
+
+    // Commit on Enter
+    penSizeInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+        e.target.blur();
+    }
+    });
+
   return card;
 }
 
@@ -340,7 +422,49 @@ function renderModifiers(mods = modifiers) {
   if (!grid) return console.warn("No modifier grid found");
   grid.innerHTML = "";
   Object.entries(mods).forEach(([id, mod]) => {
-    grid.appendChild(createModifierCard(id, mod));
+    if (!mod.canvasSetting) {
+        grid.appendChild(createModifierCard(id, mod));
+    } else {
+        backgroundColor = mod.backgroundColor;
+        gridLineColor = mod.gridLineColor;
+        backgroundColorPicker.value = mod.backgroundColor;
+        gridLineColorPicker.value = mod.gridLineColor;
+        setGridSize(mod.gridWidth);
+
+        backgroundColorPicker.oninput = () => {
+            backgroundColor = backgroundColorPicker.value; 
+            mod.backgroundColor = backgroundColor;
+            drawGrid(backgroundCtx); 
+            updateTools()
+        };
+        gridLineColorPicker.oninput = () => {
+            gridLineColor = gridLineColorPicker.value; 
+            mod.gridLineColor = gridLineColor;
+            drawGrid(backgroundCtx); 
+            updateTools();
+        };
+
+        // Slider → number
+        gridSlider.addEventListener("input", e => {
+            setGridSize(e.target.value);
+            mod.gridWidth = clamp(Number(e.target.value) || MIN);
+            updateTools();
+        });
+
+        // Number typing → slider
+        gridInput.addEventListener("input", e => {
+            setGridSize(e.target.value);
+            mod.gridWdith = e.target.value; 
+            updateTools();
+        });
+
+        // Commit on Enter
+        gridInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            e.target.blur();
+        }
+        });
+    }
   });
   bindModifierUI(mods);
 }
@@ -362,7 +486,6 @@ function bindModifierUI(mods = modifiers) {
 }
 
 function updateTools() {
-    console.log("work");
     saveToolboxSettings({ modifiers, toolboxLayout });
 }
 
@@ -538,8 +661,8 @@ async function renderTools() {
 
 // -------------------- INIT --------------------
 async function initModifiers() {
-  const saved = await loadToolboxSettings(); // may return null
-  //const saved = null;
+  //const saved = await loadToolboxSettings(); // may return null
+  const saved = null;
 
   // Load modifiers: use saved if exists, otherwise defaults
   if (saved?.modifiers) {
@@ -697,13 +820,15 @@ async function classifyStroke(stroke, hold = false) {
 
     //normal stroke
     if (!wideenough || !isDetectionOn) {
+        //group creation
         const modifier = {
             id: id_count ++, // Unique ID for the group
             stroke: currentStroke, //strokes data
             bbox: newBox,
             color: defaultPenColor,
             predictedLabel: predictedLabel,
-            visibility: shownModifier
+            visibility: shownModifier,
+            size: penSize
         };
         allGroups.push(modifier);
         modifiedGroups.push(modifier);
@@ -822,13 +947,15 @@ async function classifyStroke(stroke, hold = false) {
         }
     }
 
+    //group creation
     const modifier = {
         id: id_count ++, // Unique ID for the group
         stroke: currentStroke, //strokes data
         bbox: newBox,
         color: defaultPenColor,
         predictedLabel: predictedLabel,
-        visibility: shownModifier
+        visibility: shownModifier,
+        size: penSize
     };
     
     if (predictedLabel != STROKE_TYPE.DELETE) {
@@ -933,6 +1060,41 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     // }, 700); 
 });
 
+const gridSlider = document.getElementById("gridWidth");
+const gridInput  = document.getElementById("gridWidthValue");
+
+const MIN = Number(gridSlider.min);
+const MAX = Number(gridSlider.max);
+
+function clamp(value) {
+  return Math.min(MAX, Math.max(MIN, value));
+}
+
+function setGridSize(value) {
+  const v = clamp(Number(value) || MIN);
+  gridSlider.value = v;
+  gridInput.value = v;
+  gridSize = v;        // <-- your existing gridSize
+  drawGrid(backgroundCtx);       // <-- redraw grid
+}
+
+const penSizeSlider = document.getElementById("penSize");
+const penSizeInput  = document.getElementById("penSizeValue");
+
+const MIN_penSize = Number(penSizeSlider.min);
+const MAX_penSize = Number(penSizeSlider.max);
+
+function clampPenSize(value) {
+  return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+}
+
+function setPenSize(value) {
+  const v = clampPenSize(Number(value) || MIN_penSize);
+  penSizeSlider.value = v;
+  penSizeInput.value = v;
+  penSize = v;        // <-- your existing gridSize
+}
+
 window.onload = async () => {
     if (!accessToken) {
         //document.querySelector('.twoButton').style.display = 'none';
@@ -1010,19 +1172,6 @@ window.onload = async () => {
             drawingLock = true;
         }
     }, 500);
-
-    const gridSlider = document.getElementById("gridWidth");
-    gridSlider.addEventListener("input", () => {
-        gridSize = Number(gridSlider.value);
-        drawGrid(backgroundCtx);
-    });
-
-    const strokeSlider = document.getElementById("penSize");
-    strokeSlider.addEventListener("input", () =>{
-        penSize = Number(strokeSlider.value);
-    });
-
-
 
     // Add event listeners for resizing
     window.addEventListener("resize", () => {
@@ -1274,7 +1423,7 @@ window.onload = async () => {
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
-            drawStroke(liveCtx, currentStroke, defaultPenColor);
+            drawStroke(liveCtx, currentStroke, defaultPenColor, penSize);
             liveCtx.restore();
 
             if (totalMovement == 0) {
