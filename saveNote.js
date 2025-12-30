@@ -32,7 +32,6 @@ function renderAllNotes() {
   document.getElementById('note-list').innerHTML = '';
   document.querySelector('.folder').innerHTML = '';
   folders = listFolders(folders => {
-    console.log('📄 All saved folder:', folders);
     folders.forEach(folder => {
       renderFolderList(folder)
     })
@@ -59,7 +58,6 @@ function saveNote(path, content) {
     };
 
     tx.oncomplete = () => {
-      console.log("✅ Note saved:", path);
       done();
     };
   });
@@ -151,7 +149,6 @@ function createFolder(folderName) {
     });
 
     tx.oncomplete = () => {
-      console.log(`📁 Created folder: ${folderName}`);
       renderFolderList(folderName);
       done();
     };
@@ -192,7 +189,6 @@ function openFolder(folderName) {
   notesContainer.querySelector('#note-list').innerHTML = '';
 
   listNotesInFolder(folderName, files => {
-    console.log('📄 All saved notes:', files)
     files.forEach(file => {
       createSubnoteButton(file);
     });
@@ -286,13 +282,11 @@ function createSubnoteButton(noteName, folderName) {
 
 function loadNoteOnBtn(path, selectedButton) {
   if (title) {
-    console.log("title", title);
     saveNote(title, allGroups);
   }
 
   title = path;
 
-  //Scroll back up
   viewportOffset.x = 0;
   viewportOffset.y = 0;
   screenBox.x = viewportOffset.x;
@@ -302,7 +296,7 @@ function loadNoteOnBtn(path, selectedButton) {
     document.querySelector('.noteSelected').classList.toggle('noteSelected')
   }
   selectedButton.classList.toggle('noteSelected');
-  console.log(title);
+
   loadNote(path, note => {
     if (note) {
       if (note.content) {
@@ -310,12 +304,6 @@ function loadNoteOnBtn(path, selectedButton) {
       } else {
         allGroups = [];
       }
-      console.log('loadAllgroups', allGroups);
-
-      if (note.created_at) {
-        console.log("date created:"+ note.created_at);
-      }
-
       reDrawAll(drawCtx);
     }
   });
@@ -356,7 +344,6 @@ function saveToolboxSettings({ modifiers, toolboxLayout }) {
     store.put(payload, "toolboxSettings");
 
     tx.oncomplete = () => {
-      console.log("✅ Toolbox settings saved (v2)");
       done();
     };
 
@@ -487,9 +474,6 @@ function deleteNote(noteName) {
     const deleteReq = store.delete(noteName);
 
     deleteReq.onsuccess = () => {
-      console.log(`🗑️ Note deleted: ${noteName}`);
-
-      // If it was the currently open note, clear title and canvas
       if (title === noteName) {
         title = null;
         allGroups = [];

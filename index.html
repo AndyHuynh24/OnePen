@@ -13,47 +13,34 @@
         rel="stylesheet">
     <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script> -->
    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 </head>
 <body>
     <div id="toolbar">
-       <button id="tocBtn" class="navBtn" style="font-size:20px;">
+       <button id="tocBtn" class="navBtn">
           <i class="bx bx-list-ul"></i>
         </button>
         <div id="tocDropdown"></div>
         <span class="break"></span> 
         <button onclick="undo()"><i class='bx bx-undo'></i></button>
         <button onclick="redo()"><i class='bx bx-redo'></i></button>
-        <!-- <button onclick="toggleEraser()"><i class='bx bx-eraser'></i></button> -->
-        <!-- <button id="addImageBtn">Add Image</button> -->
-        <!-- <input type="file" id="imageInput" accept="image/*" style="display:none" />
-        <button onclick="toggleViewer()">Hide</button> -->
         <span class="break"></span>
-        </button>
         <div id="scaleIndicator"><i class='bx bx-move-diagonal-left'></i> 100%</div>
         <span class="break"></span>
-        <button onclick="showSharePopup()"> Share</button>
-        <button onclick="importSharedNotesFromFile()">Import</button>
-        <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
-        <span class="break"></span> 
-        <label class="aiToggle">
+         <label class="aiToggle">
           <input type="checkbox" id="aiToggleInput" onchange="toggleDetection()" checked>
           <span class="aiSlider"></span>
           <span class="aiText">AI ON</span>
         </label>
-
-        
-        <!-- <button onclick="reLabel(currentStroke)">False label</button> -->
-        <!-- <button onclick="backupToDrive()">Export Drive</button>
-        <button onclick="restoreBackupFromDrive()">📥 Restore Backup</button>
-        <input type="file" id="import-file" accept=".json" style="display:none" />
-        <button onclick="document.getElementById('import-file').click()">📂 Import Notes</button> -->
-        <!-- <button onclick="clearCanvas()">Delete all</i></button>
-        <button id="saveNoteButton" onclick="saveGroup()"><i class='bx bx-save'></i></button>
-        <button onclick="openModal()">Normal/Title input</button>
-        <button onclick="createAndSaveNote()">New note</button>
-        <button onclick="exportFullCanvasToPDF(allGroups)">Download PDF</button> -->
+        <span class="break"></span>
+        <button onclick="handleMediaInsert()" title="Insert Image/PDF"><i class='bx bx-image-add'></i></button>
+        <span class="break"></span>
+        <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
     </div>
+
+    <!-- Hidden file input for media insertion -->
+    <input type="file" id="mediaFileInput" accept="image/*,.pdf" style="display:none">
 
     <div class="canvasGroup" id="canvasGroup">
         <nav class="penTools" id="penTools">
@@ -71,20 +58,18 @@
     </canvas>
 
     <button id="openNavBtn" onclick="toggleNav()">☰ Notes</button>
-    <!-- <button id="openSettingBtn" onclick="toggleSetting()"><i class='bx bx-cog'></i></button> -->
-    <!-- Slide-Out Note Navbar -->
     <div id="notenavbar">
-        <!-- <button onclick="selectNoteDirectory()" style="width: 50%"> Select Folder</button> -->
         <div class="buttonGroup">
             <div id="driveGroup">
               <button onclick="backupToDrive()">Sync To Drive</button>
               <button onclick="restoreBackupFromDrive()">Load from Drive</button>
             </div>
             <div id="functionGroup" >
-                <button onclick="promptNewFolder()" class="navBtn" style="font-size: 20px;">
+                <button onclick="promptNewFoldr()" class="navBtn" style="font-size: 20px;">
                   <i class='bx  bx-plus-circle'></i> 
                 </button>
-                <button onclick="exportCanvasToPDF(allGroups)" style="font-size: 20px;"> <i class='bx  bx-arrow-down-stroke-circle'></i></button>
+                <button onclick="showSharePopup(allGroups)" style="font-size: 20px;"> <i class='bx  bx-arrow-down-stroke-circle'></i></button>
+                <button onclick="importSharedNotesFromFile()" style="font-size: 20px;"> <i class='bx  bx-arrow-out-up-left-stroke-square'></i></button>
             </div>
    
         </div>
@@ -105,11 +90,7 @@
             <div class="folder"></div>
         </div>
     
-        <div class="twoButton">
-        <!-- <button onclick="backupToDrive()">Sync to drive</button>
-        <button onclick="restoreBackupFromDrive()">Load fom drive</button> -->
-        </div>
-        <!-- <button onclick="extractFormula(fileLists)" id='export'>Extract formula</button> -->
+        <div class="twoButton"></div>
     </div>
     
     <div class="settings-wrapper" id="settings-wrapper">
@@ -124,7 +105,9 @@
       </div>
       <h2>Background:</h2>
       <label>Background color:</label>
-      <input type="color" value='#201f1e'>
+      <input type="color" id="backgroundColorPicker">
+      <label>Grid line color:</label>
+      <input type="color" id="gridLineColorPicker">
 
       <label>Grid style:</label>
       <div class="grid-row grid-style-options">
@@ -133,18 +116,24 @@
       </div>
 
       <label>Grid width:</label>
-      <div class="range-row">
-        <span>min</span>
-        <input type="range" min="15" max="60" value="58" id="gridWidth">
-        <span>max</span>
-      </div>
+      <div class="range-row grid-range">
+        <input
+          type="range"
+          id="gridWidth"
+          min="15"
+          max="60"
+          step="1"
+          value="58"
+        />
 
-      <label>Stroke size:</label>
-      <div class="range-row">
-        <span>min</span>
-        <input type="range" min="1" max="10" value="1.7" id="penSize">
-        <span>max</span>
-      </div>
+        <input
+          type="number"
+          id="gridWidthValue"
+          min="15"
+          max="60"
+          step="1"
+          value="58"
+        />
     </div>
 
     <div class="modifier-section">
@@ -165,6 +154,7 @@
 
 
   <script src="tf.min.js"></script>
+  <script src="config.js"></script>
   <script src="math.js"></script>
   <script src="predict.js"></script>
   <script src="draw.js"></script>

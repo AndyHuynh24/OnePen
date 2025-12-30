@@ -38,7 +38,7 @@ function drawGrid(ctx) {
   ctx.fillRect(0, 0, width, height);
 
   // Grid style
-  ctx.strokeStyle = gridlineColor;
+  ctx.strokeStyle = gridLineColor;
   ctx.lineWidth = 1;
 
   // Offset-aware start positions
@@ -813,8 +813,11 @@ function reDrawAll(ctx) {
 
             ctx.restore();
             return;
+        } else if (group.type === "media") {
+            // Render media (image/PDF)
+            drawMediaGroup(ctx, group);
+            return;
         }
-
 
 
 
@@ -920,7 +923,12 @@ function showToolbox(x, y, tools) {
 
 
     toolLinks = nav.querySelectorAll("span a");
-    // Get nav and toggle button sizese
+
+    // Reset position to CSS default before calculating to prevent drift
+    nav.style.left = '';
+    nav.style.top = '';
+
+    // Get nav and toggle button sizes
     const navRect = nav.getBoundingClientRect();
     const toggleRect = toggleBtn.getBoundingClientRect();
 
@@ -936,9 +944,9 @@ function showToolbox(x, y, tools) {
     nav.classList.add("open");
     toggleBtn.classList.remove("hidden");
     // toggleBtn.classList.add("countdown");
-    
 
-    pointerDownForToolbox = true; 
+
+    pointerDownForToolbox = true;
 }
 function extractImageData(inputStroke, imgSize = 136) {
   if (!inputStroke || inputStroke.length <= 0) {
@@ -1069,6 +1077,86 @@ function selectHighlight(highlightColor){
     }
     pastGroups.push(change)
     //highlightGroups.push(newgroup);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEDIA RENDERING (Images & PDFs)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Draw a media group (image or PDF) on the canvas
+ */
+function drawMediaGroup(ctx, group) {
+  if (!group.visibility || group.type !== 'media') return;
+
+  // Get cached image or trigger loading
+  const img = mediaCache.get(group.id);
+  if (!img || !img.complete) {
+    // Image not loaded yet, trigger load
+    loadMediaImage(group);
+    return;
+  }
+
+  const { x, y, w, h } = group.bbox;
+
+  ctx.save();
+  ctx.globalAlpha = group.opacity !== undefined ? group.opacity : 1.0;
+
+  // High quality smoothing for downscaling
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Apply rotation around center
+  if (group.rotation && group.rotation !== 0) {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((group.rotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+
+  // Draw the image
+  ctx.drawImage(img, x, y, w, h);
+
+  // Draw selection border if this is the selected media
+  if (selectedMedia && selectedMedia.id === group.id) {
+    ctx.strokeStyle = '#007aff';
+    ctx.lineWidth = 2 / scale;
+    ctx.setLineDash([6 / scale, 4 / scale]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+
+    // Draw resize handles at corners
+    drawMediaHandles(ctx, group);
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw resize handles for media group
+ */
+function drawMediaHandles(ctx, group) {
+  const { x, y, w, h } = group.bbox;
+  const handleSize = CONFIG.MEDIA.HANDLE_SIZE / scale;
+
+  const corners = [
+    { cx: x, cy: y },           // top-left
+    { cx: x + w, cy: y },       // top-right
+    { cx: x, cy: y + h },       // bottom-left
+    { cx: x + w, cy: y + h }    // bottom-right
+  ];
+
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#007aff';
+  ctx.lineWidth = 1 / scale;
+
+  for (const corner of corners) {
+    const hx = corner.cx - handleSize / 2;
+    const hy = corner.cy - handleSize / 2;
+    ctx.fillRect(hx, hy, handleSize, handleSize);
+    ctx.strokeRect(hx, hy, handleSize, handleSize);
+  }
 }
 
 

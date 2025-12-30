@@ -197,44 +197,7 @@ function normalizeStroke(stroke) {
     }));
 }
 
-const STROKE_TYPE = Object.freeze({
-  UNDERLINE: "underline",
-  BOX: "box",
-  CURLY: "curly",
-  DELETE: "delete",
-  BOXS: "boxshortcut",
-  CURLYS: "curlyshortcut",
-  CIRCLES: "circleshortcut",
-  HIGHLIGHT: "highlight",
-  MOVE: "move",
-  NONE: "none",
-});
-
-const CLASSES = [
-  STROKE_TYPE.UNDERLINE,
-  STROKE_TYPE.BOX,
-  STROKE_TYPE.CURLY,
-  STROKE_TYPE.DELETE,
-  STROKE_TYPE.BOXS,
-  STROKE_TYPE.CURLYS,
-  STROKE_TYPE.CIRCLES,
-  STROKE_TYPE.NONE,
-  STROKE_TYPE.NONE,
-  STROKE_TYPE.NONE,
-];
-
-const CLASS_THRESHOLDS = {
-  underline: 0.65,
-  box: 0.8,
-  curly: 0.65,
-  delete: 0.50,
-  boxshortcut: 0.65,
-  curlyshortcut: 0.65,
-  circleshortcut: 0.65,
-  nonedot: 0.6,
-  nonedaulon: 0.6,
-  nonenhon: 0.6,
-};
+// STROKE_TYPE, CLASSES, and CLASS_THRESHOLDS are now defined in config.js
 
 async function predictImageFromCanvas(stroke, canvas, model) {
   let imgTensor, featureTensor;
@@ -269,7 +232,7 @@ async function predictImageFromCanvas(stroke, canvas, model) {
       .sort((a, b) => b.prob - a.prob);
 
     const best = ranked[0];
-    const threshold = CLASS_THRESHOLDS[best.label] ?? 0.6;
+    const threshold = CONFIG.CLASS_THRESHOLDS[best.label] ?? 0.6;
 
     /* ---------- 5️⃣ Decision ---------- */
     if (best.prob >= threshold) {
@@ -280,7 +243,7 @@ async function predictImageFromCanvas(stroke, canvas, model) {
     }
 
     const fallback = ranked.find(
-      r => r.prob >= (CLASS_THRESHOLDS[r.label] ?? 0.6)
+      r => r.prob >= (CONFIG.CLASS_THRESHOLDS[r.label] ?? 0.6)
     );
 
     if (fallback) {
