@@ -1,22 +1,23 @@
 
-//----Default parameters----- 
-//parametesr for scaling
-let scale = 1; // default scale
-const MIN_SCALE = 0.5;
-const MAX_SCALE = 4.0;
+//----Default parameters-----
+// Scale and grid constants are defined in config.js (CONFIG.CONFIG.MIN_SCALE, CONFIG.CONFIG.MAX_SCALE, etc.)
+let scale = CONFIG.DEFAULT_SCALE;
 
 //parameters for background
-let backgroundColor = 'rgba(32,31,30, 1)';
-let gridlineColor = 'rgba(21,59,87, 1)';
+let backgroundColor;
+let gridLineColor;
 let gridSize = Number(document.getElementById("gridWidth").value);
-let penSize = Number(document.getElementById('penSize').value);
+let penSize;
+const backgroundColorPicker = document.getElementById("backgroundColorPicker");
+const gridLineColorPicker = document.getElementById("gridLineColorPicker");
 
 //parameters for live drawing
 let currentStroke = []; 
 let drawing = false;
 let drawingLock = false;
-let id_count = 0; // Unique ID for each group
-let normalHeight = 29;
+let idCount = 0; // Unique ID for each group
+// normalHeight is defined in config.js as CONFIG.NORMAL_HEIGHT
+let normalHeight = CONFIG.NORMAL_HEIGHT;
 let allGroups = [];
 let pastGroups = [];
 let redoGroups = [];
@@ -34,8 +35,8 @@ let screenBox = {
 
 //parameters for moving
 let movingToggle = false; // Toggle for moving mode
-let dx_record = 0; 
-let dy_record = 0;
+let dxRecord = 0; 
+let dyRecord = 0;
 let movingColor = null;
 
 //parameters for scrolling:
@@ -50,8 +51,7 @@ let velocity = { x: 0, y: 0 };
 let lastPanPos = { x: 0, y: 0 };
 let lastPanTime = 0;
 let momentumActive = false;
-const friction = 0.92;
-const minVelocity = 0.3;
+// friction and minVelocity constants moved to config.js (CONFIG.FRICTION, CONFIG.MIN_VELOCITY)
 
 //parameters for toolbox
 let isClosingToolbox = false;
@@ -66,28 +66,28 @@ let pointerDownForToolbox = false;
 let lastPointerX = null;
 let lastPointerY = null;
 let totalMovement = 0;
-const MOVEMENT_THRESHOLD = 7;
+// CONFIG.MOVEMENT_THRESHOLD moved to config.js (CONFIG.CONFIG.MOVEMENT_THRESHOLD)
 
 //parameters for scrollbar
 const scrollbar = document.getElementById("scrollbar");
 const thumb = document.getElementById("thumb");
 const viewportHeight = window.innerHeight;
-let lockScroll = false; 
+let lockScroll = false;
 let maxHeightObj = null;
 let contentHeight = null;
 let thumbHeight = null;
-let countdownSeconds = 1; // countdown duration
-let remaining = countdownSeconds;
+// countdownSeconds moved to config.js (CONFIG.COUNTDOWN_SECONDS)
+let remaining = CONFIG.COUNTDOWN_SECONDS;
 let timer = null;
 
 //parameters for eraser
 let eraserMode = false;
 let erasedGroups = [];
-let eraserSize = 20;
+let eraserSize = CONFIG.DEFAULT_ERASER_SIZE;
 let eraserBox = {
-    x: 0, 
-    y: 0, 
-    w: eraserSize, 
+    x: 0,
+    y: 0,
+    w: eraserSize,
     h: eraserSize
 };
 let erasing = false;
@@ -101,61 +101,10 @@ let shapeStartX = null;
 let shapeStartY = null;
 let predictedShape = -1;
 
-//paraemeters for pens
-// -1: normal 
-// 0: underline f
-// 1: box 
-// 2: curly 
-// 3: delete
-// 4: box shortcut 
-// 5: curly shortcut 
-// 6: circle shortcut
-// 7: highlighter
-// 8: move
-// 10: nonedot
-// 11: nonedaulon
-//12: nonenhon
-
-const indexToLabel = {
-  0: 'underline',
-  1: 'box',
-  2: 'curly',
-  3: 'delete',
-  4: 'boxshortcut',
-  5: 'curlyshortcut',
-  6: 'circleshortcut',
-  7: 'highlighter',
-  8: 'move',
-  9: 'normal',
-  10: 'none', 
-  11: 'none', 
-  12: 'none'
-};
-
 const shortcutGroup = [STROKE_TYPE.BOXS, STROKE_TYPE.CURLYS, STROKE_TYPE.CIRCLES];
 
 //parameters for tools/colors setting
-let defaultPenColor = 'rgba(255, 255, 255, 1)'; // default pen color
-let colors = [defaultPenColor, //underline 
-            'rgba(255,182,255,1)', //box  
-            'rgba(250,110,110,1)', //curly
-            null, //delete
-            'rgba(163,251,169,1)', //box shortcut
-            'rgba(116, 232, 256,1)', //curly shortcut
-            defaultPenColor,  //none
-            null, //highlighter
-            null, //move
-            defaultPenColor]; //normal stroke
-let shownModifiers = [true, //underline
-            true, //box
-            true, // curly
-            true, // delete
-            false, // box shortcut
-            false, // curly shortcut
-            true, // none
-            true, // highlighter
-            true, // move
-            true]; // normal stroke
+let defaultPenColor = CONFIG.DEFAULT_PEN_COLOR; // Can be changed at runtime
 
 //parameters for google sync
 const accessToken = localStorage.getItem("accessToken");
@@ -174,10 +123,6 @@ let backgroundCtx = setupHiDPICanvas(backgroundCanvas);
 
 let isDetectionOn = true;
 
-//Check function 
-const penColors = {
-    "pen9": "#ffb6ff"
-}
 
 
 //-----------functions for stickynotes and hyperlink---------
@@ -203,55 +148,18 @@ function flashLink(link) {
   }, 200);
 }
 
-// -------------------- CONSTANTS --------------------
-const TOOL_ID = Object.freeze({
-  ERASER: "eraser",
-  PEN: "pen",
-  TITLE1: "title1", 
-  TITLE2: "title2", 
-  TITLE3: "title3",
-  HIGHLIGHT: "highlight",
-  DELETE: "delete",
-  MOVE: "move",
-  BOLD: "bold",
-  COPY: "copy",
-  PASTE: "paste",
-  STICKY: "stickynote",
-  LINK: "link",
-  MATH: "mathSolver",
-});
+// -------------------- CONSTANTS (now in config.js) --------------------
+// TOOL_ID, TOOL_REGISTRY, PEN_TYPES are defined in config.js
 
-const TOOL_REGISTRY = {
-  eraser: { icon: "bx-eraser", customizable: false},
-  pen: { icon: "bx-pen", customizable: true},
-  title1: {icon: "bx-capitalize", customizable: true},
-  title2: {icon: "bx-capitalize", customizable: true},
-  title3: {icon: "bx-capitalize", customizable: true},
-  highlight: { icon: "bx-highlight", customizable: true},
-  bold: { icon: "bx-bold", color: "red", customizable: true},
-  delete: { icon: "bx-trash", customizable: false},
-  move: { icon: "bx-move", customizable: false},
-  mathSolver: { icon: "bx-calculator", customizable: false},
-  copy: { icon: "bx-copy", customizable: false},
-  paste: { icon: "bx-paste", customizable: false},
-  stickynote: { icon: "bx-sticker", customizable: false},
-  link: { icon: "bx-link-break", customizable: false}
-};
-
-const PEN_TYPES = Object.freeze({
-  NORMAL: "normal",
-  TITLE: "title",
-  HIGHLIGHT: "highlight",
-  BOLD: "bold"
-});
-
-const DEFAULT_MODIFIERS = {
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, visibility: true }, 
-    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, visibility: false},
-    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, visibility: false},
-    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, visibility: false},
-};
+const DEFAULT_MODIFIERS = { 
+    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 3, visibility: true},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2, visibility: true }, 
+    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
+    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 3, visibility: false},
+    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
+    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58}
+}; 
 
 const DEFAULT_TOOLBOX_LAYOUT = {
   color: [
@@ -275,6 +183,16 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "pink" }
   ],
   box: [
+    { id: TOOL_ID.DELETE },
+    { id: TOOL_ID.MOVE },
+    { id: TOOL_ID.MATH },
+    { id: TOOL_ID.COPY },
+    { id: TOOL_ID.PASTE },
+    { id: TOOL_ID.STICKY },
+    { id: TOOL_ID.LINK },
+    { id: TOOL_ID.BOLD }
+  ], 
+   curly: [
     { id: TOOL_ID.DELETE },
     { id: TOOL_ID.MOVE },
     { id: TOOL_ID.MATH },
@@ -308,6 +226,25 @@ function createModifierCard(id, mod) {
         <option value="${t}" ${t === mod.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
       `).join("")}
     </select>
+    <label>Stroke size:</label>
+    <div class="range-row grid-range">
+        <input
+          type="range"
+          id="penSize"
+          min="0.4"
+          max="15"
+          step="0.2"
+          value="2"
+        />
+        <input
+          type="number"
+          id="penSizeValue"
+          min="0.4"
+          max="15"
+          step="0.2"
+          value="2"
+        />
+    </div>
     <div class="modifier-footer">
       <label>Visibility:</label>
       <label class="toggle-switch">
@@ -331,6 +268,56 @@ function createModifierCard(id, mod) {
   btn.onclick = () => deleteModifier(id);
   card.appendChild(btn);
 
+    if (mod.label == "Default Pen") {
+        card.style.backgroundColor = "#142231ff"
+        penSize = mod.size;
+    }
+
+    if (mod.label == "Default Pen"  || mod.label.includes("Shortcut")) {
+        card.querySelector(".modifier-footer").style.display = "none";
+    }
+
+    const penSizeSlider = card.querySelector("#penSize");
+    const penSizeInput  = card.querySelector("#penSizeValue");
+
+    const MIN_penSize = Number(penSizeSlider.min);
+    const MAX_penSize = Number(penSizeSlider.max);
+
+    function clampPenSize(value) {
+    return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+    }
+
+    function setPenSize(value) {
+        const v = clampPenSize(Number(value) || MIN_penSize);
+        penSizeSlider.value = v;
+        penSizeInput.value = v;
+        penSize = v;        // <-- your existing gridSize
+    }
+
+    setPenSize(mod?.size ?? 0);
+
+    // Slider → number
+    penSizeSlider.addEventListener("input", e => {
+        setPenSize(e.target.value);
+        mod.size = clampPenSize(Number(e.target.value) || MIN_penSize);
+        updateTools();
+    });
+
+    // Number typing → slider
+    penSizeInput.addEventListener("input", e => {
+        setPenSize(e.target.value);
+        mod.size = e.target.value; 
+        updateTools();
+    });
+
+    // Commit on Enter
+    penSizeInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+        e.target.blur();
+    }
+    });
+
+
   return card;
 }
 
@@ -340,7 +327,49 @@ function renderModifiers(mods = modifiers) {
   if (!grid) return console.warn("No modifier grid found");
   grid.innerHTML = "";
   Object.entries(mods).forEach(([id, mod]) => {
-    grid.appendChild(createModifierCard(id, mod));
+    if (!mod.canvasSetting) {
+        grid.appendChild(createModifierCard(id, mod));
+    } else {
+        backgroundColor = mod.backgroundColor;
+        gridLineColor = mod.gridLineColor;
+        backgroundColorPicker.value = mod.backgroundColor;
+        gridLineColorPicker.value = mod.gridLineColor;
+        setGridSize(mod.gridWidth);
+
+        backgroundColorPicker.oninput = () => {
+            backgroundColor = backgroundColorPicker.value; 
+            mod.backgroundColor = backgroundColor;
+            drawGrid(backgroundCtx); 
+            updateTools()
+        };
+        gridLineColorPicker.oninput = () => {
+            gridLineColor = gridLineColorPicker.value; 
+            mod.gridLineColor = gridLineColor;
+            drawGrid(backgroundCtx); 
+            updateTools();
+        };
+
+        // Slider → number
+        gridSlider.addEventListener("input", e => {
+            setGridSize(e.target.value);
+            mod.gridWidth = clamp(Number(e.target.value) || MIN);
+            updateTools();
+        });
+
+        // Number typing → slider
+        gridInput.addEventListener("input", e => {
+            setGridSize(e.target.value);
+            mod.gridWdith = e.target.value; 
+            updateTools();
+        });
+
+        // Commit on Enter
+        gridInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            e.target.blur();
+        }
+        });
+    }
   });
   bindModifierUI(mods);
 }
@@ -362,7 +391,6 @@ function bindModifierUI(mods = modifiers) {
 }
 
 function updateTools() {
-    console.log("work");
     saveToolboxSettings({ modifiers, toolboxLayout });
 }
 
@@ -374,7 +402,6 @@ function addNewModifier({ id, name, type = "pen", color = "#ffffff", penType = P
   toolboxLayout[type].push({ id, modifier: key, color });
   renderModifiers();
   updateTools();
-  console.log(`✅ Added modifier: ${key}`);
 }
 
 function deleteModifier(id) {
@@ -385,7 +412,6 @@ function deleteModifier(id) {
   }
   renderModifiers();
   updateTools();
-  console.log(`❌ Deleted modifier: ${id}`);
 }
 
 // -------------------- TOOLBOX --------------------
@@ -425,7 +451,9 @@ async function renderTools() {
         title.innerText = id;
         dial.appendChild(title);
 
-        const radius = 96;
+        const radius = 90;
+        const center = 140;
+        const toolHalfSize = 25;
         const toolCount = tools.length;
 
         Object.entries(tools).forEach(([index, tool]) => {
@@ -435,8 +463,8 @@ async function renderTools() {
 
             const toolDiv = document.createElement("div");
             toolDiv.className = "tool";
-            toolDiv.style.left = `${125 + x - 25}px`;
-            toolDiv.style.top = `${125 + y - 25}px`;
+            toolDiv.style.left = `${center + x - toolHalfSize}px`;
+            toolDiv.style.top = `${center + y - toolHalfSize}px`;
             toolDiv.style.backgroundColor = tool.color || "#fff";
             
             const icon = document.createElement('i');
@@ -492,7 +520,6 @@ async function renderTools() {
 
                 // popup.style.display = popup.style.display === "block" ? "none" : "block";
                 popup.style.display = "flex";
-                console.log("alltools", tools);
                 popup.addEventListener("click", function(e) {
                     e.stopPropagation(); // so clicks inside popup don't close or interfere
                 });
@@ -557,7 +584,7 @@ async function initModifiers() {
 
   // Render UI and assign tools
   renderModifiers(modifiers);
-  assignToolBox;
+  assignToolBox();
   renderTools();
 
   return modifiers;
@@ -697,13 +724,15 @@ async function classifyStroke(stroke, hold = false) {
 
     //normal stroke
     if (!wideenough || !isDetectionOn) {
+        //group creation
         const modifier = {
-            id: id_count ++, // Unique ID for the group
+            id: idCount ++, // Unique ID for the group
             stroke: currentStroke, //strokes data
             bbox: newBox,
             color: defaultPenColor,
             predictedLabel: predictedLabel,
-            visibility: shownModifier
+            visibility: shownModifier, 
+            size: penSize
         };
         allGroups.push(modifier);
         modifiedGroups.push(modifier);
@@ -792,7 +821,6 @@ async function classifyStroke(stroke, hold = false) {
         viewerCtx.drawImage(imgData, 0, 0);
 
         predictedLabel = await predictImageFromCanvas(currentStroke, imgData, model);
-        console.log("predictedLabel", predictedLabel);
         if (predictedLabel == STROKE_TYPE.UNDERLINE || predictedLabel == STROKE_TYPE.NONE || predictedLabel == STROKE_TYPE.DELETE) {
             color = defaultPenColor;
             shownModifier = true;   
@@ -822,13 +850,15 @@ async function classifyStroke(stroke, hold = false) {
         }
     }
 
+    //group creation
     const modifier = {
-        id: id_count ++, // Unique ID for the group
+        id: idCount ++, // Unique ID for the group
         stroke: currentStroke, //strokes data
         bbox: newBox,
         color: defaultPenColor,
         predictedLabel: predictedLabel,
-        visibility: shownModifier
+        visibility: shownModifier, 
+        size: penSize
     };
     
     if (predictedLabel != STROKE_TYPE.DELETE) {
@@ -889,11 +919,6 @@ async function classifyStroke(stroke, hold = false) {
         }
     }
 
-    console.log("predictedLabel:", predictedLabel);
-    console.log("allGroups:", allGroups);
-    console.log("pastGroups:", pastGroups);
-    console.log("modifiergroup:", modifiedGroups);
-
     reDrawAll(drawCtx);
     return {
         modifiedGroups,
@@ -906,13 +931,8 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     if (e.pointerType == 'touch') return;
     modifiedGroups = await classifyStroke(currentStroke, true);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-    drawing = false; 
+    drawing = false;
 
-    console.log("Pointer hold detected! Classifying stroke...", modifiedGroups.modifiedGroups);
-    console.log("toolboxLayout.box", toolboxLayout.box);
-    console.log("tool", boxTools);
-
-    //console.log("Pointer held for 0.7 seconds!", e);
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE || modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
         showToolbox(e.offsetX, e.offsetY, toolboxLayout.color);
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE || modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
@@ -932,6 +952,24 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     //     }
     // }, 700); 
 });
+
+const gridSlider = document.getElementById("gridWidth");
+const gridInput  = document.getElementById("gridWidthValue");
+
+const MIN = Number(gridSlider.min);
+const MAX = Number(gridSlider.max);
+
+function clamp(value) {
+  return Math.min(MAX, Math.max(MIN, value));
+}
+
+function setGridSize(value) {
+  const v = clamp(Number(value) || MIN);
+  gridSlider.value = v;
+  gridInput.value = v;
+  gridSize = v;        // <-- your existing gridSize
+  drawGrid(backgroundCtx);       // <-- redraw grid
+}
 
 window.onload = async () => {
     if (!accessToken) {
@@ -960,30 +998,19 @@ window.onload = async () => {
     //import last save note
     setTimeout(async () => {
         const lastSaveNote = await loadSetting('lastSaveNote');
-        console.log(lastSaveNote?.path);
-        console.log(lastSaveNote?.viewportOffset);
-        console.log(lastSaveNote?.scale);
         if (lastSaveNote) {
             pathSegments = lastSaveNote.path.split('/');
-            //viewportOffset = lastSaveNote.viewportOffset;
-            // screenBox.x = viewportOffset.x;
-            // screenBox.y = viewportOffset.y;
-            //scale = lastSaveNote.scale;
             title = lastSaveNote.path;
-            
-            console.log(pathSegments[0]);
+
             openFolder(pathSegments[0]);
-            //loadNoteOnBtn(lastSaveNote.path, document.getElementById(lastSaveNote.path));
             loadNote(lastSaveNote.path, note => {
                 if (note) {
                     if (note.content) {
                         allGroups = note.content;
-                        id_count = allGroups.reduce((max, group) => Math.max(max, group.id ?? -Infinity), 0) + 1;
-                        console.log("initial id", id_count);
+                        idCount = allGroups.reduce((max, group) => Math.max(max, group.id ?? -Infinity), 0) + 1;
                     } else {
                         allGroups = [];
                     }
-                    console.log('loadAllgroups', allGroups); 
                     reDrawAll(drawCtx);
                 }
             });
@@ -991,15 +1018,10 @@ window.onload = async () => {
                 document.getElementById(lastSaveNote.path.replace('/','_').replace('.json','')).classList.toggle('noteSelected');
                 drawingLock = true;
 
-                //scrollbar
                 maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox.y + obj?.bbox.h) > (max.bbox?.y + obj?.bbox.h) ? obj : max);
                 contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + 300;
-                
+
                 scrollbar.style.display = "block";
-                console.log("maxheight", contentHeight);
-                
-                console.log("ratio", viewportHeight/contentHeight);
-                console.log("scrollbarheight", viewportHeight);
                 thumbHeight = Math.max((viewportHeight/contentHeight)*(viewportHeight*0.86), 0);
                 thumb.style.height = thumbHeight + "px";
                 updateScrollbar();
@@ -1011,19 +1033,6 @@ window.onload = async () => {
         }
     }, 500);
 
-    const gridSlider = document.getElementById("gridWidth");
-    gridSlider.addEventListener("input", () => {
-        gridSize = Number(gridSlider.value);
-        drawGrid(backgroundCtx);
-    });
-
-    const strokeSlider = document.getElementById("penSize");
-    strokeSlider.addEventListener("input", () =>{
-        penSize = Number(strokeSlider.value);
-    });
-
-
-
     // Add event listeners for resizing
     window.addEventListener("resize", () => {
         //update viewport offset
@@ -1034,7 +1043,6 @@ window.onload = async () => {
         screenBox.w = window.innerWidth / scale;
         screenBox.h = window.innerHeight / scale;
 
-        
         drawGrid(backgroundCtx);
         reDrawAll(drawCtx);
     });
@@ -1073,7 +1081,7 @@ window.onload = async () => {
             if (clicked.type === "stickynote") {
             flashStickyNote(clicked);
             showStickyPopup(clicked);
-            } 
+            }
             else if (clicked.type === "link") {
             flashLink(clicked);
             showLinkPopup(clicked);
@@ -1081,6 +1089,36 @@ window.onload = async () => {
 
             return; // Prevents other canvas actions
         }
+
+        // === Media Resize Handle Detection ===
+        // Check if clicking on a resize handle of selected media
+        const resizeHandleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
+        if (resizeHandleHit) {
+            e.preventDefault();
+            e.stopPropagation();
+            startMediaResize(resizeHandleHit, e.offsetX, e.offsetY);
+            return; // Prevents drawing
+        }
+
+        // === Media Drag Detection ===
+        // If clicking inside selected media (not on handle), start drag
+        if (selectedMedia && isPointInsideSelectedMedia(e.offsetX, e.offsetY)) {
+            e.preventDefault();
+            e.stopPropagation();
+            startMediaDrag(e.offsetX, e.offsetY);
+            return; // Prevents drawing
+        }
+
+        // === Media Selection Management ===
+        // If media is selected but user clicked outside it, deselect
+        if (selectedMedia) {
+            selectedMedia = null;
+            reDrawAll(drawCtx); // Remove resize handles
+        }
+
+        // === Media Long Press Detection ===
+        // Start long press detection for media editing
+        startMediaLongPressDetection(e.offsetX, e.offsetY);
 
         //for scrolling
         if (((e.shiftKey && e.pointerType === "mouse") || (e.pointerType === "touch"))) {
@@ -1119,65 +1157,86 @@ window.onload = async () => {
     });
 
     const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
-    console.log("movement:", moveEvent);
 
     canvasGroup.addEventListener(moveEvent, (e) => {
         // Check if the pointer has moved significantly
-        const movement_dx = e.offsetX/scale - lastPointerX;
-        const movement_dy = e.offsetY/scale - lastPointerY;
-        totalMovement += Math.sqrt(movement_dx * movement_dx + movement_dy * movement_dy);
+        const movementDx = e.offsetX/scale - lastPointerX;
+        const movementDy = e.offsetY/scale - lastPointerY;
+        totalMovement += Math.sqrt(movementDx * movementDx + movementDy * movementDy);
         lastPointerX = e.offsetX/scale;
         lastPointerY = e.offsetY/scale;
 
-        if (totalMovement > MOVEMENT_THRESHOLD) {
+        if (totalMovement > CONFIG.MOVEMENT_THRESHOLD) {
             holdController.cancel();
+            cancelMediaLongPress(); // Cancel media long press if user moved
             totalMovement = 0;
         }
 
+        // === Media Resize Handling ===
+        if (isResizingMedia) {
+            e.preventDefault();
+            handleMediaResize(e.offsetX, e.offsetY);
+            return; // Don't do anything else while resizing
+        }
+
+        // === Media Drag Handling ===
+        if (isDraggingMedia) {
+            e.preventDefault();
+            handleMediaDrag(e.offsetX, e.offsetY);
+            return; // Don't do anything else while dragging
+        }
+
+        // === Media Cursor Feedback ===
+        // Show appropriate cursor when hovering over selected media
+        if (selectedMedia && !isPanning && !drawing) {
+            const handleHover = getMediaResizeHandle(e.offsetX, e.offsetY);
+            if (handleHover) {
+                const cursors = { nw: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', se: 'nwse-resize' };
+                canvasGroup.style.cursor = cursors[handleHover];
+            } else if (isPointInsideSelectedMedia(e.offsetX, e.offsetY)) {
+                canvasGroup.style.cursor = 'move';
+            } else {
+                canvasGroup.style.cursor = 'default';
+            }
+        }
+
         if (isPanning) {
-            //------------Scroll bar--------------
-            //get contentHeight
             maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox.y + obj?.bbox.h) > (max.bbox?.y + obj?.bbox.h) ? obj : max);
             contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + viewportHeight;
-            
-            console.log("maxheight", contentHeight);
-            
-            console.log("ratio", viewportHeight/contentHeight);
-            console.log("scrollbarheight", viewportHeight);
+
             thumbHeight = Math.max((viewportHeight/contentHeight)*(viewportHeight*0.86), 0);
             thumb.style.height = thumbHeight + "px";
 
             drawing = false;
             let dx = -((e.offsetX / scale) - panStart.x);
             let dy = -((e.offsetY / scale) - panStart.y);
-            
-            const lockThreshold = 10/ scale;
 
-            // Determine locked axis if not set yet
+            const lockThreshold = 10 / scale;
+
             if (!lockedAxis) {
                 if (Math.abs(dx) > lockThreshold || Math.abs(dy) > lockThreshold) {
                     lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
                 } else {
-                    return; // Don't scroll yet, too small movement
+                    return;
                 }
             }
 
             if (lockedAxis === 'x') {
-                dy = 0; // Lock vertical movement
+                dy = 0;
             } else if (lockedAxis === 'y') {
-                dx = 0; // Lock horizontal movement
+                dx = 0;
             }
 
-            if ((initialViewportOffset.y + dy) < panningLimit.top){
+            if ((initialViewportOffset.y + dy) < panningLimit.top) {
                 dy = panningLimit.top - initialViewportOffset.y;
                 return;
             }
-            if ((initialViewportOffset.x + dx) < panningLimit.left){
+            if ((initialViewportOffset.x + dx) < panningLimit.left) {
                 dx = panningLimit.left - initialViewportOffset.x;
                 return;
             }
 
-            if (dy<0) {
+            if (dy < 0) {
                 lockScroll = false;
             }
 
@@ -1186,9 +1245,7 @@ window.onload = async () => {
                 viewportOffset.y = initialViewportOffset.y + dy;
             }
 
-            console.log("dy", dy);
-
-            //momentum scrolling
+            // Momentum scrolling
             const now = performance.now();
             const dt = now - lastPanTime;
             if (dt > 0) {
@@ -1243,8 +1300,8 @@ window.onload = async () => {
             };
         
 
-            dx_record += dx;
-            dy_record += dy;
+            dxRecord += dx;
+            dyRecord += dy;
 
             modifiedGroups.modifiedGroups.forEach(group => {
                 group.bbox.x += dx;
@@ -1274,7 +1331,7 @@ window.onload = async () => {
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
-            drawStroke(liveCtx, currentStroke, defaultPenColor);
+            drawStroke(liveCtx, currentStroke, defaultPenColor, penSize);
             liveCtx.restore();
 
             if (totalMovement == 0) {
@@ -1285,10 +1342,24 @@ window.onload = async () => {
 
     canvasGroup.addEventListener("pointerup", (e) => {
         markDirty();
+        cancelMediaLongPress(); // Cancel any pending media long press
+
+        // === End Media Resize ===
+        if (isResizingMedia) {
+            endMediaResize();
+            return;
+        }
+
+        // === End Media Drag ===
+        if (isDraggingMedia) {
+            endMediaDrag();
+            return;
+        }
+
         if (isPanning) {
             isPanning = false;
 
-            if (Math.abs(velocity.x) > minVelocity || Math.abs(velocity.y) > minVelocity) {
+            if (Math.abs(velocity.x) > CONFIG.MIN_VELOCITY || Math.abs(velocity.y) > CONFIG.MIN_VELOCITY) {
                 applyMomentum();
             }
             canvasGroup.style.cursor = "default"; // Reset cursor
@@ -1303,14 +1374,14 @@ window.onload = async () => {
 
             const change = {
                 change: 'move',
-                dx: dx_record,
-                dy: dy_record,
+                dx: dxRecord,
+                dy: dyRecord,
                 modifiedGroups: modifiedGroups.modifiedGroups,
             };
             pastGroups.push(change);
 
-            dx_record = 0;
-            dy_record = 0;  
+            dxRecord = 0;
+            dyRecord = 0;  
             moveStartX = null;
             moveStartY = null;
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
@@ -1362,7 +1433,6 @@ window.onload = async () => {
                 toolColor = icon?.getAttribute('data-color') || null;
                 toolVisibility = icon?.getAttribute('data-visibility') || null;
 
-                console.log(`Selected tool: ${selectedTool}`);
                 //delete tool
                 executeTool(selectedTool, toolColor, toolVisibility, isShortcut);
             } else {
@@ -1463,10 +1533,9 @@ function updateScaleIndicator() {
   }
 
 function zoomCanvas(zoomDelta) {
-    const newScale = Math.min(Math.max(scale + zoomDelta, MIN_SCALE), MAX_SCALE);
+    const newScale = Math.min(Math.max(scale + zoomDelta, CONFIG.MIN_SCALE), CONFIG.MAX_SCALE);
     if (newScale !== scale) {
         scale = newScale;
-        console.log("🔍 Zoom scale:", scale.toFixed(2));
 
         // Re-setup canvases with new scale
         drawCtx = setupHiDPICanvas(drawCanvas);
@@ -1490,10 +1559,10 @@ function applyMomentum() {
     function step() {
         if (!momentumActive || lockScroll) return;
 
-        velocity.x *= friction;
-        velocity.y *= friction;
+        velocity.x *= CONFIG.FRICTION;
+        velocity.y *= CONFIG.FRICTION;
 
-        if (Math.abs(velocity.x) < minVelocity && Math.abs(velocity.y) < minVelocity) {
+        if (Math.abs(velocity.x) < CONFIG.MIN_VELOCITY && Math.abs(velocity.y) < CONFIG.MIN_VELOCITY) {
             momentumActive = false;
             return;
         }
@@ -1557,7 +1626,6 @@ function updateScrollbar() {
     //console.log("thumb height top", scrollRatio * maxThumb+thumbHeight);
 
     if (((scrollRatio * maxThumb) + thumbHeight) >= viewportHeight * 0.86) {
-        console.log('end of scroill');
         lockScroll = true;
     } else {
         lockScroll = false;
@@ -1570,7 +1638,7 @@ function updateScrollbar() {
 function startScrollBarCountdown() {
 
     // Reset countdown
-    remaining = countdownSeconds;
+    remaining = CONFIG.COUNTDOWN_SECONDS;
 
 
     // Clear any old timer
@@ -1635,7 +1703,6 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         selectTitle(toolColor, toolVisibility, 1);
     }
     else if (selectedTool == "title2") {
-        console.log('visiblity', toolVisibility);
         selectTitle(toolColor, toolVisibility, 2);
     }
     else if (selectedTool == "title3") {
@@ -1654,7 +1721,6 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         toggleEraser();
     }
     else if (selectedTool == "mathSolver") {
-        console.log(modifiedGroups.modifiedGroups);
         modifiedGroups.modifiedGroups.pop();
         allGroups.pop();
         const canvas = extractImageDataFromStrokes(modifiedGroups.modifiedGroups);
@@ -1663,7 +1729,6 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         // Send to backend for recognition
         canvas.toBlob(async (blob) => {
             const { latex, result } = await detectAndSolveMath(blob);
-            console.log("Detected:", latex, "→", result);
             if (result != 'no equation'){
                 const resultGroup = createMathResultGroup(modifiedGroups.modifiedGroups, result);
                 allGroups.push(resultGroup);
@@ -1680,7 +1745,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
 
         // Create the empty link group
         const stickynoteGroup = {
-            id: id_count++,
+            id: idCount++,
             type: "stickynote",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
@@ -1692,31 +1757,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         allGroups.push(stickynoteGroup);
 
         flashStickyNote(stickynoteGroup);
-        showStickyPopup(stickynoteGroup); // open drawable popup
-        return;
-    }
-    else if (selectedTool == "stickynote") {
-        // Remove selection highlights
-        allGroups.pop();
-        modifiedGroups.modifiedGroups.pop();
-
-        const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
-
-        // Create the empty link group
-        const stickynoteGroup = {
-            id: id_count++,
-            type: "stickynote",
-            bbox: groupBBox,
-            stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
-            color: "#0077ff",
-            visibility: true,
-        };
-
-        // Temporarily add it
-        allGroups.push(stickynoteGroup);
-
-        flashStickyNote(stickynoteGroup);
-        showStickyPopup(stickynoteGroup); // open drawable popup
+        showStickyPopup(stickynoteGroup);
         return;
     }
     else if (selectedTool == "link") {
@@ -1727,7 +1768,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
 
         // Create the empty link group
         const linkGroup = {
-            id: id_count++,
+            id: idCount++,
             type: "link",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
@@ -1893,7 +1934,6 @@ function toggleDetection() {
     }else {
         document.querySelector(".aiText").innerHTML = "AI OFF"
     }
-    console.log("detection:", isDetectionOn);
     
 }
 
@@ -2109,7 +2149,7 @@ function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
           boxes.forEach(box => {
             const boxClone = structuredClone(box);
             boxClone.source = path;
-            boxClone.id = id_count++;
+            boxClone.id = idCount++;
             boxClone.children = [];
             groups.forEach(other => {
               if (other.id !== box.id && other.bbox && Array.isArray(other.stroke)) {
@@ -2151,14 +2191,14 @@ function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
               const titleLevel = dy > normalHeight * 0.8 ? 1 : 2;
 
               const titleGroup = {
-                id: id_count++,
+                id: idCount++,
                 type: "title",
                 titleLevel,
                 bbox: mergedBox,
                 stroke: mergedStrokes,
                 children: [
-                  { id: id_count++, ...structuredClone(underline), visible: true, isUnderline: true },
-                  ...relatedTexts.map(t => ({ id: id_count++, ...structuredClone(t) }))
+                  { id: idCount++, ...structuredClone(underline), visible: true, isUnderline: true },
+                  ...relatedTexts.map(t => ({ id: idCount++, ...structuredClone(t) }))
                 ],
                 predictedLabel: 100 + titleLevel,
                 color: titleLevel === 1 ? "#ffcc33" : "#66ccff",
@@ -2266,7 +2306,6 @@ function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
         //     reDrawAll(drawCtx);
         //     }
         // });
-        console.log("selectedfolder", selectedFolder);
         openFolder(selectedFolder);
       }
     }
@@ -2291,7 +2330,6 @@ function translateGroup(group, dx, dy) {
 }
 
 function showStatus(msg) {
-  console.log("📢", msg);
   const div = document.createElement("div");
   div.textContent = msg;
   div.style.position = "fixed";
@@ -2316,11 +2354,9 @@ function showStatus(msg) {
 const tocBtn = document.getElementById("tocBtn");
 
 tocBtn.onclick = () => {
-  console.log("🟩 TOC button clicked");
   regroupTitles();
 
   if (!tocDropdown) {
-    console.error("❌ tocDropdown element not found");
     return;
   }
 
@@ -2339,7 +2375,6 @@ label.style.marginBottom = "6px";
 tocDropdown.appendChild(label);
 
   const anchors = allGroups.filter(g => g.isTitleAnchor);
-  console.log("🟩 Found anchors:", anchors);
 
   if (anchors.length === 0) {
     tocDropdown.innerHTML = "<div style='opacity:0.6;padding:6px 12px;'>No title</div>";
@@ -2368,9 +2403,7 @@ tocDropdown.appendChild(label);
     // tocDropdown.style.display === "block" ? "none" : "block";
     // tocDropdown.innerHTML = "";
 
-    // === Scroll to anchor when clicked ===
     item.onclick = () => {
-      console.log(`📜 Scroll to title: ${anchor.titleText}`);
       const targetY = anchor.bbox.y - 40;
       const duration = 400;
       const startY = viewportOffset.y;
@@ -2412,32 +2445,23 @@ tocDropdown.appendChild(label);
 
 // ======================= REGROUP TITLES ==========================
 function regroupTitles() {
-  console.log("🟦 regroupTitles() started");
-
   if (!Array.isArray(allGroups) || allGroups.length === 0) {
-    console.warn("⚠️ allGroups empty or invalid");
     return;
   }
 
-  // Step 1️⃣: find all underline modifiers
   const underlineMods = allGroups.filter(
     g => g?.predictedLabel === STROKE_TYPE.UNDERLINE && g?.bbox
   );
-  console.log("🟪 underline modifiers found:", underlineMods.length);
 
   if (underlineMods.length === 0) {
-    console.warn("⚠️ No underline modifiers found");
     return;
   }
 
   // Step 2️⃣: remove any old anchors
   allGroups = allGroups.filter(g => !g.isTitleAnchor);
 
-  // Step 3️⃣: for each underline, find groups directly above (with titleStatus)
   underlineMods.forEach((underline, i) => {
     const uBox = underline.bbox;
-    console.log(`🔹 Processing underline #${i}:`, uBox);
-
     let maxY = 100000;
     let minY = uBox.y + uBox.h - normalHeight * 0.55;
     //if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
@@ -2475,7 +2499,6 @@ function regroupTitles() {
     });
 
     if (titleGroups.length === 0) {
-      console.log("⚠️ No title group above underline:", underline.id);
       return;
     }
 
@@ -2492,22 +2515,20 @@ function regroupTitles() {
       const maxY = Math.max(...groupSet.map(g => g.bbox.y + g.bbox.h));
 
       const anchor = {
-        id: id_count++,
+        id: idCount++,
         bbox: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
         isTitleAnchor: true,
         titleLevel: level,
-        titleText: `Title ${id_count} (Level ${level})`,
+        titleText: `Title ${idCount} (Level ${level})`,
         underlineRef: underline.id,
       };
       allGroups.push(anchor);
-      console.log("🟢 Created anchor:", anchor);
     };
 
     createAnchor(level1Groups, 1);
     createAnchor(level2Groups, 2);
   });
 
-  console.log("✅ regroupTitles() finished, total anchors:", allGroups.filter(g => g.isTitleAnchor).length);
   reDrawAll?.(drawCtx);
 }
 
@@ -2518,9 +2539,7 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
   const PAD = 12;
   const { x, y, w, h } = anchor.bbox;
   const dpr = window.devicePixelRatio || 1;
-  console.log(`🖼️ Rendering thumbnail for ${anchor.titleText} (DPR=${dpr})`);
 
-  // collect all strokes inside anchor
   const strokes = allGroups.filter(g =>
     g.titleStatus &&
     g.bbox &&
@@ -2531,7 +2550,6 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
   );
 
   if (strokes.length === 0) {
-    console.warn("⚠️ No title strokes found for anchor", anchor);
     return "";
   }
 
@@ -2579,4 +2597,1002 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
   }
 
   return canvas.toDataURL("image/png");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEDIA (Images & PDFs) INSERTION FEATURE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Media cache to avoid re-decoding base64 data
+const mediaCache = new Map();
+
+// State for media editing
+let selectedMedia = null;
+let mediaLongPressTimer = null;
+let mediaLongPressTarget = null;
+
+// State for media resizing
+let isResizingMedia = false;
+let resizeHandle = null; // 'nw', 'ne', 'sw', 'se'
+let resizeStartX = 0;
+let resizeStartY = 0;
+let resizeStartBbox = null;
+
+// State for media dragging/moving
+let isDraggingMedia = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragStartBbox = null;
+
+// Configure pdf.js worker
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/**
+ * Trigger file picker for media insertion
+ */
+function handleMediaInsert() {
+  const input = document.getElementById('mediaFileInput');
+  input.value = ''; // Reset to allow re-selecting same file
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const mediaData = await processMediaFile(file);
+      if (mediaData) {
+        // Check if it's an array (multi-page PDF) or single item
+        if (Array.isArray(mediaData)) {
+          createMediaGroupsVertical(mediaData);
+        } else {
+          createMediaGroup(mediaData);
+        }
+      }
+    } catch (err) {
+      console.error('Error processing media file:', err);
+      alert('Failed to process file: ' + err.message);
+    }
+  };
+  input.click();
+}
+
+/**
+ * Process uploaded file (image or PDF)
+ */
+async function processMediaFile(file) {
+  if (file.type === 'application/pdf') {
+    return await processPdfFile(file);
+  } else if (file.type.startsWith('image/')) {
+    return await processImageFile(file);
+  } else {
+    throw new Error('Unsupported file type: ' + file.type);
+  }
+}
+
+/**
+ * Process image file to base64
+ */
+async function processImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({
+          dataUrl: e.target.result,
+          width: img.width,
+          height: img.height,
+          mediaType: 'image'
+        });
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Process PDF file - render ALL pages as a vertical list
+ * Stores original PDF data for re-rendering on resize
+ */
+async function processPdfFile(file) {
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error('PDF.js library not loaded');
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+
+  // Store PDF as base64 for re-rendering on resize
+  const pdfBase64 = arrayBufferToBase64(arrayBuffer);
+
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const totalPages = pdf.numPages;
+  const pages = [];
+  const dpr = window.devicePixelRatio || 1;
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    console.log(`Processing PDF page ${pageNum} of ${totalPages}...`);
+    const page = await pdf.getPage(pageNum);
+    console.log(`Got page ${pageNum}, pageNumber:`, page.pageNumber);
+    const pageData = await renderPdfPageHiDPI(page, pageNum, totalPages, dpr);
+    // Store PDF data for re-rendering
+    pageData.pdfBase64 = pdfBase64;
+    pages.push(pageData);
+    // Cleanup page to free memory
+    page.cleanup();
+  }
+
+  return pages;
+}
+
+/**
+ * Convert ArrayBuffer to base64 string
+ */
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Convert base64 string to ArrayBuffer
+ */
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * Render PDF page at optimal HiDPI resolution
+ * @param {PDFPageProxy} page - PDF.js page object
+ * @param {number} pageNum - Page number
+ * @param {number} totalPages - Total pages
+ * @param {number} dpr - Device pixel ratio
+ * @param {number} targetWidth - Target display width in CSS pixels (optional)
+ */
+async function renderPdfPageHiDPI(page, pageNum, totalPages, dpr, targetWidth = 700) {
+  const baseViewport = page.getViewport({ scale: 1.0 });
+  const pdfWidth = baseViewport.width;
+  const pdfHeight = baseViewport.height;
+
+  // Render at 3x the display resolution for sharpness
+  const qualityMultiplier = 3;
+  const renderScale = (targetWidth * dpr * qualityMultiplier) / pdfWidth;
+
+  const pixelWidth = Math.ceil(pdfWidth * renderScale);
+  const pixelHeight = Math.ceil(pdfHeight * renderScale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = pixelWidth;
+  canvas.height = pixelHeight;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, pixelWidth, pixelHeight);
+
+  const viewport = page.getViewport({ scale: renderScale });
+  await page.render({
+    canvasContext: ctx,
+    viewport: viewport,
+    intent: 'print'
+  }).promise;
+
+  console.log(`PDF page ${pageNum}/${totalPages}: ${pixelWidth}x${pixelHeight}px @ ${targetWidth}px display`);
+
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: pdfWidth,
+    height: pdfHeight,
+    displayWidth: targetWidth,
+    mediaType: 'pdf',
+    pdfPage: pageNum,
+    pdfTotalPages: totalPages
+  };
+}
+
+/**
+ * Re-render a PDF media group at its current size
+ */
+async function reRenderPdfMedia(group) {
+  console.log('reRenderPdfMedia called', {
+    mediaType: group.mediaType,
+    hasPdfBase64: !!group.pdfBase64,
+    pdfPage: group.pdfPage,
+    newWidth: group.bbox.w
+  });
+
+  if (group.mediaType !== 'pdf') {
+    console.log('Not a PDF, skipping re-render');
+    return;
+  }
+
+  if (!group.pdfBase64) {
+    console.log('No pdfBase64 stored, cannot re-render');
+    return;
+  }
+
+  const newWidth = Math.round(group.bbox.w);
+  const dpr = window.devicePixelRatio || 1;
+
+  try {
+    console.log('Converting base64 to ArrayBuffer...');
+    const arrayBuffer = base64ToArrayBuffer(group.pdfBase64);
+
+    console.log('Loading PDF document...');
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    console.log('Getting page', group.pdfPage);
+    const page = await pdf.getPage(group.pdfPage);
+
+    console.log('Rendering at width:', newWidth);
+    const pageData = await renderPdfPageHiDPI(page, group.pdfPage, group.pdfTotalPages, dpr, newWidth);
+
+    // Update the group with new render
+    group.dataUrl = pageData.dataUrl;
+    group.displayWidth = newWidth;
+
+    // Clear cache to force reload
+    mediaCache.delete(group.id);
+    loadMediaImage(group);
+
+    // Save the updated note
+    if (title) saveNote(title, allGroups);
+
+    console.log(`Re-rendered PDF page ${group.pdfPage} at ${newWidth}px - SUCCESS`);
+  } catch (err) {
+    console.error('Failed to re-render PDF:', err);
+  }
+}
+
+/**
+ * Show PDF page selector popup
+ */
+function showPdfPageSelector(totalPages) {
+  return new Promise((resolve) => {
+    const old = document.getElementById('pdfPageSelector');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'pdfPageSelector';
+    overlay.className = 'media-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100000;
+    `;
+
+    const box = document.createElement('div');
+    box.className = 'pdf-page-selector';
+    box.style.cssText = `
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 280px;
+      color: #fff;
+      font-family: sans-serif;
+    `;
+
+    box.innerHTML = `
+      <h3 style="margin: 0 0 16px; font-size: 16px; text-align: center;">Select PDF Page</h3>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <label style="color: #aaa;">Page:</label>
+        <input type="number" id="pdfPageInput" min="1" max="${totalPages}" value="1"
+               style="flex: 1; padding: 8px 12px; background: #3a3a3a; border: 1px solid #555;
+                      border-radius: 6px; color: #fff; font-size: 14px;">
+        <span style="color: #888;">/ ${totalPages}</span>
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="pdfPageConfirm" style="background: #007aff; color: white; border: none;
+                padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px;">Insert</button>
+        <button id="pdfPageCancel" style="background: #444; color: white; border: none;
+                padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px;">Cancel</button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const input = document.getElementById('pdfPageInput');
+    input.focus();
+    input.select();
+
+    document.getElementById('pdfPageCancel').onclick = () => {
+      overlay.remove();
+      resolve(null);
+    };
+
+    document.getElementById('pdfPageConfirm').onclick = () => {
+      const page = parseInt(input.value);
+      if (page >= 1 && page <= totalPages) {
+        overlay.remove();
+        resolve(page);
+      } else {
+        input.style.borderColor = '#ff4444';
+      }
+    };
+
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('pdfPageConfirm').click();
+      } else if (e.key === 'Escape') {
+        document.getElementById('pdfPageCancel').click();
+      }
+    };
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(null);
+      }
+    };
+  });
+}
+
+/**
+ * Create a media group and add to canvas
+ */
+function createMediaGroup(mediaData) {
+  const { dataUrl, width, height, mediaType, pdfPage, pdfTotalPages } = mediaData;
+
+  // Calculate default size maintaining aspect ratio
+  const maxWidth = CONFIG.MEDIA.DEFAULT_INSERT_WIDTH;
+  const aspectRatio = width / height;
+  let displayWidth = Math.min(width, maxWidth);
+  let displayHeight = displayWidth / aspectRatio;
+
+  // Position at center of current viewport
+  const centerX = viewportOffset.x + (window.innerWidth / scale) / 2;
+  const centerY = viewportOffset.y + (window.innerHeight / scale) / 2;
+
+  const mediaGroup = {
+    id: 'media_' + Date.now() + '_' + idCount++,
+    type: 'media',
+    mediaType: mediaType,
+    bbox: {
+      x: centerX - displayWidth / 2,
+      y: centerY - displayHeight / 2,
+      w: displayWidth,
+      h: displayHeight
+    },
+    visibility: true,
+    dataUrl: dataUrl,
+    originalWidth: width,
+    originalHeight: height,
+    rotation: 0,
+    opacity: CONFIG.MEDIA.DEFAULT_OPACITY,
+    zIndex: 0,
+    aspectLocked: true
+  };
+
+  // Add PDF-specific properties
+  if (mediaType === 'pdf') {
+    mediaGroup.pdfPage = pdfPage;
+    mediaGroup.pdfTotalPages = pdfTotalPages;
+  }
+
+  // Add to groups and redraw
+  allGroups.push(mediaGroup);
+
+  // Record for undo
+  pastGroups.push({
+    action: 'add',
+    groups: [structuredClone(mediaGroup)]
+  });
+  redoGroups = [];
+
+  // Preload into cache
+  loadMediaImage(mediaGroup);
+
+  reDrawAll(drawCtx);
+  if (title) saveNote(title, allGroups);
+}
+
+/**
+ * Create multiple media groups positioned vertically (for multi-page PDFs)
+ */
+function createMediaGroupsVertical(pagesData) {
+  if (!pagesData || pagesData.length === 0) return;
+
+  const PAGE_GAP = 30; // Gap between pages
+
+  // Start position - at current viewport position
+  let currentY = viewportOffset.y + 50;
+  const startX = viewportOffset.x + 50;
+
+  const createdGroups = [];
+
+  for (let i = 0; i < pagesData.length; i++) {
+    const pageData = pagesData[i];
+    const { dataUrl, width, height, displayWidth, mediaType, pdfPage, pdfTotalPages, pdfBase64 } = pageData;
+
+    // Use the display width from render, calculate height from aspect ratio
+    const aspectRatio = width / height;
+    const finalWidth = displayWidth || 700;
+    const finalHeight = finalWidth / aspectRatio;
+
+    const mediaGroup = {
+      id: 'media_' + Date.now() + '_' + idCount++,
+      type: 'media',
+      mediaType: mediaType,
+      bbox: {
+        x: startX,
+        y: currentY,
+        w: finalWidth,
+        h: finalHeight
+      },
+      visibility: true,
+      dataUrl: dataUrl,
+      originalWidth: width,
+      originalHeight: height,
+      rotation: 0,
+      opacity: CONFIG.MEDIA.DEFAULT_OPACITY,
+      zIndex: i,
+      aspectLocked: true,
+      pdfPage: pdfPage,
+      pdfTotalPages: pdfTotalPages,
+      pdfBase64: pdfBase64  // Store for re-rendering on resize
+    };
+
+    allGroups.push(mediaGroup);
+    createdGroups.push(structuredClone(mediaGroup));
+
+    // Preload into cache
+    loadMediaImage(mediaGroup);
+
+    // Move Y position for next page
+    currentY += finalHeight + PAGE_GAP;
+  }
+
+  // Record all pages for undo as single action
+  pastGroups.push({
+    action: 'add',
+    groups: createdGroups
+  });
+  redoGroups = [];
+
+  console.log(`Inserted ${pagesData.length} PDF pages vertically`);
+
+  reDrawAll(drawCtx);
+  if (title) saveNote(title, allGroups);
+}
+
+/**
+ * Load media image into cache
+ */
+function loadMediaImage(group) {
+  if (mediaCache.has(group.id)) {
+    return mediaCache.get(group.id);
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    mediaCache.set(group.id, img);
+    reDrawAll(drawCtx);
+  };
+  img.src = group.dataUrl;
+  return img;
+}
+
+/**
+ * Find media group at given canvas coordinates
+ */
+function findMediaGroupAt(canvasX, canvasY) {
+  // Search in reverse order (top-most first) respecting z-index
+  const mediaGroups = allGroups
+    .filter(g => g.type === 'media' && g.visibility)
+    .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+
+  for (const group of mediaGroups) {
+    const bbox = group.bbox;
+    if (canvasX >= bbox.x && canvasX <= bbox.x + bbox.w &&
+        canvasY >= bbox.y && canvasY <= bbox.y + bbox.h) {
+      return group;
+    }
+  }
+  return null;
+}
+
+/**
+ * Start long press detection for media editing
+ */
+function startMediaLongPressDetection(screenX, screenY) {
+  const canvasX = (screenX / scale) + viewportOffset.x;
+  const canvasY = (screenY / scale) + viewportOffset.y;
+
+  const mediaGroup = findMediaGroupAt(canvasX, canvasY);
+  if (!mediaGroup) return false;
+
+  mediaLongPressTarget = mediaGroup;
+  mediaLongPressTimer = setTimeout(() => {
+    showMediaEditPopup(mediaGroup, screenX, screenY);
+  }, CONFIG.MEDIA.LONG_PRESS_MS);
+
+  return true;
+}
+
+/**
+ * Cancel long press detection
+ */
+function cancelMediaLongPress() {
+  if (mediaLongPressTimer) {
+    clearTimeout(mediaLongPressTimer);
+    mediaLongPressTimer = null;
+  }
+  mediaLongPressTarget = null;
+}
+
+/**
+ * Show media edit popup
+ */
+function showMediaEditPopup(group, screenX, screenY) {
+  const old = document.getElementById('mediaEditPopup');
+  if (old) old.remove();
+
+  // Hide toolbox when editing media
+  if (typeof hideToolbox === 'function') {
+    hideToolbox();
+  }
+
+  selectedMedia = group;
+
+  // Calculate scale percentage (current width vs original width)
+  const scalePercent = Math.round((group.bbox.w / group.originalWidth) * 100);
+
+  // Check if this is a multi-page PDF
+  const isMultiPagePdf = group.mediaType === 'pdf' && group.pdfTotalPages > 1;
+  const pageInfo = isMultiPagePdf ? ` (Page ${group.pdfPage}/${group.pdfTotalPages})` : '';
+
+  // Calculate the media's position on screen (center of the media)
+  const mediaCenterX = (group.bbox.x + group.bbox.w / 2 - viewportOffset.x) * scale;
+  const mediaCenterY = (group.bbox.y + group.bbox.h / 2 - viewportOffset.y) * scale;
+
+  // Calculate media bounds on screen
+  const mediaScreenLeft = (group.bbox.x - viewportOffset.x) * scale;
+  const mediaScreenTop = (group.bbox.y - viewportOffset.y) * scale;
+  const mediaScreenRight = mediaScreenLeft + group.bbox.w * scale;
+  const mediaScreenBottom = mediaScreenTop + group.bbox.h * scale;
+
+  // Popup dimensions (approximate)
+  const popupWidth = 220;
+  const popupHeight = 350;
+
+  // Position popup centered within media, but ensure it stays within viewport
+  let popupX = mediaCenterX - popupWidth / 2;
+  let popupY = mediaCenterY - popupHeight / 2;
+
+  // Clamp to stay within media bounds if possible, otherwise clamp to screen
+  const mediaWidth = mediaScreenRight - mediaScreenLeft;
+  const mediaHeight = mediaScreenBottom - mediaScreenTop;
+
+  // If media is large enough, keep popup inside it
+  if (mediaWidth >= popupWidth) {
+    popupX = Math.max(mediaScreenLeft + 10, Math.min(popupX, mediaScreenRight - popupWidth - 10));
+  }
+  if (mediaHeight >= popupHeight) {
+    popupY = Math.max(mediaScreenTop + 10, Math.min(popupY, mediaScreenBottom - popupHeight - 10));
+  }
+
+  // Final clamp to screen bounds
+  popupX = Math.max(10, Math.min(popupX, window.innerWidth - popupWidth - 10));
+  popupY = Math.max(10, Math.min(popupY, window.innerHeight - popupHeight - 10));
+
+  const popup = document.createElement('div');
+  popup.id = 'mediaEditPopup';
+  popup.className = 'media-edit-popup';
+  popup.style.cssText = `
+    position: fixed;
+    left: ${popupX}px;
+    top: ${popupY}px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 14px;
+    z-index: 100000;
+    min-width: 200px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    font-family: sans-serif;
+    color: #fff;
+  `;
+
+  popup.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #444;">
+      <span style="font-size: 14px; font-weight: 500;">Edit ${group.mediaType}${pageInfo}</span>
+      <button id="mediaEditClose" style="background: none; border: none; color: #888; font-size: 18px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <label style="width: 70px; color: #aaa; font-size: 12px;">Scale</label>
+        <span id="scaleValue" style="font-size: 13px; color: #fff;">${scalePercent}%</span>
+        <span style="font-size: 11px; color: #666;">(${Math.round(group.bbox.w)} × ${Math.round(group.bbox.h)})</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <label style="width: 70px; color: #aaa; font-size: 12px;">Rotation</label>
+        <button id="rotateCCW" style="background: #3a3a3a; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; color: #fff; cursor: pointer;"><i class="bx bx-rotate-left"></i></button>
+        <span id="rotationValue" style="min-width: 40px; text-align: center; font-size: 13px;">${group.rotation}°</span>
+        <button id="rotateCW" style="background: #3a3a3a; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; color: #fff; cursor: pointer;"><i class="bx bx-rotate-right"></i></button>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <label style="width: 70px; color: #aaa; font-size: 12px;">Opacity</label>
+        <input type="range" id="opacitySlider" min="0" max="100" value="${Math.round(group.opacity * 100)}"
+               style="flex: 1; accent-color: #007aff;">
+        <span id="opacityValue" style="min-width: 36px; text-align: right; font-size: 13px;">${Math.round(group.opacity * 100)}%</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <label style="width: 70px; color: #aaa; font-size: 12px;">Layer</label>
+        <button id="layerDown" style="background: #3a3a3a; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; color: #fff; cursor: pointer;"><i class="bx bx-chevron-down"></i></button>
+        <span id="layerValue" style="min-width: 40px; text-align: center; font-size: 13px;">${group.zIndex || 0}</span>
+        <button id="layerUp" style="background: #3a3a3a; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; color: #fff; cursor: pointer;"><i class="bx bx-chevron-up"></i></button>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <label style="width: 70px; color: #aaa; font-size: 12px;">Lock Aspect</label>
+        <input type="checkbox" id="aspectLock" ${group.aspectLocked ? 'checked' : ''}
+               style="width: 18px; height: 18px; accent-color: #007aff;">
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button id="mediaDelete" style="background: #5a2a2a; border: 1px solid #744; border-radius: 6px; padding: 8px 12px; color: #fff; cursor: pointer; font-size: 13px;"><i class="bx bx-trash"></i> Delete</button>
+      ${isMultiPagePdf ? `<button id="mediaDeleteAll" style="background: #5a2a2a; border: 1px solid #744; border-radius: 6px; padding: 8px 12px; color: #fff; cursor: pointer; font-size: 13px;"><i class="bx bx-trash"></i> Delete All Pages</button>` : ''}
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+  setupMediaEditListeners(popup, group);
+}
+
+/**
+ * Setup event listeners for media edit popup
+ */
+function setupMediaEditListeners(popup, group) {
+  // Close button - keep selectedMedia so resize handles stay visible
+  document.getElementById('mediaEditClose').onclick = () => {
+    popup.remove();
+    // Don't clear selectedMedia - user may want to resize
+    reDrawAll(drawCtx);
+  };
+
+  // Rotation
+  document.getElementById('rotateCCW').onclick = () => {
+    group.rotation = (group.rotation - CONFIG.MEDIA.ROTATION_SNAP + 360) % 360;
+    document.getElementById('rotationValue').textContent = group.rotation + '°';
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups);
+  };
+
+  document.getElementById('rotateCW').onclick = () => {
+    group.rotation = (group.rotation + CONFIG.MEDIA.ROTATION_SNAP) % 360;
+    document.getElementById('rotationValue').textContent = group.rotation + '°';
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups);
+  };
+
+  // Opacity
+  const opacitySlider = document.getElementById('opacitySlider');
+  const opacityValue = document.getElementById('opacityValue');
+  opacitySlider.oninput = () => {
+    group.opacity = parseInt(opacitySlider.value) / 100;
+    opacityValue.textContent = opacitySlider.value + '%';
+    reDrawAll(drawCtx);
+  };
+  opacitySlider.onchange = () => {
+    if (title) saveNote(title, allGroups);
+  };
+
+  // Layer (z-index)
+  document.getElementById('layerDown').onclick = () => {
+    group.zIndex = (group.zIndex || 0) - 1;
+    document.getElementById('layerValue').textContent = group.zIndex;
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups);
+  };
+
+  document.getElementById('layerUp').onclick = () => {
+    group.zIndex = (group.zIndex || 0) + 1;
+    document.getElementById('layerValue').textContent = group.zIndex;
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups);
+  };
+
+  // Aspect lock
+  document.getElementById('aspectLock').onchange = (e) => {
+    group.aspectLocked = e.target.checked;
+    if (title) saveNote(title, allGroups);
+  };
+
+  // Delete single page
+  document.getElementById('mediaDelete').onclick = () => {
+    const index = allGroups.findIndex(g => g.id === group.id);
+    if (index !== -1) {
+      const removed = allGroups.splice(index, 1)[0];
+      pastGroups.push({
+        action: 'delete',
+        groups: [structuredClone(removed)]
+      });
+      redoGroups = [];
+      mediaCache.delete(group.id);
+      reDrawAll(drawCtx);
+      if (title) saveNote(title, allGroups);
+    }
+    popup.remove();
+    selectedMedia = null;
+  };
+
+  // Delete All Pages (for multi-page PDFs)
+  const deleteAllBtn = document.getElementById('mediaDeleteAll');
+  if (deleteAllBtn) {
+    deleteAllBtn.onclick = () => {
+      // Find all pages from the same PDF (same pdfBase64)
+      const pdfBase64 = group.pdfBase64;
+      const pagesToDelete = allGroups.filter(g =>
+        g.type === 'media' &&
+        g.mediaType === 'pdf' &&
+        g.pdfBase64 === pdfBase64
+      );
+
+      // Remove all pages
+      const removedGroups = [];
+      for (const page of pagesToDelete) {
+        const index = allGroups.findIndex(g => g.id === page.id);
+        if (index !== -1) {
+          const removed = allGroups.splice(index, 1)[0];
+          removedGroups.push(structuredClone(removed));
+          mediaCache.delete(page.id);
+        }
+      }
+
+      // Record for undo
+      if (removedGroups.length > 0) {
+        pastGroups.push({
+          action: 'delete',
+          groups: removedGroups
+        });
+        redoGroups = [];
+      }
+
+      reDrawAll(drawCtx);
+      if (title) saveNote(title, allGroups);
+      popup.remove();
+      selectedMedia = null;
+    };
+  }
+
+  // Close popup when clicking outside - keep selectedMedia for resize handles
+  const closeOnClickOutside = (e) => {
+    if (!popup.contains(e.target)) {
+      popup.remove();
+      // Don't clear selectedMedia - user may want to resize
+      // selectedMedia will be cleared when user clicks elsewhere on canvas
+      document.removeEventListener('pointerdown', closeOnClickOutside);
+      reDrawAll(drawCtx);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('pointerdown', closeOnClickOutside);
+  }, 100);
+}
+
+/**
+ * Clear media from cache when note changes
+ */
+function clearMediaCache() {
+  mediaCache.clear();
+}
+
+/**
+ * Check if a screen point is inside the selected media
+ */
+function isPointInsideSelectedMedia(screenX, screenY) {
+  if (!selectedMedia) return false;
+
+  const canvasX = (screenX / scale) + viewportOffset.x;
+  const canvasY = (screenY / scale) + viewportOffset.y;
+  const bbox = selectedMedia.bbox;
+
+  return canvasX >= bbox.x && canvasX <= bbox.x + bbox.w &&
+         canvasY >= bbox.y && canvasY <= bbox.y + bbox.h;
+}
+
+/**
+ * Check if a point is on a resize handle of the selected media
+ * Returns handle name ('nw', 'ne', 'sw', 'se') or null
+ */
+function getMediaResizeHandle(screenX, screenY) {
+  if (!selectedMedia) return null;
+
+  const bbox = selectedMedia.bbox;
+  const handleSize = CONFIG.MEDIA.HANDLE_SIZE * 2; // Larger hit area for easier grabbing
+
+  // Convert screen coords to canvas coords
+  const canvasX = (screenX / scale) + viewportOffset.x;
+  const canvasY = (screenY / scale) + viewportOffset.y;
+
+  const corners = [
+    { name: 'nw', x: bbox.x, y: bbox.y },
+    { name: 'ne', x: bbox.x + bbox.w, y: bbox.y },
+    { name: 'sw', x: bbox.x, y: bbox.y + bbox.h },
+    { name: 'se', x: bbox.x + bbox.w, y: bbox.y + bbox.h }
+  ];
+
+  for (const corner of corners) {
+    const dx = Math.abs(canvasX - corner.x);
+    const dy = Math.abs(canvasY - corner.y);
+    if (dx <= handleSize / scale && dy <= handleSize / scale) {
+      return corner.name;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Start resizing media
+ */
+function startMediaResize(handle, screenX, screenY) {
+  if (!selectedMedia) return;
+
+  isResizingMedia = true;
+  resizeHandle = handle;
+  resizeStartX = (screenX / scale) + viewportOffset.x;
+  resizeStartY = (screenY / scale) + viewportOffset.y;
+  resizeStartBbox = { ...selectedMedia.bbox };
+
+  // Change cursor
+  const cursors = { nw: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', se: 'nwse-resize' };
+  canvasGroup.style.cursor = cursors[handle] || 'default';
+}
+
+/**
+ * Handle media resize during drag
+ */
+function handleMediaResize(screenX, screenY) {
+  if (!isResizingMedia || !selectedMedia || !resizeStartBbox) return;
+
+  const canvasX = (screenX / scale) + viewportOffset.x;
+  const canvasY = (screenY / scale) + viewportOffset.y;
+
+  const dx = canvasX - resizeStartX;
+  const dy = canvasY - resizeStartY;
+
+  let newBbox = { ...resizeStartBbox };
+  const aspectRatio = resizeStartBbox.w / resizeStartBbox.h;
+
+  // Calculate new dimensions based on which handle is being dragged
+  switch (resizeHandle) {
+    case 'se': // Bottom-right
+      newBbox.w = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.w + dx);
+      if (selectedMedia.aspectLocked) {
+        newBbox.h = newBbox.w / aspectRatio;
+      } else {
+        newBbox.h = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.h + dy);
+      }
+      break;
+
+    case 'sw': // Bottom-left
+      newBbox.w = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.w - dx);
+      newBbox.x = resizeStartBbox.x + resizeStartBbox.w - newBbox.w;
+      if (selectedMedia.aspectLocked) {
+        newBbox.h = newBbox.w / aspectRatio;
+      } else {
+        newBbox.h = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.h + dy);
+      }
+      break;
+
+    case 'ne': // Top-right
+      newBbox.w = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.w + dx);
+      if (selectedMedia.aspectLocked) {
+        const newH = newBbox.w / aspectRatio;
+        newBbox.y = resizeStartBbox.y + resizeStartBbox.h - newH;
+        newBbox.h = newH;
+      } else {
+        newBbox.h = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.h - dy);
+        newBbox.y = resizeStartBbox.y + resizeStartBbox.h - newBbox.h;
+      }
+      break;
+
+    case 'nw': // Top-left
+      newBbox.w = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.w - dx);
+      newBbox.x = resizeStartBbox.x + resizeStartBbox.w - newBbox.w;
+      if (selectedMedia.aspectLocked) {
+        const newH = newBbox.w / aspectRatio;
+        newBbox.y = resizeStartBbox.y + resizeStartBbox.h - newH;
+        newBbox.h = newH;
+      } else {
+        newBbox.h = Math.max(CONFIG.MEDIA.MIN_SIZE, resizeStartBbox.h - dy);
+        newBbox.y = resizeStartBbox.y + resizeStartBbox.h - newBbox.h;
+      }
+      break;
+  }
+
+  selectedMedia.bbox = newBbox;
+  reDrawAll(drawCtx);
+}
+
+/**
+ * End media resize
+ */
+function endMediaResize() {
+  console.log('endMediaResize called', { isResizingMedia, hasSelectedMedia: !!selectedMedia });
+
+  if (isResizingMedia && selectedMedia) {
+    console.log('Media resized:', {
+      type: selectedMedia.type,
+      mediaType: selectedMedia.mediaType,
+      hasPdfBase64: !!selectedMedia.pdfBase64,
+      newSize: selectedMedia.bbox.w + 'x' + selectedMedia.bbox.h
+    });
+
+    // Re-render PDF at new size for crisp display
+    if (selectedMedia.mediaType === 'pdf') {
+      console.log('Triggering PDF re-render...');
+      reRenderPdfMedia(selectedMedia);
+    }
+    if (title) saveNote(title, allGroups);
+  }
+  isResizingMedia = false;
+  resizeHandle = null;
+  resizeStartBbox = null;
+  canvasGroup.style.cursor = 'default';
+}
+
+/**
+ * Start dragging media
+ */
+function startMediaDrag(screenX, screenY) {
+  if (!selectedMedia) return;
+
+  isDraggingMedia = true;
+  dragStartX = (screenX / scale) + viewportOffset.x;
+  dragStartY = (screenY / scale) + viewportOffset.y;
+  dragStartBbox = { ...selectedMedia.bbox };
+  canvasGroup.style.cursor = 'move';
+}
+
+/**
+ * Handle media drag
+ */
+function handleMediaDrag(screenX, screenY) {
+  if (!isDraggingMedia || !selectedMedia || !dragStartBbox) return;
+
+  const canvasX = (screenX / scale) + viewportOffset.x;
+  const canvasY = (screenY / scale) + viewportOffset.y;
+
+  const dx = canvasX - dragStartX;
+  const dy = canvasY - dragStartY;
+
+  selectedMedia.bbox.x = dragStartBbox.x + dx;
+  selectedMedia.bbox.y = dragStartBbox.y + dy;
+
+  reDrawAll(drawCtx);
+}
+
+/**
+ * End media drag
+ */
+function endMediaDrag() {
+  if (isDraggingMedia && selectedMedia) {
+    if (title) saveNote(title, allGroups);
+  }
+  isDraggingMedia = false;
+  dragStartBbox = null;
+  canvasGroup.style.cursor = 'default';
 }
