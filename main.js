@@ -1047,6 +1047,34 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
+    // Helper function to activate panning (used with delay for touch to prevent accidental pan)
+    function activatePanning(params) {
+        isPanning = true;
+        momentumActive = false;
+        panStart.x = params.startX;
+        panStart.y = params.startY;
+        initialViewportOffset = { x: params.viewportX, y: params.viewportY };
+        isScrollingX = false;
+        isScrollingY = false;
+        lockedAxis = null;
+        canvasGroup.style.cursor = "grabbing";
+        lastPanPos = { x: params.startX, y: params.startY };
+        lastPanTime = performance.now();
+        scrollbar.style.display = "block";
+    }
+
+    // Multi-touch state for gesture detection (needs to be accessible by panning logic)
+    let multiTouchState = {
+        fingerCount: 0,
+        startTime: 0,
+        lastTapTime: 0,
+        lastTapFingers: 0,
+        moved: false,
+        startPositions: [],
+        isMultiTouch: false,
+        savedViewportOffset: null
+    };
+
     canvasGroup.addEventListener("pointerdown", (e) => {
         const pos = toCanvasCoords(e);
 
@@ -1126,20 +1154,27 @@ window.onload = async () => {
 
         //for scrolling
         if (((e.shiftKey && e.pointerType === "mouse") || (e.pointerType === "touch"))) {
-            isPanning = true;
-            momentumActive = false; // Stop any ongoing momentum
-            panStart.x = e.offsetX / scale;
-            panStart.y = e.offsetY / scale;
-            initialViewportOffset = { x: viewportOffset.x, y: viewportOffset.y };
-            isScrollingX = false;
-            isScrollingY = false;
-            lockedAxis = null;
-            canvasGroup.style.cursor = "grabbing";
+            // Save panning parameters first
+            const panParams = {
+                startX: e.offsetX / scale,
+                startY: e.offsetY / scale,
+                viewportX: viewportOffset.x,
+                viewportY: viewportOffset.y
+            };
 
-            lastPanPos = { x: panStart.x, y: panStart.y };
-            lastPanTime = performance.now();
-
-            scrollbar.style.display = "block";
+            // For mouse with shift, start immediately
+            if (e.shiftKey && e.pointerType === "mouse") {
+                activatePanning(panParams);
+            } else {
+                // For touch, delay slightly to detect multi-finger gestures
+                // This prevents accidental panning when placing 2-3 fingers
+                setTimeout(() => {
+                    // Only activate if multi-touch wasn't detected
+                    if (!multiTouchState.isMultiTouch && !isPanning) {
+                        activatePanning(panParams);
+                    }
+                }, 80);
+            }
         } else if (movingToggle) {
             moveStartX = e.offsetX / scale;
             moveStartY = e.offsetY / scale;
@@ -1491,19 +1526,19 @@ window.onload = async () => {
     });
 
     // ═══════════════════════════════════════════════════════════════════════
+    // DISABLE RIGHT-CLICK CONTEXT MENU (prevents Windows 2-finger tap menu)
+    // ═══════════════════════════════════════════════════════════════════════
+    canvasGroup.addEventListener("contextmenu", function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
     // MULTI-FINGER GESTURE DETECTION
     // 2 fingers single tap = undo, 2 fingers double tap = redo
     // 3 fingers single tap = toggle AI, 3 fingers double tap = toggle eraser
+    // (multiTouchState is declared earlier, before pointerdown listener)
     // ═══════════════════════════════════════════════════════════════════════
-    let multiTouchState = {
-        fingerCount: 0,
-        startTime: 0,
-        lastTapTime: 0,
-        lastTapFingers: 0,
-        moved: false,
-        startPositions: []
-    };
-
     const MULTI_TAP_THRESHOLD = 300;  // Max ms between taps for double-tap
     const TAP_MAX_DURATION = 400;     // Max ms for a tap (not a hold)
     const TAP_MOVE_THRESHOLD = 20;    // Max pixels movement for a tap
@@ -1513,6 +1548,28 @@ window.onload = async () => {
 
         // Only track 2 or 3 finger touches
         if (touchCount === 2 || touchCount === 3) {
+            // Save current viewport offset in case panning already started
+            if (!multiTouchState.savedViewportOffset) {
+                multiTouchState.savedViewportOffset = {
+                    x: initialViewportOffset?.x ?? viewportOffset.x,
+                    y: initialViewportOffset?.y ?? viewportOffset.y
+                };
+            }
+
+            // Cancel any ongoing single-finger panning
+            if (isPanning) {
+                isPanning = false;
+                // Restore viewport to where it was before accidental pan
+                viewportOffset.x = multiTouchState.savedViewportOffset.x;
+                viewportOffset.y = multiTouchState.savedViewportOffset.y;
+                screenBox.x = viewportOffset.x;
+                screenBox.y = viewportOffset.y;
+                canvasGroup.style.cursor = "default";
+                drawGrid(backgroundCtx);
+                reDrawAll(drawCtx);
+            }
+
+            multiTouchState.isMultiTouch = true;
             multiTouchState.fingerCount = touchCount;
             multiTouchState.startTime = Date.now();
             multiTouchState.moved = false;
@@ -1597,6 +1654,8 @@ window.onload = async () => {
             // Reset state
             multiTouchState.fingerCount = 0;
             multiTouchState.startPositions = [];
+            multiTouchState.isMultiTouch = false;
+            multiTouchState.savedViewportOffset = null;
         }
     }, { passive: true });
 
