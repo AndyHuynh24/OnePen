@@ -23,7 +23,7 @@ function openNoteDB(callback) {
   };
 
   request.onerror = function () {
-    console.error("❌ Error opening IndexedDB");
+    console.error("❌ Error opening IndexedD");
   };
 }
 
