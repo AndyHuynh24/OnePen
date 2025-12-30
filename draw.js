@@ -434,7 +434,7 @@ function toggleEraser() {
 
 function eraseStrokes() {
     for (const group of allGroups) {
-        if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox)) continue;
+        if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || group.type == 'media') continue;
     
         // Check if any stroke intersects
         if (intersect(group.bbox, eraserBox)) {

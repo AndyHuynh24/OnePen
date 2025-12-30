@@ -911,7 +911,7 @@ async function classifyStroke(stroke, hold = false) {
             continue;
         }
         if (predictedLabel === STROKE_TYPE.DELETE) {
-            allGroups.splice(allGroups.indexOf(group), 1);
+            allGroups.filter(g => g.type != 'media').splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
             if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
                 group.color = color;    
@@ -1110,15 +1110,19 @@ window.onload = async () => {
         }
 
         // === Media Selection Management ===
-        // If media is selected but user clicked outside it, deselect
+        // If media is selected but user clicked outside it, deselect and close popup
         if (selectedMedia) {
             selectedMedia = null;
+            const popup = document.getElementById('mediaEditPopup');
+            if (popup) popup.remove();
             reDrawAll(drawCtx); // Remove resize handles
         }
 
         // === Media Long Press Detection ===
-        // Start long press detection for media editing
-        startMediaLongPressDetection(e.offsetX, e.offsetY);
+        // Start long press detection for media editing (touch or mouse only, not pen)
+        if (e.pointerType === 'touch' || e.pointerType === 'mouse') {
+            startMediaLongPressDetection(e.offsetX, e.offsetY);
+        }
 
         //for scrolling
         if (((e.shiftKey && e.pointerType === "mouse") || (e.pointerType === "touch"))) {
@@ -1257,11 +1261,14 @@ window.onload = async () => {
 
             screenBox.x = viewportOffset.x;
             screenBox.y = viewportOffset.y;
-            
+
             //scrollbar
             updateScrollbar();
-            drawGrid(backgroundCtx); 
+            drawGrid(backgroundCtx);
             reDrawAll(drawCtx);
+
+            // Update popup position if media is selected
+            updateMediaEditPopupPosition();
         }
         else if (pointerDownForToolbox) {
             const rect = toggleBtn.getBoundingClientRect();
@@ -1483,6 +1490,116 @@ window.onload = async () => {
         lastTouchDistance = null;
     });
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // MULTI-FINGER GESTURE DETECTION
+    // 2 fingers single tap = undo, 2 fingers double tap = redo
+    // 3 fingers single tap = toggle AI, 3 fingers double tap = toggle eraser
+    // ═══════════════════════════════════════════════════════════════════════
+    let multiTouchState = {
+        fingerCount: 0,
+        startTime: 0,
+        lastTapTime: 0,
+        lastTapFingers: 0,
+        moved: false,
+        startPositions: []
+    };
+
+    const MULTI_TAP_THRESHOLD = 300;  // Max ms between taps for double-tap
+    const TAP_MAX_DURATION = 400;     // Max ms for a tap (not a hold)
+    const TAP_MOVE_THRESHOLD = 20;    // Max pixels movement for a tap
+
+    canvasGroup.addEventListener("touchstart", function(e) {
+        const touchCount = e.touches.length;
+
+        // Only track 2 or 3 finger touches
+        if (touchCount === 2 || touchCount === 3) {
+            multiTouchState.fingerCount = touchCount;
+            multiTouchState.startTime = Date.now();
+            multiTouchState.moved = false;
+            multiTouchState.startPositions = Array.from(e.touches).map(t => ({
+                x: t.clientX,
+                y: t.clientY
+            }));
+        }
+    }, { passive: true });
+
+    canvasGroup.addEventListener("touchmove", function(e) {
+        // Check if fingers moved significantly (not a tap)
+        if (multiTouchState.fingerCount > 0 && multiTouchState.startPositions.length > 0) {
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i];
+                const start = multiTouchState.startPositions[i];
+                if (start) {
+                    const dx = Math.abs(touch.clientX - start.x);
+                    const dy = Math.abs(touch.clientY - start.y);
+                    if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
+                        multiTouchState.moved = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }, { passive: true });
+
+    canvasGroup.addEventListener("touchend", function(e) {
+        // Only process when all fingers are lifted
+        if (e.touches.length === 0 && multiTouchState.fingerCount > 0) {
+            const duration = Date.now() - multiTouchState.startTime;
+            const fingerCount = multiTouchState.fingerCount;
+
+            // Check if it was a quick tap (not a hold) and didn't move
+            if (duration < TAP_MAX_DURATION && !multiTouchState.moved) {
+                const now = Date.now();
+                const timeSinceLastTap = now - multiTouchState.lastTapTime;
+
+                // Check for double tap (same finger count, within threshold)
+                if (timeSinceLastTap < MULTI_TAP_THRESHOLD &&
+                    multiTouchState.lastTapFingers === fingerCount) {
+
+                    // Double tap detected
+                    if (fingerCount === 2) {
+                        // 2 fingers double tap = redo
+                        redo();
+                        console.log("2-finger double tap: redo()");
+                    } else if (fingerCount === 3) {
+                        // 3 fingers double tap = toggle eraser/pen
+                        toggleEraser();
+                        console.log("3-finger double tap: toggleEraser()");
+                    }
+
+                    // Reset to prevent triple-tap
+                    multiTouchState.lastTapTime = 0;
+                    multiTouchState.lastTapFingers = 0;
+                } else {
+                    // First tap - wait for possible second tap
+                    multiTouchState.lastTapTime = now;
+                    multiTouchState.lastTapFingers = fingerCount;
+
+                    // Set timeout to execute single tap if no second tap comes
+                    setTimeout(() => {
+                        if (multiTouchState.lastTapTime === now) {
+                            // No second tap occurred
+                            if (fingerCount === 2) {
+                                // 2 fingers single tap = undo
+                                undo();
+                                console.log("2-finger single tap: undo()");
+                            } else if (fingerCount === 3) {
+                                // 3 fingers single tap = toggle AI
+                                toggleDetection();
+                                document.getElementById('aiToggleInput').checked = isDetectionOn;
+                                console.log("3-finger single tap: toggleDetection()");
+                            }
+                        }
+                    }, MULTI_TAP_THRESHOLD);
+                }
+            }
+
+            // Reset state
+            multiTouchState.fingerCount = 0;
+            multiTouchState.startPositions = [];
+        }
+    }, { passive: true });
+
     canvasGroup.addEventListener("wheel", function (e) {
         if (e.metaKey) {
             const delta = -e.deltaY;
@@ -1549,6 +1666,9 @@ function zoomCanvas(zoomDelta) {
 
         drawGrid(backgroundCtx);
         reDrawAll(drawCtx);
+
+        // Update popup position if media is selected
+        updateMediaEditPopupPosition();
     }
 }
 
@@ -1607,7 +1727,8 @@ function applyMomentum() {
         drawGrid(backgroundCtx);
         reDrawAll(drawCtx);
 
-        
+        // Update popup position if media is selected
+        updateMediaEditPopupPosition();
 
         requestAnimationFrame(step);
     }
@@ -2428,6 +2549,7 @@ tocDropdown.appendChild(label);
         updateScrollbar?.();
         drawGrid?.(backgroundCtx);
         reDrawAll?.(drawCtx);
+        updateMediaEditPopupPosition?.();
 
         if (progress < 1) requestAnimationFrame(smoothScroll);
       }
@@ -3119,7 +3241,7 @@ function startMediaLongPressDetection(screenX, screenY) {
 
   mediaLongPressTarget = mediaGroup;
   mediaLongPressTimer = setTimeout(() => {
-    showMediaEditPopup(mediaGroup, screenX, screenY);
+    showMediaEditPopup(mediaGroup);
   }, CONFIG.MEDIA.LONG_PRESS_MS);
 
   return true;
@@ -3139,7 +3261,7 @@ function cancelMediaLongPress() {
 /**
  * Show media edit popup
  */
-function showMediaEditPopup(group, screenX, screenY) {
+function showMediaEditPopup(group) {
   const old = document.getElementById('mediaEditPopup');
   if (old) old.remove();
 
@@ -3157,37 +3279,19 @@ function showMediaEditPopup(group, screenX, screenY) {
   const isMultiPagePdf = group.mediaType === 'pdf' && group.pdfTotalPages > 1;
   const pageInfo = isMultiPagePdf ? ` (Page ${group.pdfPage}/${group.pdfTotalPages})` : '';
 
-  // Calculate the media's position on screen (center of the media)
-  const mediaCenterX = (group.bbox.x + group.bbox.w / 2 - viewportOffset.x) * scale;
-  const mediaCenterY = (group.bbox.y + group.bbox.h / 2 - viewportOffset.y) * scale;
-
-  // Calculate media bounds on screen
+  // Calculate media top-left corner on screen
   const mediaScreenLeft = (group.bbox.x - viewportOffset.x) * scale;
   const mediaScreenTop = (group.bbox.y - viewportOffset.y) * scale;
-  const mediaScreenRight = mediaScreenLeft + group.bbox.w * scale;
-  const mediaScreenBottom = mediaScreenTop + group.bbox.h * scale;
 
   // Popup dimensions (approximate)
   const popupWidth = 220;
   const popupHeight = 350;
 
-  // Position popup centered within media, but ensure it stays within viewport
-  let popupX = mediaCenterX - popupWidth / 2;
-  let popupY = mediaCenterY - popupHeight / 2;
+  // Position popup at top-left corner of media with small offset
+  let popupX = mediaScreenLeft + 10;
+  let popupY = mediaScreenTop + 10;
 
-  // Clamp to stay within media bounds if possible, otherwise clamp to screen
-  const mediaWidth = mediaScreenRight - mediaScreenLeft;
-  const mediaHeight = mediaScreenBottom - mediaScreenTop;
-
-  // If media is large enough, keep popup inside it
-  if (mediaWidth >= popupWidth) {
-    popupX = Math.max(mediaScreenLeft + 10, Math.min(popupX, mediaScreenRight - popupWidth - 10));
-  }
-  if (mediaHeight >= popupHeight) {
-    popupY = Math.max(mediaScreenTop + 10, Math.min(popupY, mediaScreenBottom - popupHeight - 10));
-  }
-
-  // Final clamp to screen bounds
+  // Clamp to screen bounds so popup stays visible
   popupX = Math.max(10, Math.min(popupX, window.innerWidth - popupWidth - 10));
   popupY = Math.max(10, Math.min(popupY, window.innerHeight - popupHeight - 10));
 
@@ -3258,6 +3362,9 @@ function showMediaEditPopup(group, screenX, screenY) {
 
   document.body.appendChild(popup);
   setupMediaEditListeners(popup, group);
+
+  // Redraw canvas to show selection border and handles
+  reDrawAll(drawCtx);
 }
 
 /**
@@ -3524,6 +3631,10 @@ function handleMediaResize(screenX, screenY) {
   }
 
   selectedMedia.bbox = newBbox;
+
+  // Update popup position to follow the media
+  updateMediaEditPopupPosition();
+
   reDrawAll(drawCtx);
 }
 
@@ -3582,7 +3693,37 @@ function handleMediaDrag(screenX, screenY) {
   selectedMedia.bbox.x = dragStartBbox.x + dx;
   selectedMedia.bbox.y = dragStartBbox.y + dy;
 
+  // Update popup position to follow the media
+  updateMediaEditPopupPosition();
+
   reDrawAll(drawCtx);
+}
+
+/**
+ * Update the media edit popup position to follow the selected media
+ */
+function updateMediaEditPopupPosition() {
+  const popup = document.getElementById('mediaEditPopup');
+  if (!popup || !selectedMedia) return;
+
+  // Calculate media top-left corner on screen
+  const mediaScreenLeft = (selectedMedia.bbox.x - viewportOffset.x) * scale;
+  const mediaScreenTop = (selectedMedia.bbox.y - viewportOffset.y) * scale;
+
+  // Popup dimensions
+  const popupWidth = 220;
+  const popupHeight = 350;
+
+  // Position popup at top-left corner of media with small offset
+  let popupX = mediaScreenLeft + 10;
+  let popupY = mediaScreenTop + 10;
+
+  // Clamp to screen bounds so popup stays visible
+  popupX = Math.max(10, Math.min(popupX, window.innerWidth - popupWidth - 10));
+  popupY = Math.max(10, Math.min(popupY, window.innerHeight - popupHeight - 10));
+
+  popup.style.left = popupX + 'px';
+  popup.style.top = popupY + 'px';
 }
 
 /**

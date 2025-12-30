@@ -39,7 +39,7 @@ function renderAllNotes() {
 }
 
 function saveNote(path, content) {
-
+  console.log("save");
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
     const store = tx.objectStore("notes");
@@ -981,12 +981,18 @@ function saveNoteFast(path, content) {
     const tx = db.transaction("notes", "readwrite");
     const store = tx.objectStore("notes");
 
-    store.put({
-      path,
-      content
-      // ❌ no created_at here
-    });
+    // First get existing note to preserve created_at
+    const getReq = store.get(path);
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      store.put({
+        path,
+        content,
+        created_at: existing?.created_at || new Date().toISOString()
+      });
+    };
   });
+  saveSetting('lastSaveNote', { path, viewportOffset, scale });
 }
 
 
