@@ -202,20 +202,218 @@ body {
     pointer-events: none; /* Prevent interaction with the background canvas */
 }
 
-#scaleIndicator {
-    color: #ffffff;
-    padding: 4px 6px;
-    font-size: 14px;
+/* ═══════════════════════════════════════════════════════════════
+   FLOATING ZOOM INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+.zoom-indicator {
+    position: fixed;
+    top: 10px;
+    left: 180px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, #3a3a3a 0%, #2d2d2d 100%);
+    border: 1px solid #4a4a4a;
+    border-radius: 20px;
+    color: #fff;
+    font-family: 'Mali', sans-serif;
+    font-size: 13px;
     font-weight: 500;
-    border-radius: 6px;
-    z-index: 10;
-    user-select: none;
     cursor: pointer;
-    transition: background-color 0.2s;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    user-select: none;
 }
 
-#scaleIndicator:hover {
-    background-color: #444444;
+.zoom-indicator.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.zoom-indicator:hover {
+    background: linear-gradient(135deg, #454545 0%, #383838 100%);
+    border-color: #5a5a5a;
+}
+
+.zoom-indicator:active {
+    transform: scale(0.97);
+}
+
+.zoom-indicator i {
+    font-size: 16px;
+    color: #7eb8da;
+}
+
+.zoom-indicator #zoomPercent {
+    min-width: 38px;
+    text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLE OF CONTENTS PANEL (Top Right, Compact)
+   ═══════════════════════════════════════════════════════════════ */
+.toc-panel {
+    position: fixed;
+    top: 68px;
+    right: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    z-index: 999;
+    pointer-events: auto;
+}
+
+/* The clickable tab - thin vertical notch on right edge */
+.toc-tab {
+    order: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
+    background: #666666;
+    border: none;
+    border-radius: 6px 0 0 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.toc-tab:hover {
+    background: #777777;
+}
+
+/* Stacked lines icon */
+.toc-tab-icon {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.toc-line {
+    width: 10px;
+    height: 1.5px;
+    background: white;
+    border-radius: 1px;
+}
+
+.toc-line.short {
+    width: 6px;
+}
+
+.toc-tab-label {
+    font-family: 'Mali', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    color: white;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+/* The sliding content panel - slides in from right */
+.toc-content {
+    order: 1;
+    width: 0;
+    max-height: 60vh;
+    background: #3a3a3a;
+    border: none;
+    border-radius: 8px 0 0 8px;
+    overflow: hidden;
+    transition: width 0.25s ease, opacity 0.2s ease;
+    opacity: 0;
+}
+
+.toc-panel.open .toc-content {
+    width: auto;
+    min-width: 180px;
+    max-width: 320px;
+    opacity: 1;
+}
+
+.toc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #555;
+    color: #fff;
+    font-family: 'Mali', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.toc-header i {
+    font-size: 14px;
+    color: #fff;
+}
+
+.toc-list {
+    padding: 4px 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(50vh - 44px);
+}
+
+.toc-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.toc-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.toc-list::-webkit-scrollbar-thumb {
+    background-color: rgba(150, 150, 150, 0.5);
+    border-radius: 4px;
+}
+
+.toc-empty {
+    padding: 16px 12px;
+    color: #999;
+    font-family: 'Mali', sans-serif;
+    font-size: 12px;
+    font-style: italic;
+    text-align: center;
+}
+
+.toc-item {
+    display: block;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.toc-item:hover {
+    background: #444;
+}
+
+/* Thumbnail preview - full width, no text label */
+.toc-item-preview {
+    display: block;
+    width: auto;
+    height: 32px;
+    min-width: 100px;
+    max-width: none;
+    border-radius: 4px;
+    background: #2a2a2a;
+    object-fit: contain;
+}
+
+/* Hide scrollbar but allow horizontal scroll */
+.toc-item::-webkit-scrollbar {
+    height: 0;
+}
+
+.toc-item-text {
+    display: none;
 }
 
 /* ------------tool box style -------------- */
@@ -876,6 +1074,69 @@ input[type="range"] {
     font-size: 0.9rem;
 }
 
+/* Number input styling for settings */
+.range-row input[type="number"],
+.modifier-card input[type="number"] {
+    width: 36px;
+    padding: 5px 4px;
+    background: #444;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #fff;
+    font-family: 'Mali', sans-serif;
+    font-size: 12px;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+
+.range-row input[type="number"]::-webkit-outer-spin-button,
+.range-row input[type="number"]::-webkit-inner-spin-button,
+.modifier-card input[type="number"]::-webkit-outer-spin-button,
+.modifier-card input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.range-row input[type="number"]:focus,
+.modifier-card input[type="number"]:focus {
+    outline: none;
+    border-color: #777;
+    background: #4a4a4a;
+}
+
+/* Range slider styling */
+.range-row input[type="range"] {
+    flex: 1;
+    height: 6px;
+    background: #444;
+    border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.range-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #888;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid #666;
+}
+
+.range-row input[type="range"]::-webkit-slider-thumb:hover {
+    background: #999;
+}
+
+.range-row input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #888;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid #666;
+}
+
 .modifier-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, 180px); 
@@ -965,30 +1226,7 @@ input[type="range"] {
     top: 0;
 }
 
-/* -------------------Toc button ------------- */
-#tocDropdown {
-  position: absolute;
-  top: 48px; 
-  left: 10px; 
-  max-width: 50vw;
-  max-height: 50vh;
-  overflow-x: auto;
-  background: #1e1e1e;
-  color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-  display: none;
-  z-index: 9999;
-}
-
-#tocDropdown div {
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-#tocDropdown div:hover {
-  background: rgba(255,255,255,0.15);
-}
+/* Old TOC dropdown removed - now using .toc-panel */
 
 #toolboxes {
     display: grid;
@@ -1217,5 +1455,193 @@ input[type="range"] {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GOOGLE AUTH & SYNC UI
+   ═══════════════════════════════════════════════════════════════ */
+
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #444, transparent);
+  margin: 20px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CLOUD SYNC (Simple Monotone Design)
+   ═══════════════════════════════════════════════════════════════ */
+
+.cloud-card {
+  background: #2b2b2b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.cloud-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cloud-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #999;
+  font-family: 'Mali', sans-serif;
+  font-size: 14px;
+}
+
+.cloud-info i {
+  font-size: 18px;
+}
+
+/* Cloud Button */
+.cloud-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #666;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-family: 'Mali', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cloud-btn:hover {
+  background: #777;
+}
+
+.cloud-btn i {
+  font-size: 15px;
+}
+
+.cloud-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cloud-btn-icon:hover {
+  background: #444;
+  color: #fff;
+}
+
+.cloud-btn-icon i {
+  font-size: 18px;
+}
+
+/* User info row */
+.cloud-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cloud-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #444;
+}
+
+.cloud-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cloud-name {
+  font-family: 'Mali', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cloud-email {
+  font-size: 11px;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sync actions row */
+.cloud-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #444;
+}
+
+.cloud-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Mali', sans-serif;
+  font-size: 12px;
+  color: #666;
+}
+
+.cloud-status i {
+  font-size: 14px;
+}
+
+.cloud-status.syncing {
+  color: #888;
+}
+
+.cloud-status.syncing i {
+  animation: spin 1s linear infinite;
+}
+
+.cloud-status.synced {
+  color: #6a6;
+}
+
+.cloud-status.error {
+  color: #a66;
+}
+
+.cloud-status.idle {
+  color: #666;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cloud-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* Hide driveGroup by default - controlled by JS */
+#driveGroup {
+  display: none;
 }
 

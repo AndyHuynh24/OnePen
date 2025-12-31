@@ -194,7 +194,6 @@ function renderFolderList(folderName) {
 }
 
 function openFolder(folderName) {
-  //document.getElementById(folderName).style.backgroundColor = '#444444';
   selectedFolder = folderName;
   if (document.querySelector('.selected')) {
     document.querySelector('.selected').classList.toggle('selected')
@@ -202,14 +201,41 @@ function openFolder(folderName) {
   document.getElementById(folderName).classList.toggle('selected');
   const notesContainer = document.querySelector('.notes');
   notesContainer.querySelector('#starter').style.display = 'none';
-  notesContainer.querySelector('#menubar').style.display =  'flex';
+  notesContainer.querySelector('#menubar').style.display = 'flex';
   notesContainer.querySelector('#note-list').innerHTML = '';
 
-  listNotesInFolder(folderName, files => {
-    files.forEach(file => {
-      createSubnoteButton(file);
+  // Fetch notes with their creation dates
+  listNotesInFolderWithDates(folderName, notes => {
+    notes.forEach(note => {
+      const noteName = note.path.split('/').pop();
+      createSubnoteButton(noteName, folderName, note.created_at);
     });
-  })
+  });
+}
+
+function listNotesInFolderWithDates(folder, callback) {
+  openNoteDB((db, done) => {
+    const tx = db.transaction("notes", "readonly");
+    const store = tx.objectStore("notes");
+    const notes = [];
+
+    store.openCursor().onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) {
+        const path = cursor.value.path;
+        if (path.startsWith(folder + "/") && path.endsWith('.json')) {
+          notes.push({
+            path: path,
+            created_at: cursor.value.created_at
+          });
+        }
+        cursor.continue();
+      } else {
+        done();
+        callback(notes);
+      }
+    };
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -309,11 +335,10 @@ function promptDeleteFolder(folderName) {
 
 function renameFolder(oldName, newName) {
   openNoteDB((db, done) => {
-    const tx = db.transaction(["folders", "notes"], "readwrite");
-    const folderStore = tx.objectStore("folders");
+    const tx = db.transaction("notes", "readwrite");
     const noteStore = tx.objectStore("notes");
 
-    // Get all notes in this folder
+    // Get all notes in this folder (including __folder__.meta)
     const getAllNotes = noteStore.getAll();
     getAllNotes.onsuccess = () => {
       const allNotes = getAllNotes.result;
@@ -328,10 +353,6 @@ function renameFolder(oldName, newName) {
           path: newPath
         });
       });
-
-      // Delete old folder, add new one
-      folderStore.delete(oldName);
-      folderStore.put({ name: newName });
     };
 
     tx.oncomplete = () => {
@@ -365,11 +386,10 @@ function renameFolder(oldName, newName) {
 
 function deleteFolder(folderName) {
   openNoteDB((db, done) => {
-    const tx = db.transaction(["folders", "notes"], "readwrite");
-    const folderStore = tx.objectStore("folders");
+    const tx = db.transaction("notes", "readwrite");
     const noteStore = tx.objectStore("notes");
 
-    // Get all notes and delete those in this folder
+    // Get all notes and delete those in this folder (including __folder__.meta)
     const getAllNotes = noteStore.getAll();
     getAllNotes.onsuccess = () => {
       const allNotes = getAllNotes.result;
@@ -378,9 +398,6 @@ function deleteFolder(folderName) {
           noteStore.delete(note.path);
         }
       });
-
-      // Delete the folder
-      folderStore.delete(folderName);
     };
 
     tx.oncomplete = () => {
@@ -438,7 +455,8 @@ function promptNewNote(folderName) {
   if (!noteName || !folderName) return;
 
   const fullPath = `${folderName}/${noteName}.json`;
-  
+  const createdAt = new Date().toISOString();
+
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
     const store = tx.objectStore("notes");
@@ -446,7 +464,7 @@ function promptNewNote(folderName) {
     store.put({
       path: fullPath,
       content: [],
-      created_at: new Date().toISOString()   // ✅ Lưu ngày tạo chỉ 1 lần
+      created_at: createdAt
     });
 
     tx.oncomplete = () => {
@@ -454,7 +472,7 @@ function promptNewNote(folderName) {
       allGroups = [];
       viewportOffset = { x: 0, y: 0 };
       reDrawAll(drawCtx);
-      const noteButton = createSubnoteButton(noteName, folderName);
+      const noteButton = createSubnoteButton(noteName, folderName, createdAt);
       loadNoteOnBtn(title, noteButton);
       done();
     };
@@ -467,38 +485,30 @@ function promptNewNote(folderName) {
 }
 
 
-function createSubnoteButton(noteName, folderName) {
-  const fullPath = folderName ? `${folderName}/${noteName}.json` : noteName;
-  
-  openNoteDB((db, done) => {
-    const tx = db.transaction("notes", "readonly");
-    const store = tx.objectStore("notes");
-    const req = store.get(fullPath);
+function createSubnoteButton(noteName, folderName, createdDate = null) {
+  // Handle both "noteName" and "noteName.json" formats
+  const cleanName = noteName.replace('.json', '');
+  const fullPath = folderName ? `${folderName}/${cleanName}.json` : noteName;
+  const noteText = cleanName;
 
-    req.onsuccess = () => {
-      const note = req.result || {};
-      const noteText = fullPath.split('/')[1].replace('.json', '');
+  // Format date - use provided date or placeholder
+  const created = createdDate
+    ? new Date(createdDate).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'2-digit' })
+    : "—";
 
-      // Format ngày tạo
-      const created = note.created_at
-        ? new Date(note.created_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'2-digit' })
-        : "—";
+  const noteButton = document.createElement('button');
+  noteButton.className = 'note-button';
+  noteButton.id = fullPath.replace('/', '_').replace('.json', '');
 
-      const noteButton = document.createElement('button');
-      noteButton.className = 'note-button';
-      noteButton.id = fullPath.replace('/', '_').replace('.json', '');
-  
-      // ✅ hiển thị tên + ngày tạo
-      noteButton.innerHTML = `
-        <span>${noteText}</span>
-        <span class="note-date">${created}</span>
-      `;
+  noteButton.innerHTML = `
+    <span>${noteText}</span>
+    <span class="note-date">${created}</span>
+  `;
 
-      noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
-      document.getElementById('note-list').appendChild(noteButton);
-      done();
-    };
-  });
+  noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
+  document.getElementById('note-list').appendChild(noteButton);
+
+  return noteButton;
 }
 
 
@@ -834,155 +844,7 @@ async function collectOnePenData(scope = "backup") {
   });
 }
 
-function backupToDrive(filename = "onepen_backup.json") {
-  openNoteDB(db => {
-    const noteTx = db.transaction("notes", "readonly");
-    const noteStore = noteTx.objectStore("notes");
-
-    const settingTx = db.transaction("setting", "readonly");
-    const settingStore = settingTx.objectStore("setting");
-
-    const payload = {
-      type: "onepen-data",
-      version: 1,
-      scope: "backup",
-      generated_at: new Date().toISOString(),
-      notes: {},
-      settings: {}
-    };
-
-    // --- Load notes
-    const loadNotes = new Promise(resolve => {
-      noteStore.openCursor().onsuccess = e => {
-        const c = e.target.result;
-        if (!c) return resolve();
-        payload.notes[c.key] = c.value;
-        c.continue();
-      };
-    });
-
-    // --- Load settings
-    const loadSettings = new Promise(resolve => {
-      settingStore.openCursor().onsuccess = e => {
-        const c = e.target.result;
-        if (!c) return resolve();
-        payload.settings[c.key] = c.value;
-        c.continue();
-      };
-    });
-
-    Promise.all([loadNotes, loadSettings]).then(async () => {
-      const jsonContent = JSON.stringify(payload, null, 2);
-      const accessToken = localStorage.getItem("accessToken");
-
-      if (!accessToken) {
-        alert("❌ Not signed in");
-        return;
-      }
-
-      try {
-        // 🔍 Search existing backup (EXACT old behavior)
-        const searchRes = await fetch(
-          `https://www.googleapis.com/drive/v3/files?q=name='${filename}' and trashed=false`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`
-            }
-          }
-        );
-
-        const searchData = await searchRes.json();
-        const existingFile = searchData.files?.[0];
-
-        // 📤 Multipart upload (EXACT old format)
-        const metadata = { name: filename, mimeType: "application/json" };
-        const boundary = "-------314159265358979323846";
-        const delimiter = `\r\n--${boundary}\r\n`;
-        const closeDelimiter = `\r\n--${boundary}--`;
-
-        const body =
-          delimiter +
-          "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-          JSON.stringify(metadata) +
-          delimiter +
-          "Content-Type: application/json\r\n\r\n" +
-          jsonContent +
-          closeDelimiter;
-
-        const url = existingFile
-          ? `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`
-          : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-
-        const method = existingFile ? "PATCH" : "POST";
-
-        const uploadRes = await fetch(url, {
-          method,
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": `multipart/related; boundary="${boundary}"`
-          },
-          body
-        });
-
-        const result = await uploadRes.json();
-
-        if (!uploadRes.ok) {
-          throw new Error(result.error?.message || "Upload failed");
-        }
-
-        alert("✅ Backup saved to Google Drive");
-      } catch (err) {
-        alert("❌ Backup failed: " + err.message);
-      }
-    });
-  });
-}
-
-
-async function restoreBackupFromDrive(filename = "onepen_backup.json") {
-  const token = localStorage.getItem("accessToken");
-  if (!token) return alert("❌ Not signed in");
-
-  try {
-    const search = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name='${filename}' and trashed=false`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    ).then(r => r.json());
-
-    const file = search.files?.[0];
-    if (!file) throw new Error("File not found");
-
-    const data = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    ).then(r => r.json());
-
-    if (data.type !== "onepen-data" || data.scope !== "backup") {
-      throw new Error("Invalid backup file");
-    }
-
-    openNoteDB(db => {
-      const txN = db.transaction("notes", "readwrite");
-      const ns = txN.objectStore("notes");
-      Object.values(data.notes).forEach(v => {
-        ns.put(v); // key comes from v.path
-      });
-
-
-      const txS = db.transaction("setting", "readwrite");
-      const ss = txS.objectStore("setting");
-      Object.entries(data.settings || {}).forEach(([k, v]) => ss.put(v, k));
-
-      txN.oncomplete = () => {
-        renderAllNotes();
-        reloadSetting();
-        alert("✅ Backup restored");
-      };
-    });
-  } catch (e) {
-    alert("❌ Restore failed: " + e.message);
-  }
-}
+// backupToDrive and restoreBackupFromDrive are now in signin.js
 
 async function exportSelectedNotesToFile(selectedPaths) {
   const payload = await collectOnePenData("share");
@@ -1224,6 +1086,11 @@ let dirty = false;
 function markDirty() {
   dirty = true;
 
+  // Invalidate TOC cache when content changes
+  if (typeof invalidateTitleCache === 'function') {
+    invalidateTitleCache();
+  }
+
   if (!autosaveTimer) {
     autosaveTimer = setTimeout(() => {
       if (!dirty || !title) return;
@@ -1231,6 +1098,11 @@ function markDirty() {
       saveNoteFast(title, allGroups);
       dirty = false;
       autosaveTimer = null;
+
+      // Trigger Google Drive auto-sync (if signed in)
+      if (typeof triggerAutoSync === 'function') {
+        triggerAutoSync();
+      }
     }, 500); // 300–1000ms sweet spot
   }
 }

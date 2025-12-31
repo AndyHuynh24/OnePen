@@ -18,15 +18,8 @@
 </head>
 <body>
     <div id="toolbar">
-       <button id="tocBtn" class="navBtn">
-          <i class="bx bx-list-ul"></i>
-        </button>
-        <div id="tocDropdown"></div>
-        <span class="break"></span> 
         <button onclick="undo()"><i class='bx bx-undo'></i></button>
         <button onclick="redo()"><i class='bx bx-redo'></i></button>
-        <span class="break"></span>
-        <div id="scaleIndicator"><i class='bx bx-move-diagonal-left'></i> 100%</div>
         <span class="break"></span>
          <label class="aiToggle">
           <input type="checkbox" id="aiToggleInput" onchange="toggleDetection()" checked>
@@ -56,6 +49,33 @@
     <canvas id="viewer" width="136" height="136" class="show"
         style="position: fixed; z-index: 1000000000000000; bottom: 10px; left: 10px; border: 2px solid black; background: white;">
     </canvas>
+
+    <!-- Floating Zoom Indicator -->
+    <div id="zoomIndicator" class="zoom-indicator">
+        <i class='bx bx-zoom-in'></i>
+        <span id="zoomPercent">100%</span>
+    </div>
+
+    <!-- Table of Contents Panel (Top Right) -->
+    <div id="tocPanel" class="toc-panel">
+        <div class="toc-tab" id="tocTab">
+            <div class="toc-tab-icon">
+                <span class="toc-line"></span>
+                <span class="toc-line short"></span>
+                <span class="toc-line"></span>
+            </div>
+            <span class="toc-tab-label">TOC</span>
+        </div>
+        <div class="toc-content">
+            <div class="toc-header">
+                <i class='bx bx-list-ul'></i>
+                <span>Contents</span>
+            </div>
+            <div id="tocList" class="toc-list">
+                <div class="toc-empty">No headings yet</div>
+            </div>
+        </div>
+    </div>
 
     <button id="openNavBtn" onclick="toggleNav()">☰ Notes</button>
     <div id="notenavbar">
@@ -95,14 +115,53 @@
     
     <div class="settings-wrapper" id="settings-wrapper">
     <div class="grid-section">
-      <div id = "userInfo">
-        <h2>Hi, </h2> 
-        <p>Google drive connection has been established, on "Notes" side panel click sync to drive to save all current notes to drive, click restore from drive to import data from drive</p>
+      <!-- Google Sign-in Card (shown when logged out) -->
+      <div id="signin-card" class="cloud-card">
+        <div class="cloud-card-row">
+          <div class="cloud-info">
+            <i class="bx bx-cloud"></i>
+            <span>Cloud Sync</span>
+          </div>
+          <button id="signin-btn" class="cloud-btn">
+            <i class="bx bxl-google"></i>
+            <span>Sign in</span>
+          </button>
+        </div>
       </div>
-      <div id="signin">
-        <button id="signin-btn">Sign In Google</button>
-        <button id="signout-btn" onclick="signOut()">Sign out</button>
+
+      <!-- User Profile Card (shown when logged in) -->
+      <div id="user-card" class="cloud-card" style="display: none;">
+        <div class="cloud-card-row">
+          <div class="cloud-user">
+            <img id="user-avatar" class="cloud-avatar" src="" alt="">
+            <div class="cloud-user-info">
+              <span id="user-name" class="cloud-name">User</span>
+              <span id="user-email-display" class="cloud-email"></span>
+            </div>
+          </div>
+          <button id="signout-btn" class="cloud-btn-icon" title="Sign out">
+            <i class="bx bx-log-out"></i>
+          </button>
+        </div>
+        <div class="cloud-actions">
+          <div id="sync-status" class="cloud-status">
+            <i class="bx bx-cloud"></i>
+            <span></span>
+          </div>
+          <div class="cloud-btns">
+            <button id="sync-to-drive-btn" class="cloud-btn" title="Sync to Drive">
+              <i class="bx bx-upload"></i>
+              <span>Sync</span>
+            </button>
+            <button id="restore-from-drive-btn" class="cloud-btn" title="Restore from Drive">
+              <i class="bx bx-download"></i>
+              <span>Restore</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      <div class="settings-divider"></div>
       <h2>Background:</h2>
       <label>Background color:</label>
       <input type="color" id="backgroundColorPicker">

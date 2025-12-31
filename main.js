@@ -219,7 +219,7 @@ function createModifierCard(id, mod) {
   card.innerHTML = `
     <div class="modifier-title">${mod.label}</div>
     <label>Color:</label>
-    <input type="color" class="modifier-color" value="${mod.color}">
+    <input type="color" class="modifier-color" value="${mod.color}" ${mod.label == "Default Pen" ? "id = 'defaultPen'" : ""}>
     <label>Pen type:</label>
     <select class="modifier-penType">
       ${Object.values(PEN_TYPES).map(t => `
@@ -269,8 +269,9 @@ function createModifierCard(id, mod) {
   card.appendChild(btn);
 
     if (mod.label == "Default Pen") {
-        card.style.backgroundColor = "#142231ff"
+        card.style.backgroundColor = "#142231ff";
         penSize = mod.size;
+        defaultPenColor = mod.color;
     }
 
     if (mod.label == "Default Pen"  || mod.label.includes("Shortcut")) {
@@ -284,14 +285,14 @@ function createModifierCard(id, mod) {
     const MAX_penSize = Number(penSizeSlider.max);
 
     function clampPenSize(value) {
-    return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+        return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
     }
 
     function setPenSize(value) {
         const v = clampPenSize(Number(value) || MIN_penSize);
         penSizeSlider.value = v;
         penSizeInput.value = v;
-        penSize = v;        // <-- your existing gridSize
+        //penSize = v;        // <-- your existing gridSize
     }
 
     setPenSize(mod?.size ?? 0);
@@ -299,6 +300,9 @@ function createModifierCard(id, mod) {
     // Slider → number
     penSizeSlider.addEventListener("input", e => {
         setPenSize(e.target.value);
+        if (mod.label == "Default Pen") {
+            penSize = mod.size;
+        }
         mod.size = clampPenSize(Number(e.target.value) || MIN_penSize);
         updateTools();
     });
@@ -306,6 +310,9 @@ function createModifierCard(id, mod) {
     // Number typing → slider
     penSizeInput.addEventListener("input", e => {
         setPenSize(e.target.value);
+        if (mod.label == "Default Pen") {
+            penSize = mod.size;
+        }
         mod.size = e.target.value; 
         updateTools();
     });
@@ -451,8 +458,8 @@ async function renderTools() {
         title.innerText = id;
         dial.appendChild(title);
 
-        const radius = 90;
-        const center = 140;
+        const radius = 85;
+        const center = 125; // Half of 250px dial width
         const toolHalfSize = 25;
         const toolCount = tools.length;
 
@@ -494,6 +501,25 @@ async function renderTools() {
                         <option value="${t}" ${t === tool.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     `).join("")}
                     </select>
+                    <label>Stroke size:</label>
+                    <div class="range-row grid-range">
+                        <input
+                        type="range"
+                        id="penSize"
+                        min="0.4"
+                        max="15"
+                        step="0.2"
+                        value="2"
+                        />
+                        <input
+                        type="number"
+                        id="penSizeValue"
+                        min="0.4"
+                        max="15"
+                        step="0.2"
+                        value="2"
+                        />
+                    </div>
                     <div class="modifier-footer">
                     <label id="visibilityLabel">Visibility:</label>
                     <label class="toggle-switch">
@@ -544,6 +570,46 @@ async function renderTools() {
                         toolDiv.style.backgroundColor = "#fff";  
                     } 
                 };
+
+                const penSizeSlider = popup.querySelector("#penSize");
+                const penSizeInput  = popup.querySelector("#penSizeValue");
+
+                const MIN_penSize = Number(penSizeSlider.min);
+                const MAX_penSize = Number(penSizeSlider.max);
+
+                function clampPenSize(value) {
+                    return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+                }
+
+                function setPenSize(value) {
+                    const v = clampPenSize(Number(value) || MIN_penSize);
+                    penSizeSlider.value = v;
+                    penSizeInput.value = v;
+                    tool.size = v;
+                    //penSize = v;        // <-- your existing gridSize
+                }
+
+                setPenSize(tool?.size ?? 0);
+
+                // Slider → number
+                penSizeSlider.addEventListener("input", e => {
+                    setPenSize(e.target.value);
+                    updateTools();
+                });
+
+                // Number typing → slider
+                penSizeInput.addEventListener("input", e => {
+                    setPenSize(e.target.value);
+                    updateTools();
+                });
+
+                // Commit on Enter
+                penSizeInput.addEventListener("keydown", e => {
+                    if (e.key === "Enter") {
+                        e.target.blur();
+                    }
+                });
+
                 if (colorInput) colorInput.oninput = () => { 
                     tool.color = colorInput.value; 
                     updateTools(); 
@@ -972,19 +1038,7 @@ function setGridSize(value) {
 }
 
 window.onload = async () => {
-    if (!accessToken) {
-        //document.querySelector('.twoButton').style.display = 'none';
-        //document.getElementById('signin-btn').style.display = 'block';
-        document.getElementById('signout-btn').style.display = 'none';
-        document.querySelector('#userInfo h2').innerText = `Hi, `
-        document.querySelector('#userInfo p').innerText = "You are not signed in yet, all notes will be saved locally, please don't delete browser data or all your notes will be deleted. You can sign in to sync/backup to google drive"
-    } else {
-        //document.querySelector('.twoButton').style.display = 'block';
-        //document.getElementById('signin-btn').style.display = 'none';
-        document.getElementById('signout-btn').style.display = 'block';
-        document.querySelector('#userInfo h2').innerText = `Hi ${userName},`;
-        document.querySelector('#userInfo p').innerText = "Google drive connection has been established, on 'Notes' side panel click sync to drive to save all current notes to drive, click restore from drive to import data from drive"
-    }
+    // Auth UI is now handled by signin.js (updateAuthUI function)
 
     allModels = await loadModel();
     model = allModels.model;
@@ -1018,8 +1072,12 @@ window.onload = async () => {
                 document.getElementById(lastSaveNote.path.replace('/','_').replace('.json','')).classList.toggle('noteSelected');
                 drawingLock = true;
 
-                maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox.y + obj?.bbox.h) > (max.bbox?.y + obj?.bbox.h) ? obj : max);
-                contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + 300;
+                if (allGroups.length > 0) {
+                    maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox?.y + obj?.bbox?.h) > (max?.bbox?.y + max?.bbox?.h) ? obj : max, { bbox: { y: 0, h: 0 } });
+                    contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + 300;
+                } else {
+                    contentHeight = viewportHeight;
+                }
 
                 scrollbar.style.display = "block";
                 thumbHeight = Math.max((viewportHeight/contentHeight)*(viewportHeight*0.86), 0);
@@ -1455,9 +1513,10 @@ window.onload = async () => {
                 
                 toolColor = icon?.getAttribute('data-color') || null;
                 toolVisibility = icon?.getAttribute('data-visibility') || null;
+                toolSize = icon?.getAttribute('data-size') || null;
 
                 //delete tool
-                executeTool(selectedTool, toolColor, toolVisibility, isShortcut);
+                executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortcut);
             } else {
                 allGroups.pop();
             } 
@@ -1477,7 +1536,7 @@ window.onload = async () => {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
                 drawCtx.save();
                 drawCtx.translate(-viewportOffset.x, -viewportOffset.y);
-                drawStroke(drawCtx, currentStroke, defaultPenColor);
+                drawStroke(drawCtx, currentStroke, defaultPenColor, penSize);
                 drawCtx.restore();
                 classifyStroke(currentStroke);
             }
@@ -1515,23 +1574,53 @@ window.onload = async () => {
     });
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SIMPLE 2-FINGER TAP GESTURE DETECTION
-    // 2 fingers single tap = undo, 2 fingers double tap = toggle AI
-    // Does NOT interfere with normal touch panning
+    // TOUCH GESTURE DETECTION
+    // 1 finger double tap = toggle AI mode
+    // 2 fingers single tap = undo
     // ═══════════════════════════════════════════════════════════════════════
+    const TAP_THRESHOLD = 250;      // Max duration for a tap
+    const DOUBLE_TAP_GAP = 300;     // Max gap between double taps
+    const MOVE_THRESHOLD = 20;      // Max movement for a tap
+
+    // --- 1-finger double tap for AI toggle ---
+    let singleFingerTap = {
+        lastTapTime: 0,
+        lastTapX: 0,
+        lastTapY: 0
+    };
+
+    canvasGroup.addEventListener("touchend", function(e) {
+        // Only process if no fingers remain and it was a single finger
+        if (e.touches.length === 0 && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+            const now = Date.now();
+            const timeSinceLastTap = now - singleFingerTap.lastTapTime;
+            const dx = Math.abs(touch.clientX - singleFingerTap.lastTapX);
+            const dy = Math.abs(touch.clientY - singleFingerTap.lastTapY);
+
+            // Check for double tap (quick, same spot)
+            if (timeSinceLastTap < DOUBLE_TAP_GAP && dx < MOVE_THRESHOLD && dy < MOVE_THRESHOLD) {
+                // === 1-FINGER DOUBLE TAP: toggle AI ===
+                toggleDetection();
+                document.getElementById('aiToggleInput').checked = isDetectionOn;
+                singleFingerTap.lastTapTime = 0; // Reset to prevent triple-tap
+            } else {
+                // Record this tap for potential double tap
+                singleFingerTap.lastTapTime = now;
+                singleFingerTap.lastTapX = touch.clientX;
+                singleFingerTap.lastTapY = touch.clientY;
+            }
+        }
+    }, { passive: true });
+
+    // --- 2-finger single tap for undo ---
     let twoFingerTap = {
         startTime: 0,
         startPositions: [],
-        moved: false,
-        lastTapTime: 0
+        moved: false
     };
 
-    const TAP_THRESHOLD = 300;      // Max duration for a tap
-    const DOUBLE_TAP_GAP = 350;     // Max gap between double taps
-    const MOVE_THRESHOLD = 25;      // Max movement for a tap
-
     canvasGroup.addEventListener("touchstart", function(e) {
-        // Only track when exactly 2 fingers touch
         if (e.touches.length === 2) {
             twoFingerTap.startTime = Date.now();
             twoFingerTap.moved = false;
@@ -1539,55 +1628,37 @@ window.onload = async () => {
                 { x: e.touches[0].clientX, y: e.touches[0].clientY },
                 { x: e.touches[1].clientX, y: e.touches[1].clientY }
             ];
-        } else {
-            // More or fewer than 2 fingers - invalidate
-            twoFingerTap.startTime = 0;
+        } else if (e.touches.length > 2) {
+            twoFingerTap.startTime = 0; // Invalidate if more fingers added
         }
     }, { passive: true });
 
     canvasGroup.addEventListener("touchmove", function(e) {
-        // Check if 2-finger gesture moved too much
-        if (twoFingerTap.startTime && e.touches.length === 2) {
-            for (let i = 0; i < 2; i++) {
-                const dx = Math.abs(e.touches[i].clientX - twoFingerTap.startPositions[i].x);
-                const dy = Math.abs(e.touches[i].clientY - twoFingerTap.startPositions[i].y);
-                if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
-                    twoFingerTap.moved = true;
-                    break;
+        if (twoFingerTap.startTime && e.touches.length >= 2) {
+            for (let i = 0; i < Math.min(2, e.touches.length); i++) {
+                const start = twoFingerTap.startPositions[i];
+                if (start) {
+                    const dx = Math.abs(e.touches[i].clientX - start.x);
+                    const dy = Math.abs(e.touches[i].clientY - start.y);
+                    if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+                        twoFingerTap.moved = true;
+                        break;
+                    }
                 }
             }
         }
     }, { passive: true });
 
     canvasGroup.addEventListener("touchend", function(e) {
-        // Fire gesture only when all fingers lift AND it was a valid 2-finger tap
         if (e.touches.length === 0 && twoFingerTap.startTime) {
             const duration = Date.now() - twoFingerTap.startTime;
 
-            // Valid tap: quick and didn't move
+            // Valid 2-finger tap: quick and didn't move
             if (duration < TAP_THRESHOLD && !twoFingerTap.moved) {
-                const now = Date.now();
-                const timeSinceLastTap = now - twoFingerTap.lastTapTime;
-
-                if (timeSinceLastTap < DOUBLE_TAP_GAP) {
-                    // === DOUBLE TAP: toggle AI ===
-                    toggleDetection();
-                    document.getElementById('aiToggleInput').checked = isDetectionOn;
-                    twoFingerTap.lastTapTime = 0;
-                } else {
-                    // First tap - wait for possible double tap
-                    twoFingerTap.lastTapTime = now;
-
-                    setTimeout(() => {
-                        if (twoFingerTap.lastTapTime === now) {
-                            // === SINGLE TAP: undo ===
-                            undo();
-                        }
-                    }, DOUBLE_TAP_GAP);
-                }
+                // === 2-FINGER SINGLE TAP: undo ===
+                undo();
             }
 
-            // Reset
             twoFingerTap.startTime = 0;
         }
     }, { passive: true });
@@ -1600,23 +1671,8 @@ window.onload = async () => {
         }
     }, { passive: false });
 
-    document.getElementById("scaleIndicator").addEventListener("click", () => {
-        scale = 1.0;
-
-        // Re-setup canvases with new scale
-        drawCtx = setupHiDPICanvas(drawCanvas);
-        liveCtx = setupHiDPICanvas(liveCanvas);
-        backgroundCtx = setupHiDPICanvas(backgroundCanvas);
-
-        screenBox.w = window.innerWidth / scale;
-        screenBox.h = window.innerHeight / scale;
-
-        //updateScaleIndicator();
-
-        drawGrid(backgroundCtx);
-        reDrawAll(drawCtx);
-        updateScaleIndicator();
-    });
+    // Initialize zoom indicator click handler
+    initZoomIndicator();
 
 
     // modifiers = {
@@ -1635,11 +1691,52 @@ window.onload = async () => {
     modifiers = await initModifiers();
 }
 
-//---UI update function---
-function updateScaleIndicator() {
+// ═══════════════════════════════════════════════════════════════════════════
+// ZOOM INDICATOR (Auto-hide floating UI)
+// ═══════════════════════════════════════════════════════════════════════════
+let zoomIndicatorTimer = null;
+
+function showZoomIndicator() {
+    const indicator = document.getElementById('zoomIndicator');
+    if (!indicator) return;
+
+    // Update percentage
     const percent = Math.round(scale * 100);
-    document.getElementById("scaleIndicator").textContent = `Zoom: ${percent}%`;
-  }
+    document.getElementById('zoomPercent').textContent = `${percent}%`;
+
+    // Show indicator
+    indicator.classList.add('visible');
+
+    // Clear existing timer
+    if (zoomIndicatorTimer) clearTimeout(zoomIndicatorTimer);
+
+    // Auto-hide after 2 seconds
+    zoomIndicatorTimer = setTimeout(() => {
+        indicator.classList.remove('visible');
+    }, 2000);
+}
+
+function initZoomIndicator() {
+    const indicator = document.getElementById('zoomIndicator');
+    if (!indicator) return;
+
+    // Click to reset zoom to 100%
+    indicator.addEventListener('click', () => {
+        scale = 1.0;
+
+        // Re-setup canvases with new scale
+        drawCtx = setupHiDPICanvas(drawCanvas);
+        liveCtx = setupHiDPICanvas(liveCanvas);
+        backgroundCtx = setupHiDPICanvas(backgroundCanvas);
+
+        screenBox.w = window.innerWidth / scale;
+        screenBox.h = window.innerHeight / scale;
+
+        showZoomIndicator();
+        drawGrid(backgroundCtx);
+        reDrawAll(drawCtx);
+    });
+}
 
 function zoomCanvas(zoomDelta) {
     const newScale = Math.min(Math.max(scale + zoomDelta, CONFIG.MIN_SCALE), CONFIG.MAX_SCALE);
@@ -1654,7 +1751,7 @@ function zoomCanvas(zoomDelta) {
         screenBox.w = window.innerWidth / scale;
         screenBox.h = window.innerHeight / scale;
 
-        updateScaleIndicator();
+        showZoomIndicator();
 
         drawGrid(backgroundCtx);
         reDrawAll(drawCtx);
@@ -1770,7 +1867,7 @@ function startScrollBarCountdown() {
     }, 1000);
 }
 
-function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
+function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortcut) {
     if (selectedTool.includes("pen")) {
         allGroups.pop();
         eraserMode = false; 
@@ -1783,6 +1880,9 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         }
         else {
             defaultPenColor = toolColor;
+            document.getElementById('defaultPen').value = toolColor;
+            modifiers['defaultPen'].color = toolColor;
+            updateTools();
         }
     }
     else if (selectedTool == "delete") {
@@ -1813,13 +1913,13 @@ function executeTool(selectedTool, toolColor, toolVisibility, isShortcut) {
         });
     }
     else if (selectedTool == "title1") {
-        selectTitle(toolColor, toolVisibility, 1);
+        selectTitle(toolColor, toolVisibility, 1, toolSize);
     }
     else if (selectedTool == "title2") {
-        selectTitle(toolColor, toolVisibility, 2);
+        selectTitle(toolColor, toolVisibility, 2, toolSize);
     }
     else if (selectedTool == "title3") {
-        selectTitle(toolColor, toolVisibility, 3);
+        selectTitle(toolColor, toolVisibility, 3, toolSize);
     }
     else if (selectedTool == "move") {
         allGroups.pop();
@@ -2463,97 +2563,111 @@ function showStatus(msg) {
 // ======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
 
 
-// ======================= TOC BUTTON HANDLER ==========================
-const tocBtn = document.getElementById("tocBtn");
+// ======================= TOC PANEL HANDLER ==========================
+const tocPanel = document.getElementById("tocPanel");
+const tocTab = document.getElementById("tocTab");
+const tocList = document.getElementById("tocList");
 
-tocBtn.onclick = () => {
-  regroupTitles();
+// Cache for title anchors to avoid recalculation
+let cachedTitleAnchors = null;
+let titleAnchorsNeedRefresh = true;
 
-  if (!tocDropdown) {
-    return;
+function invalidateTitleCache() {
+  titleAnchorsNeedRefresh = true;
+  cachedTitleAnchors = null;
+}
+
+function toggleTocPanel() {
+  tocPanel.classList.toggle("open");
+  if (tocPanel.classList.contains("open")) {
+    populateTocList();
+  }
+}
+
+function populateTocList() {
+  if (!tocList) return;
+
+  // Only regroup if needed
+  if (titleAnchorsNeedRefresh) {
+    regroupTitles();
+    cachedTitleAnchors = allGroups.filter(g => g.isTitleAnchor);
+    cachedTitleAnchors.sort((a, b) => a.bbox.y - b.bbox.y);
+    titleAnchorsNeedRefresh = false;
   }
 
-  tocDropdown.style.display =
-    tocDropdown.style.display === "block" ? "none" : "block";
-  tocDropdown.innerHTML = "";
+  const anchors = cachedTitleAnchors || [];
 
-  // ✅ Add label at the top
-const label = document.createElement("div");
-label.textContent = "📑 Table of Contents";
-label.style.fontWeight = "600";
-label.style.fontSize = "14px";
-label.style.padding = "6px 12px";
-label.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
-label.style.marginBottom = "6px";
-tocDropdown.appendChild(label);
-
-  const anchors = allGroups.filter(g => g.isTitleAnchor);
+  // Clear and check for empty state
+  tocList.innerHTML = "";
 
   if (anchors.length === 0) {
-    tocDropdown.innerHTML = "<div style='opacity:0.6;padding:6px 12px;'>No title</div>";
+    tocList.innerHTML = '<div class="toc-empty">No headings yet</div>';
     return;
   }
 
-  // Sort from top to bottom
-  anchors.sort((a, b) => a.bbox.y - b.bbox.y);
+  // Use DocumentFragment for efficient batch DOM insertion
+  const fragment = document.createDocumentFragment();
 
-  // === Render all anchors ===
   anchors.forEach(anchor => {
     const item = document.createElement("div");
     item.className = "toc-item";
-    const indent = anchor.titleLevel === 2 ? "28px" : "10px";
-    item.style.paddingLeft = indent;
 
-    const img = new Image();
+    // Thumbnail preview only (no text label)
+    const img = document.createElement("img");
+    img.className = "toc-item-preview";
     img.src = renderTitleThumbnailFromAnchor(anchor);
-    img.style.height = "40px";
-    img.style.margin = "4px 0";
-    img.style.borderRadius = "6px";
-    img.style.boxShadow = "0 0 4px rgba(255,255,255,0.1)";
+    img.alt = "";
     item.appendChild(img);
 
-    // tocDropdown.style.display =
-    // tocDropdown.style.display === "block" ? "none" : "block";
-    // tocDropdown.innerHTML = "";
+    // Click to scroll with smooth animation
+    item.onclick = () => scrollToAnchor(anchor);
 
-    item.onclick = () => {
-      const targetY = anchor.bbox.y - 40;
-      const duration = 400;
-      const startY = viewportOffset.y;
-      const deltaY = targetY - startY;
-      const startTime = performance.now();
-
-      const maxHeightObj = allGroups.reduce((max, obj) =>
-        (obj?.bbox.y + obj?.bbox.h) > (max.bbox?.y + max.bbox?.h) ? obj : max
-      );
-      const contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + viewportHeight;
-      const minY = panningLimit?.top || 0;
-      const maxY = contentHeight - viewportHeight;
-
-      function smoothScroll() {
-        const now = performance.now();
-        const progress = Math.min((now - startTime) / duration, 1);
-        const ease = 1 - Math.pow(1 - progress, 3);
-        viewportOffset.y = startY + deltaY * ease;
-        viewportOffset.y = Math.min(Math.max(viewportOffset.y, minY), maxY);
-        screenBox.y = viewportOffset.y;
-
-        updateScrollbar?.();
-        drawGrid?.(backgroundCtx);
-        reDrawAll?.(drawCtx);
-        updateMediaEditPopupPosition?.();
-
-        if (progress < 1) requestAnimationFrame(smoothScroll);
-      }
-      requestAnimationFrame(smoothScroll);
-
-      tocDropdown.style.display = "none";
-    };
-
-    
-    tocDropdown.appendChild(item);
+    fragment.appendChild(item);
   });
-};
+
+  tocList.appendChild(fragment);
+}
+
+function scrollToAnchor(anchor) {
+  const targetY = anchor.bbox.y - 40;
+  const duration = 400;
+  const startY = viewportOffset.y;
+  const deltaY = targetY - startY;
+  const startTime = performance.now();
+
+  // Calculate bounds once
+  const maxHeightObj = allGroups.reduce((max, obj) =>
+    (obj?.bbox?.y + obj?.bbox?.h) > (max.bbox?.y + max.bbox?.h) ? obj : max
+  , { bbox: { y: 0, h: 0 } });
+  const contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + viewportHeight;
+  const minY = panningLimit?.top || 0;
+  const maxY = contentHeight - viewportHeight;
+
+  function smoothScroll() {
+    const now = performance.now();
+    const progress = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    viewportOffset.y = startY + deltaY * ease;
+    viewportOffset.y = Math.min(Math.max(viewportOffset.y, minY), maxY);
+    screenBox.y = viewportOffset.y;
+
+    updateScrollbar?.();
+    drawGrid?.(backgroundCtx);
+    reDrawAll?.(drawCtx);
+    updateMediaEditPopupPosition?.();
+
+    if (progress < 1) requestAnimationFrame(smoothScroll);
+  }
+  requestAnimationFrame(smoothScroll);
+
+  // Close panel after navigation
+  tocPanel.classList.remove("open");
+}
+
+// Initialize TOC tab click
+if (tocTab) {
+  tocTab.onclick = toggleTocPanel;
+}
 
 
 
@@ -2649,31 +2763,32 @@ function regroupTitles() {
 
 
 // ======================= HIGH DPI THUMBNAIL RENDER ==========================
-function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
-  const PAD = 12;
+function renderTitleThumbnailFromAnchor(anchor) {
+  const PAD = 16;
+  const STROKE_WIDTH = 3.8;
   const { x, y, w, h } = anchor.bbox;
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio || 2; // Default to 2x for HiDPI
 
+  // Find strokes within anchor bbox with small tolerance
   const strokes = allGroups.filter(g =>
     g.titleStatus &&
     g.bbox &&
-    g.bbox.x >= x - 2 &&
-    g.bbox.y >= y - 2 &&
-    (g.bbox.x + g.bbox.w) <= x + w + 2 &&
-    (g.bbox.y + g.bbox.h) <= y + h + 2
+    g.bbox.x >= x - 4 &&
+    g.bbox.y >= y - 4 &&
+    (g.bbox.x + g.bbox.w) <= x + w + 4 &&
+    (g.bbox.y + g.bbox.h) <= y + h + 4
   );
 
   if (strokes.length === 0) {
     return "";
   }
 
+  // Create HiDPI canvas
   const canvas = document.createElement("canvas");
   const baseW = w + PAD * 2;
   const baseH = h + PAD * 2;
-  canvas.width = baseW * dpr;
-  canvas.height = baseH * dpr;
-  canvas.style.width = `${baseW}px`;
-  canvas.style.height = `${baseH}px`;
+  canvas.width = Math.ceil(baseW * dpr);
+  canvas.height = Math.ceil(baseH * dpr);
 
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
@@ -2683,9 +2798,11 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  // Render strokes with thicker lines
   strokes.forEach(st => {
+    if (!st.stroke || st.stroke.length < 2) return;
     ctx.strokeStyle = st.color || "#fff";
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = STROKE_WIDTH;
     ctx.beginPath();
     st.stroke.forEach((pt, i) => {
       if (i === 0) ctx.moveTo(pt.x, pt.y);
@@ -2693,22 +2810,6 @@ function renderTitleThumbnailFromAnchor(anchor, maxW = 280, maxH = 70) {
     });
     ctx.stroke();
   });
-
-  const scale = Math.min(maxW / baseW, maxH / baseH, 1);
-  if (scale < 1) {
-    const scaled = document.createElement("canvas");
-    scaled.width = baseW * scale * dpr;
-    scaled.height = baseH * scale * dpr;
-    scaled.style.width = `${maxW}px`;
-    scaled.style.height = `${maxH}px`;
-
-    const sctx = scaled.getContext("2d");
-    sctx.scale(scale, scale);
-    sctx.imageSmoothingEnabled = true;
-    sctx.imageSmoothingQuality = "high";
-    sctx.drawImage(canvas, 0, 0);
-    return scaled.toDataURL("image/png");
-  }
 
   return canvas.toDataURL("image/png");
 }

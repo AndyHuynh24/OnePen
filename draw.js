@@ -855,11 +855,12 @@ function reDrawAll(ctx) {
                 // ctx.restore();
             } 
             else if (group.titleStatus) {
-                drawStroke(drawCtx, group.stroke, group.color, 3);
+                const size  = group?.size ?? 3;
+                drawStroke(drawCtx, group.stroke, group.color, size);
             } 
             else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE) && group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
-                const thickness = group?.thickness ?? 2;
-                drawStroke(drawCtx, group.stroke, group.color, thickness);
+                const size  = group?.size ?? 2;
+                drawStroke(drawCtx, group.stroke, group.color, size);
             } 
             else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
                 console.log("highlight");
@@ -912,6 +913,7 @@ function showToolbox(x, y, tools) {
         icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
         icon.setAttribute('data-label', tool.id);            // base tool ID
         icon.setAttribute('data-color', tool.color);
+        icon.setAttribute('data-size', tool?.size ?? 0);
         icon.setAttribute('data-visibility', tool.visibility);
 
         // Build DOM
@@ -936,15 +938,35 @@ function showToolbox(x, y, tools) {
     const toggleCenterX = toggleRect.left + toggleRect.width / 2 - navRect.left;
     const toggleCenterY = toggleRect.top + toggleRect.height / 2 - navRect.top;
 
-    // Offset nav position so toggle button center aligns with (x, y)
-    nav.style.left = `${x - toggleCenterX}px`;
-    nav.style.top = `${y - toggleCenterY}px`;
+    // Calculate desired position (center of toolbox at pointer)
+    let posX = x - toggleCenterX;
+    let posY = y - toggleCenterY;
+
+    // Toolbox radius when open (90px translate + 25px half button size + padding)
+    const toolboxRadius = 120;
+
+    // Clamp position to keep toolbox within viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Ensure the toolbox center + radius stays within bounds
+    const centerX = x;
+    const centerY = y;
+
+    // Calculate clamped center position
+    const clampedCenterX = Math.max(toolboxRadius, Math.min(viewportWidth - toolboxRadius, centerX));
+    const clampedCenterY = Math.max(toolboxRadius, Math.min(viewportHeight - toolboxRadius, centerY));
+
+    // Adjust position based on clamped center
+    posX = clampedCenterX - toggleCenterX;
+    posY = clampedCenterY - toggleCenterY;
+
+    nav.style.left = `${posX}px`;
+    nav.style.top = `${posY}px`;
 
     nav.classList.add("show");
     nav.classList.add("open");
     toggleBtn.classList.remove("hidden");
-    // toggleBtn.classList.add("countdown");
-
 
     pointerDownForToolbox = true;
 }
@@ -1014,7 +1036,7 @@ function hexToRgb(hex) {
   return `rgba(${r}, ${g}, ${b}, 0.15)`;
 }
 
-function selectTitle(titleColor, visibility, level=0) {
+function selectTitle(titleColor, visibility, level=0, size) {
     if (visibility == 'false') {
         const lastGroup = allGroups[allGroups.length - 1];
         console.log('lastGroup', lastGroup);
@@ -1028,7 +1050,7 @@ function selectTitle(titleColor, visibility, level=0) {
         group.titleStatus = true;
         group.titleLevel = level;
         group.color = titleColor;
-
+        group.size = size;
     });
 
     const change = {
