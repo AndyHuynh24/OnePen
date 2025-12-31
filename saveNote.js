@@ -1093,15 +1093,22 @@ function markDirty() {
 
   if (!autosaveTimer) {
     autosaveTimer = setTimeout(() => {
-      if (!dirty || !title) return;
+      if (!dirty || !title) {
+        console.log('[AutoSync] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
+        return;
+      }
 
+      console.log('[AutoSync] markDirty: saving locally...');
       saveNoteFast(title, allGroups);
       dirty = false;
       autosaveTimer = null;
 
       // Trigger Google Drive auto-sync (if signed in)
       if (typeof triggerAutoSync === 'function') {
+        console.log('[AutoSync] markDirty: calling triggerAutoSync()');
         triggerAutoSync();
+      } else {
+        console.log('[AutoSync] markDirty: triggerAutoSync not found!');
       }
     }, 500); // 300–1000ms sweet spot
   }

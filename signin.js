@@ -189,43 +189,66 @@ const AUTO_SYNC_DELAY = 30000; // 30 seconds after last change
 const MIN_SYNC_INTERVAL = 60000; // Minimum 1 minute between syncs
 
 function scheduleAutoSync() {
+    console.log('[AutoSync] scheduleAutoSync() called');
+
     const session = getStoredSession();
-    if (!session) return; // Not logged in
+    if (!session) {
+        console.log('[AutoSync] No session found - user not logged in');
+        return;
+    }
+    console.log('[AutoSync] Session found for:', session.userEmail);
 
     // Clear existing timer
     if (autoSyncTimer) {
+        console.log('[AutoSync] Clearing existing timer');
         clearTimeout(autoSyncTimer);
     }
 
     // Schedule sync after delay
+    console.log(`[AutoSync] Scheduling sync in ${AUTO_SYNC_DELAY / 1000}s`);
     autoSyncTimer = setTimeout(() => {
         const now = Date.now();
-        if (now - lastSyncTime >= MIN_SYNC_INTERVAL) {
+        const timeSinceLastSync = now - lastSyncTime;
+        console.log(`[AutoSync] Timer fired. Time since last sync: ${timeSinceLastSync / 1000}s`);
+
+        if (timeSinceLastSync >= MIN_SYNC_INTERVAL) {
+            console.log('[AutoSync] Min interval passed, performing sync...');
             performAutoSync();
+        } else {
+            console.log(`[AutoSync] Skipping - need to wait ${(MIN_SYNC_INTERVAL - timeSinceLastSync) / 1000}s more`);
         }
     }, AUTO_SYNC_DELAY);
 }
 
 async function performAutoSync() {
+    console.log('[AutoSync] performAutoSync() started');
+
     const session = getStoredSession();
-    if (!session) return;
+    if (!session) {
+        console.log('[AutoSync] No session - aborting');
+        return;
+    }
 
     // Check if online
     if (!navigator.onLine) {
+        console.log('[AutoSync] Offline - aborting');
         showSyncStatus('offline');
         return;
     }
 
+    console.log('[AutoSync] Starting upload to Google Drive...');
     showSyncStatus('syncing');
     lastSyncTime = Date.now();
 
     try {
         await silentBackupToDrive(session.accessToken);
+        console.log('[AutoSync] ✅ Upload successful!');
         showSyncStatus('synced', 'Auto-saved');
     } catch (err) {
-        console.error('Auto-sync failed:', err);
+        console.error('[AutoSync] ❌ Upload failed:', err);
         if (err.message.includes('401') || err.message.includes('403')) {
             // Token expired
+            console.log('[AutoSync] Token expired - clearing session');
             clearSession();
             updateAuthUI();
             showSyncStatus('error', 'Session expired');
@@ -236,22 +259,28 @@ async function performAutoSync() {
 }
 
 async function silentBackupToDrive(accessToken) {
+    console.log('[AutoSync] silentBackupToDrive() started');
+
     // Build backup payload
     const payload = await buildBackupPayload();
     const jsonContent = JSON.stringify(payload);
+    console.log(`[AutoSync] Payload built: ${Object.keys(payload.notes).length} notes, ${(jsonContent.length / 1024).toFixed(1)}KB`);
 
     // Search for existing file
+    console.log('[AutoSync] Searching for existing backup file...');
     const searchRes = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
     if (!searchRes.ok) {
+        console.error('[AutoSync] Search failed:', searchRes.status);
         throw new Error(`Search failed: ${searchRes.status}`);
     }
 
     const searchData = await searchRes.json();
     const existingFile = searchData.files?.[0];
+    console.log('[AutoSync] Existing file:', existingFile ? existingFile.id : 'none (will create new)');
 
     // Multipart upload
     const metadata = { name: BACKUP_FILENAME, mimeType: 'application/json' };
@@ -268,6 +297,7 @@ async function silentBackupToDrive(accessToken) {
         ? `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`
         : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
 
+    console.log(`[AutoSync] Uploading via ${existingFile ? 'PATCH' : 'POST'}...`);
     const uploadRes = await fetch(url, {
         method: existingFile ? 'PATCH' : 'POST',
         headers: {
@@ -279,10 +309,13 @@ async function silentBackupToDrive(accessToken) {
 
     if (!uploadRes.ok) {
         const err = await uploadRes.json();
+        console.error('[AutoSync] Upload failed:', err);
         throw new Error(err.error?.message || `Upload failed: ${uploadRes.status}`);
     }
 
-    return await uploadRes.json();
+    const result = await uploadRes.json();
+    console.log('[AutoSync] Upload complete, file ID:', result.id);
+    return result;
 }
 
 function buildBackupPayload() {
@@ -446,6 +479,7 @@ function initGoogleAuth() {
 
 // Hook into note saving for auto-sync
 function triggerAutoSync() {
+    console.log('[AutoSync] triggerAutoSync() called from markDirty()');
     scheduleAutoSync();
 }
 
