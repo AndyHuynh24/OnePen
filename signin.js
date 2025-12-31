@@ -185,7 +185,7 @@ function showSyncStatus(status, message = '') {
 
 let autoSyncTimer = null;
 let lastSyncTime = 0;
-const AUTO_SYNC_DELAY = 30000; // 30 seconds after last change
+const AUTO_SYNC_DELAY = 15000; // 15 seconds after last change
 const MIN_SYNC_INTERVAL = 60000; // Minimum 1 minute between syncs
 
 function scheduleAutoSync() {
@@ -239,11 +239,12 @@ async function performAutoSync() {
     console.log('[AutoSync] Starting upload to Google Drive...');
     showSyncStatus('syncing');
     lastSyncTime = Date.now();
+    localStorage.setItem('lastSyncTime', lastSyncTime.toString());
 
     try {
         await silentBackupToDrive(session.accessToken);
         console.log('[AutoSync] ✅ Upload successful!');
-        showSyncStatus('synced', 'Auto-saved');
+        showSyncStatus('synced', 'Synced');
     } catch (err) {
         console.error('[AutoSync] ❌ Upload failed:', err);
         if (err.message.includes('401') || err.message.includes('403')) {
@@ -361,27 +362,34 @@ function buildBackupPayload() {
 
 // Manual sync buttons (keep existing functionality)
 function manualSyncToDrive() {
+    console.log('[Sync] Manual sync button clicked');
     const session = getStoredSession();
     if (!session) {
+        console.log('[Sync] No session - please sign in');
         alert('Please sign in first');
         return;
     }
 
+    console.log('[Sync] Starting manual sync...');
     showSyncStatus('syncing');
     silentBackupToDrive(session.accessToken)
         .then(() => {
             lastSyncTime = Date.now();
-            showSyncStatus('synced', 'Backup complete');
+            localStorage.setItem('lastSyncTime', lastSyncTime.toString());
+            console.log('[Sync] ✅ Manual sync complete');
+            showSyncStatus('synced', 'Synced');
         })
         .catch(err => {
-            console.error('Manual sync failed:', err);
+            console.error('[Sync] ❌ Manual sync failed:', err);
             showSyncStatus('error', err.message);
         });
 }
 
 function manualRestoreFromDrive() {
+    console.log('[Sync] Manual restore button clicked');
     const session = getStoredSession();
     if (!session) {
+        console.log('[Sync] No session - please sign in');
         alert('Please sign in first');
         return;
     }
@@ -390,16 +398,17 @@ function manualRestoreFromDrive() {
         return;
     }
 
+    console.log('[Sync] Starting restore from Drive...');
     showSyncStatus('syncing');
     restoreFromDrive(session.accessToken)
         .then(() => {
+            console.log('[Sync] ✅ Restore complete, reloading UI...');
             showSyncStatus('synced', 'Restored');
-            // Reload notes
-            renderAllNotes();
-            reloadSetting();
+            // Reload the app to reflect changes
+            window.location.reload();
         })
         .catch(err => {
-            console.error('Restore failed:', err);
+            console.error('[Sync] ❌ Restore failed:', err);
             showSyncStatus('error', err.message);
         });
 }
@@ -445,8 +454,72 @@ async function restoreFromDrive(accessToken) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INITIALIZATION
+// INITIALIZATION & AUTO-LOAD ON STARTUP
 // ═══════════════════════════════════════════════════════════════════════════
+
+async function checkAndSyncOnLoad() {
+    console.log('[Sync] Checking for cloud updates on load...');
+
+    const session = getStoredSession();
+    if (!session) {
+        console.log('[Sync] No session - skipping auto-load');
+        return;
+    }
+
+    if (!navigator.onLine) {
+        console.log('[Sync] Offline - skipping auto-load');
+        return;
+    }
+
+    try {
+        showSyncStatus('syncing');
+
+        // Get cloud file metadata to check modified time
+        const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&fields=files(id,modifiedTime)`,
+            { headers: { Authorization: `Bearer ${session.accessToken}` } }
+        );
+
+        if (!searchRes.ok) {
+            console.log('[Sync] Failed to check cloud file:', searchRes.status);
+            showSyncStatus('idle');
+            return;
+        }
+
+        const searchData = await searchRes.json();
+        const cloudFile = searchData.files?.[0];
+
+        if (!cloudFile) {
+            console.log('[Sync] No cloud backup found - will create on first save');
+            showSyncStatus('idle');
+            return;
+        }
+
+        const cloudModified = new Date(cloudFile.modifiedTime).getTime();
+        const lastLocalSync = parseInt(localStorage.getItem('lastSyncTime') || '0', 10);
+
+        console.log('[Sync] Cloud modified:', new Date(cloudModified).toLocaleString());
+        console.log('[Sync] Last local sync:', lastLocalSync ? new Date(lastLocalSync).toLocaleString() : 'never');
+
+        // If cloud is newer than last sync, restore from cloud
+        if (cloudModified > lastLocalSync) {
+            console.log('[Sync] Cloud is newer - auto-restoring...');
+            await restoreFromDrive(session.accessToken);
+            localStorage.setItem('lastSyncTime', Date.now().toString());
+            console.log('[Sync] ✅ Auto-restored from cloud');
+            showSyncStatus('synced', 'Synced');
+
+            // Reload to show updated data
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            console.log('[Sync] Local is up to date');
+            showSyncStatus('idle');
+        }
+    } catch (err) {
+        console.error('[Sync] Auto-load error:', err);
+        showSyncStatus('idle');
+    }
+}
 
 function initGoogleAuth() {
     // Check for OAuth redirect
@@ -470,10 +543,12 @@ function initGoogleAuth() {
     if (syncBtn) syncBtn.onclick = manualSyncToDrive;
     if (restoreBtn) restoreBtn.onclick = manualRestoreFromDrive;
 
-    // Check session status
+    // Check session status and auto-sync on load
     const session = getStoredSession();
     if (session) {
         showSyncStatus('idle');
+        // Auto-check for cloud updates after a short delay (let app load first)
+        setTimeout(() => checkAndSyncOnLoad(), 1500);
     }
 }
 
