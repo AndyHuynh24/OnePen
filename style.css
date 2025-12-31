@@ -476,19 +476,109 @@ body {
     border: solid 2px #444444;
     border-radius: 6px;
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
     margin-bottom: -2px;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
 }
 
-.shelf .folder-button::after {
-  content: "";
-  width: 12px;             /* diameter of the circle */
-  height: 12px;
-  background-color: #ffffff; /* or any color */
-  border-radius: 50%;       /* distance from the edge to the circle's edge */
+/* 3-dot kebab menu button for folder actions */
+.shelf .folder-button .folder-menu-btn {
+  width: 16px;
+  height: 16spx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 0;
   flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.shelf .folder-button .folder-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.shelf .folder-button .folder-menu-btn:active {
+  background-color: rgba(255, 255, 255, 0.25);
+  transform: scale(0.95);
+}
+
+.shelf .folder-button .folder-menu-btn .menu-dot {
+  width: 4px;
+  height: 4px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Folder context menu popup */
+.folder-context-popup {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+  opacity: 0;
+  transform: scale(0.95) translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+
+.folder-context-popup.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+.folder-context-popup .context-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-family: 'Mali', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.folder-context-popup .context-item:hover {
+  background-color: #3a3a3a;
+}
+
+.folder-context-popup .context-item i {
+  font-size: 16px;
+  color: #aaa;
+}
+
+.folder-context-popup .context-item.danger {
+  color: #ff6b6b;
+}
+
+.folder-context-popup .context-item.danger i {
+  color: #ff6b6b;
+}
+
+.folder-context-popup .context-divider {
+  height: 1px;
+  background: #444;
+  margin: 4px 0;
 }
 
 .shelf .folder-button:hover p{
@@ -500,7 +590,8 @@ body {
     background-color: #e0e8ff;
 }
 .folder-button p {
-    width: 122px;
+    width: 164px;
+    margin-left: 4px;
     height: 64%;
     display: flex;
     justify-content: center;

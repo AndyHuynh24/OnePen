@@ -23,7 +23,7 @@ function openNoteDB(callback) {
   };
 
   request.onerror = function () {
-    console.error("❌ Error opening IndexedD");
+    console.error("❌ Error opening IndexedDB");
   };
 }
 
@@ -162,17 +162,34 @@ function createFolder(folderName) {
 
 
 function renderFolderList(folderName) {
-  //new
   const folderButton = document.createElement('button');
   folderButton.className = 'folder-button';
   folderButton.id = folderName;
   folderButton.onclick = () => openFolder(folderName);
+
   const folderText = document.createElement('p');
   folderText.innerHTML = folderName;
   folderButton.appendChild(folderText);
-  // const folderSpan = document.createElement('i');
-  // folderSpan.className = 'bx bx-menu-right';
-  // folderButton.appendChild(folderSpan);
+
+  // 3-dot menu button
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'folder-menu-btn';
+  menuBtn.type = 'button';
+  menuBtn.title = 'Folder options';
+
+  // Create 3 dots
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'menu-dot';
+    menuBtn.appendChild(dot);
+  }
+
+  menuBtn.onclick = (e) => {
+    e.stopPropagation(); // Prevent folder from opening
+    showFolderContextMenu(folderName, menuBtn);
+  };
+
+  folderButton.appendChild(menuBtn);
   document.querySelector('.folder').appendChild(folderButton);
 }
 
@@ -193,7 +210,212 @@ function openFolder(folderName) {
       createSubnoteButton(file);
     });
   })
-} 
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FOLDER CONTEXT MENU
+// ═══════════════════════════════════════════════════════════════════════════
+
+let activeFolderPopup = null;
+
+function showFolderContextMenu(folderName, targetBtn) {
+  // Close any existing popup
+  hideFolderContextMenu();
+
+  // Create popup
+  const popup = document.createElement('div');
+  popup.className = 'folder-context-popup';
+  popup.id = 'folderContextPopup';
+
+  popup.innerHTML = `
+    <button class="context-item" data-action="rename">
+      <i class="bx bx-edit-alt"></i>
+      <span>Rename</span>
+    </button>
+    <div class="context-divider"></div>
+    <button class="context-item danger" data-action="delete">
+      <i class="bx bx-trash"></i>
+      <span>Delete</span>
+    </button>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Position popup near the button
+  const rect = targetBtn.getBoundingClientRect();
+  popup.style.left = `${rect.left - popup.offsetWidth + rect.width}px`;
+  popup.style.top = `${rect.bottom + 4}px`;
+
+  // Ensure popup stays within viewport
+  const popupRect = popup.getBoundingClientRect();
+  if (popupRect.right > window.innerWidth) {
+    popup.style.left = `${window.innerWidth - popupRect.width - 8}px`;
+  }
+  if (popupRect.bottom > window.innerHeight) {
+    popup.style.top = `${rect.top - popupRect.height - 4}px`;
+  }
+
+  // Show with animation
+  requestAnimationFrame(() => popup.classList.add('visible'));
+
+  // Handle clicks
+  popup.querySelector('[data-action="rename"]').onclick = () => {
+    hideFolderContextMenu();
+    promptRenameFolder(folderName);
+  };
+
+  popup.querySelector('[data-action="delete"]').onclick = () => {
+    hideFolderContextMenu();
+    promptDeleteFolder(folderName);
+  };
+
+  // Close on click outside
+  activeFolderPopup = { popup, folderName };
+  setTimeout(() => {
+    document.addEventListener('click', handleFolderPopupOutsideClick);
+  }, 10);
+}
+
+function hideFolderContextMenu() {
+  const popup = document.getElementById('folderContextPopup');
+  if (popup) {
+    popup.classList.remove('visible');
+    setTimeout(() => popup.remove(), 120);
+  }
+  document.removeEventListener('click', handleFolderPopupOutsideClick);
+  activeFolderPopup = null;
+}
+
+function handleFolderPopupOutsideClick(e) {
+  const popup = document.getElementById('folderContextPopup');
+  if (popup && !popup.contains(e.target)) {
+    hideFolderContextMenu();
+  }
+}
+
+function promptRenameFolder(oldName) {
+  const newName = prompt(`Rename notebook "${oldName}" to:`, oldName);
+  if (!newName || newName === oldName || !newName.trim()) return;
+
+  renameFolder(oldName, newName.trim());
+}
+
+function promptDeleteFolder(folderName) {
+  const confirmed = confirm(`Delete notebook "${folderName}" and all its notes?\n\nThis action cannot be undone.`);
+  if (!confirmed) return;
+
+  deleteFolder(folderName);
+}
+
+function renameFolder(oldName, newName) {
+  openNoteDB((db, done) => {
+    const tx = db.transaction(["folders", "notes"], "readwrite");
+    const folderStore = tx.objectStore("folders");
+    const noteStore = tx.objectStore("notes");
+
+    // Get all notes in this folder
+    const getAllNotes = noteStore.getAll();
+    getAllNotes.onsuccess = () => {
+      const allNotes = getAllNotes.result;
+      const notesToUpdate = allNotes.filter(n => n.path.startsWith(`${oldName}/`));
+
+      // Update each note's path
+      notesToUpdate.forEach(note => {
+        const newPath = note.path.replace(`${oldName}/`, `${newName}/`);
+        noteStore.delete(note.path);
+        noteStore.put({
+          ...note,
+          path: newPath
+        });
+      });
+
+      // Delete old folder, add new one
+      folderStore.delete(oldName);
+      folderStore.put({ name: newName });
+    };
+
+    tx.oncomplete = () => {
+      // Update UI
+      const folderBtn = document.getElementById(oldName);
+      if (folderBtn) {
+        folderBtn.id = newName;
+        const textEl = folderBtn.querySelector('p');
+        if (textEl) textEl.textContent = newName;
+      }
+
+      // Update selectedFolder if it was the renamed one
+      if (selectedFolder === oldName) {
+        selectedFolder = newName;
+      }
+
+      // Update current title if it was in the renamed folder
+      if (title && title.startsWith(`${oldName}/`)) {
+        title = title.replace(`${oldName}/`, `${newName}/`);
+      }
+
+      done();
+    };
+
+    tx.onerror = () => {
+      console.error(`❌ Failed to rename folder: ${oldName}`);
+      done();
+    };
+  });
+}
+
+function deleteFolder(folderName) {
+  openNoteDB((db, done) => {
+    const tx = db.transaction(["folders", "notes"], "readwrite");
+    const folderStore = tx.objectStore("folders");
+    const noteStore = tx.objectStore("notes");
+
+    // Get all notes and delete those in this folder
+    const getAllNotes = noteStore.getAll();
+    getAllNotes.onsuccess = () => {
+      const allNotes = getAllNotes.result;
+      allNotes.forEach(note => {
+        if (note.path.startsWith(`${folderName}/`)) {
+          noteStore.delete(note.path);
+        }
+      });
+
+      // Delete the folder
+      folderStore.delete(folderName);
+    };
+
+    tx.oncomplete = () => {
+      // Remove folder button from UI
+      const folderBtn = document.getElementById(folderName);
+      if (folderBtn) {
+        folderBtn.remove();
+      }
+
+      // Clear note list if this folder was selected
+      if (selectedFolder === folderName) {
+        selectedFolder = null;
+        const notesContainer = document.querySelector('.notes');
+        notesContainer.querySelector('#starter').style.display = 'block';
+        notesContainer.querySelector('#menubar').style.display = 'none';
+        notesContainer.querySelector('#note-list').innerHTML = '';
+      }
+
+      // Clear canvas if current note was in deleted folder
+      if (title && title.startsWith(`${folderName}/`)) {
+        title = null;
+        allGroups = [];
+        viewportOffset = { x: 0, y: 0 };
+        reDrawAll(drawCtx);
+      }
+
+      done();
+    };
+
+    tx.onerror = () => {
+      console.error(`❌ Failed to delete folder: ${folderName}`);
+      done();
+    };
+  });
+}
 
 function openSubFolder(container) {
   subNotecontainer = container.querySelector('.subnote-container')
