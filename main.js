@@ -1053,17 +1053,10 @@ window.onload = async () => {
         currentStroke = [];
         e.preventDefault();
 
-        // === Clean up gesture/panning state when pen input starts ===
-        if (e.pointerType === "pen") {
-            // Cancel pending panning
-            if (typeof cancelPendingPan === 'function') cancelPendingPan();
-            // Reset gesture state
-            if (typeof resetMultiTouchState === 'function') resetMultiTouchState();
-            // Force panning off
-            if (isPanning) {
-                isPanning = false;
-                canvasGroup.style.cursor = "default";
-            }
+        // === Clean up panning state when pen input starts ===
+        if (e.pointerType === "pen" && isPanning) {
+            isPanning = false;
+            canvasGroup.style.cursor = "default";
         }
 
         // Reset movement tracking
@@ -1161,19 +1154,8 @@ window.onload = async () => {
                 scrollbar.style.display = "block";
             };
 
-            if (e.shiftKey && e.pointerType === "mouse") {
-                // Mouse with shift - immediate panning
-                activatePanning(panParams);
-            } else {
-                // Touch - delay to allow multi-finger gesture detection
-                pendingPanTimer = setTimeout(() => {
-                    pendingPanTimer = null;
-                    // Only activate if no multi-touch gesture is active
-                    if (!multiTouchState?.isMultiTouch && !multiTouchState?.gestureActive && !isPanning) {
-                        activatePanning(panParams);
-                    }
-                }, 100);
-            }
+            // Immediate panning for both mouse+shift and touch
+            activatePanning(panParams);
         } else if (movingToggle) {
             moveStartX = e.offsetX / scale;
             moveStartY = e.offsetY / scale;
@@ -1533,182 +1515,80 @@ window.onload = async () => {
     });
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MULTI-FINGER GESTURE DETECTION
+    // SIMPLE 2-FINGER TAP GESTURE DETECTION
     // 2 fingers single tap = undo, 2 fingers double tap = toggle AI
-    // 3 fingers single tap = toggle AI, 3 fingers double tap = toggle eraser
+    // Does NOT interfere with normal touch panning
     // ═══════════════════════════════════════════════════════════════════════
-    let multiTouchState = {
-        peakFingerCount: 0,
+    let twoFingerTap = {
         startTime: 0,
-        lastTapTime: 0,
-        lastTapFingers: 0,
-        moved: false,
         startPositions: [],
-        isMultiTouch: false,
-        gestureActive: false,
-        savedViewportOffset: null,
-        accumulationTimer: null
+        moved: false,
+        lastTapTime: 0
     };
 
-    let pendingPanTimer = null;
-
-    const MULTI_TAP_THRESHOLD = 300;
-    const TAP_MAX_DURATION = 400;
-    const TAP_MOVE_THRESHOLD = 20;
-    const FINGER_ACCUMULATION_WINDOW = 120;
-
-    // Cancel pending panning helper
-    function cancelPendingPan() {
-        if (pendingPanTimer) {
-            clearTimeout(pendingPanTimer);
-            pendingPanTimer = null;
-        }
-    }
-
-    // Reset multi-touch state helper
-    function resetMultiTouchState() {
-        if (multiTouchState.accumulationTimer) {
-            clearTimeout(multiTouchState.accumulationTimer);
-            multiTouchState.accumulationTimer = null;
-        }
-        multiTouchState.peakFingerCount = 0;
-        multiTouchState.startPositions = [];
-        multiTouchState.isMultiTouch = false;
-        multiTouchState.gestureActive = false;
-        multiTouchState.savedViewportOffset = null;
-        multiTouchState.startTime = 0;
-        multiTouchState.moved = false;
-    }
+    const TAP_THRESHOLD = 300;      // Max duration for a tap
+    const DOUBLE_TAP_GAP = 350;     // Max gap between double taps
+    const MOVE_THRESHOLD = 25;      // Max movement for a tap
 
     canvasGroup.addEventListener("touchstart", function(e) {
-        const touchCount = e.touches.length;
-
-        if (touchCount >= 2) {
-            // Cancel pending panning
-            cancelPendingPan();
-
-            // Save viewport offset before any accidental pan
-            if (!multiTouchState.savedViewportOffset) {
-                multiTouchState.savedViewportOffset = {
-                    x: initialViewportOffset?.x ?? viewportOffset.x,
-                    y: initialViewportOffset?.y ?? viewportOffset.y
-                };
-            }
-
-            // Cancel ongoing panning and restore position
-            if (isPanning) {
-                isPanning = false;
-                viewportOffset.x = multiTouchState.savedViewportOffset.x;
-                viewportOffset.y = multiTouchState.savedViewportOffset.y;
-                screenBox.x = viewportOffset.x;
-                screenBox.y = viewportOffset.y;
-                canvasGroup.style.cursor = "default";
-                drawGrid(backgroundCtx);
-                reDrawAll(drawCtx);
-            }
-
-            multiTouchState.isMultiTouch = true;
-            multiTouchState.gestureActive = true;
-
-            // Track peak finger count (allows fingers to land at different times)
-            if (touchCount > multiTouchState.peakFingerCount) {
-                multiTouchState.peakFingerCount = touchCount;
-                multiTouchState.startTime = Date.now();
-                multiTouchState.moved = false;
-            }
-
-            // Update start positions
-            multiTouchState.startPositions = Array.from(e.touches).map(t => ({
-                x: t.clientX, y: t.clientY
-            }));
-
-            // Extend accumulation window for more fingers
-            if (multiTouchState.accumulationTimer) {
-                clearTimeout(multiTouchState.accumulationTimer);
-            }
-            multiTouchState.accumulationTimer = setTimeout(() => {
-                multiTouchState.accumulationTimer = null;
-            }, FINGER_ACCUMULATION_WINDOW);
+        // Only track when exactly 2 fingers touch
+        if (e.touches.length === 2) {
+            twoFingerTap.startTime = Date.now();
+            twoFingerTap.moved = false;
+            twoFingerTap.startPositions = [
+                { x: e.touches[0].clientX, y: e.touches[0].clientY },
+                { x: e.touches[1].clientX, y: e.touches[1].clientY }
+            ];
+        } else {
+            // More or fewer than 2 fingers - invalidate
+            twoFingerTap.startTime = 0;
         }
     }, { passive: true });
 
     canvasGroup.addEventListener("touchmove", function(e) {
-        if (multiTouchState.gestureActive && multiTouchState.startPositions.length > 0) {
-            for (let i = 0; i < Math.min(e.touches.length, multiTouchState.startPositions.length); i++) {
-                const touch = e.touches[i];
-                const start = multiTouchState.startPositions[i];
-                if (start) {
-                    const dx = Math.abs(touch.clientX - start.x);
-                    const dy = Math.abs(touch.clientY - start.y);
-                    if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
-                        multiTouchState.moved = true;
-                        break;
-                    }
+        // Check if 2-finger gesture moved too much
+        if (twoFingerTap.startTime && e.touches.length === 2) {
+            for (let i = 0; i < 2; i++) {
+                const dx = Math.abs(e.touches[i].clientX - twoFingerTap.startPositions[i].x);
+                const dy = Math.abs(e.touches[i].clientY - twoFingerTap.startPositions[i].y);
+                if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+                    twoFingerTap.moved = true;
+                    break;
                 }
             }
         }
     }, { passive: true });
 
     canvasGroup.addEventListener("touchend", function(e) {
-        if (e.touches.length === 0 && multiTouchState.gestureActive) {
-            // Clear accumulation timer
-            if (multiTouchState.accumulationTimer) {
-                clearTimeout(multiTouchState.accumulationTimer);
-                multiTouchState.accumulationTimer = null;
-            }
+        // Fire gesture only when all fingers lift AND it was a valid 2-finger tap
+        if (e.touches.length === 0 && twoFingerTap.startTime) {
+            const duration = Date.now() - twoFingerTap.startTime;
 
-            const duration = Date.now() - multiTouchState.startTime;
-            const fingerCount = multiTouchState.peakFingerCount;
-
-            // Only process valid taps (quick, didn't move, 2+ fingers)
-            if (duration < TAP_MAX_DURATION && !multiTouchState.moved && fingerCount >= 2) {
+            // Valid tap: quick and didn't move
+            if (duration < TAP_THRESHOLD && !twoFingerTap.moved) {
                 const now = Date.now();
-                const timeSinceLastTap = now - multiTouchState.lastTapTime;
+                const timeSinceLastTap = now - twoFingerTap.lastTapTime;
 
-                // Check for double tap
-                if (timeSinceLastTap < MULTI_TAP_THRESHOLD &&
-                    multiTouchState.lastTapFingers === fingerCount) {
-
-                    // === DOUBLE TAP ===
-                    if (fingerCount === 2) {
-                        // 2 fingers double tap = toggle AI
-                        toggleDetection();
-                        document.getElementById('aiToggleInput').checked = isDetectionOn;
-                        console.log("2-finger double tap: toggle AI");
-                    } else if (fingerCount >= 3) {
-                        // 3 fingers double tap = toggle eraser/pen
-                        toggleEraser();
-                        console.log("3-finger double tap: toggle eraser");
-                    }
-
-                    multiTouchState.lastTapTime = 0;
-                    multiTouchState.lastTapFingers = 0;
+                if (timeSinceLastTap < DOUBLE_TAP_GAP) {
+                    // === DOUBLE TAP: toggle AI ===
+                    toggleDetection();
+                    document.getElementById('aiToggleInput').checked = isDetectionOn;
+                    twoFingerTap.lastTapTime = 0;
                 } else {
-                    // First tap - wait for possible second tap
-                    multiTouchState.lastTapTime = now;
-                    multiTouchState.lastTapFingers = fingerCount;
-                    const capturedFingerCount = fingerCount;
+                    // First tap - wait for possible double tap
+                    twoFingerTap.lastTapTime = now;
 
                     setTimeout(() => {
-                        if (multiTouchState.lastTapTime === now) {
-                            // === SINGLE TAP ===
-                            if (capturedFingerCount === 2) {
-                                // 2 fingers single tap = undo
-                                undo();
-                                console.log("2-finger single tap: undo");
-                            } else if (capturedFingerCount >= 3) {
-                                // 3 fingers single tap = toggle AI
-                                toggleDetection();
-                                document.getElementById('aiToggleInput').checked = isDetectionOn;
-                                console.log("3-finger single tap: toggle AI");
-                            }
+                        if (twoFingerTap.lastTapTime === now) {
+                            // === SINGLE TAP: undo ===
+                            undo();
                         }
-                    }, MULTI_TAP_THRESHOLD);
+                    }, DOUBLE_TAP_GAP);
                 }
             }
 
-            // Reset state
-            resetMultiTouchState();
+            // Reset
+            twoFingerTap.startTime = 0;
         }
     }, { passive: true });
 
