@@ -1416,6 +1416,43 @@ function setGridSize(value) {
   drawGrid(backgroundCtx);       // <-- redraw grid
 }
 
+// Eraser size slider
+const eraserSizeSlider = document.getElementById("eraserSizeSlider");
+const eraserSizeInput = document.getElementById("eraserSizeValue");
+
+const MIN_ERASER = 5;
+const MAX_ERASER = 80;
+
+function clampEraser(value) {
+  return Math.min(MAX_ERASER, Math.max(MIN_ERASER, value));
+}
+
+function setEraserSize(value) {
+  const v = clampEraser(Number(value) || MIN_ERASER);
+  if (eraserSizeSlider) eraserSizeSlider.value = v;
+  if (eraserSizeInput) eraserSizeInput.value = v;
+  eraserSize = v;
+}
+
+// Eraser size event listeners
+if (eraserSizeSlider) {
+  eraserSizeSlider.addEventListener("input", e => {
+    setEraserSize(e.target.value);
+  });
+}
+
+if (eraserSizeInput) {
+  eraserSizeInput.addEventListener("input", e => {
+    setEraserSize(e.target.value);
+  });
+
+  eraserSizeInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.target.blur();
+    }
+  });
+}
+
 window.onload = async () => {
     // Auth UI is now handled by signin.js (updateAuthUI function)
 
@@ -1522,11 +1559,15 @@ window.onload = async () => {
             e.stopPropagation();
 
             if (clicked.type === "stickynote") {
-                flashStickyNote(clicked);
-                showStickyPopup(clicked);
+                // Toggle sticky popup - close if already open for this note, open otherwise
+                const existingPopup = document.getElementById("stickyPopup");
+                if (existingPopup && existingPopup.dataset.noteId === String(clicked.id)) {
+                    existingPopup.remove();
+                } else {
+                    showStickyPopup(clicked);
+                }
             }
             else if (clicked.type === "link") {
-                flashLink(clicked);
                 showLinkPopup(clicked);
             }
             else if (clicked.type === "tape") {
@@ -1987,6 +2028,7 @@ window.onload = async () => {
         }
         else if (e.pointerType !== "touch") {
             drawing = false;
+            canvasGroup.style.cursor = "default";
             drawCanvas.releasePointerCapture(e.pointerId);
             // Draw the final stroke
             if (currentStroke.length > 1) {
@@ -2492,20 +2534,17 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
 
-        // Create the empty link group
+        // Create the sticky note group
         const stickynoteGroup = {
             id: idCount++,
             type: "stickynote",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
-            color: "#0077ff",
+            color: "#ffd700", // Yellow
             visibility: true,
         };
 
-        // Temporarily add it
         allGroups.push(stickynoteGroup);
-
-        flashStickyNote(stickynoteGroup);
         showStickyPopup(stickynoteGroup);
         return;
     }
@@ -2741,127 +2780,547 @@ function toggleDetection() {
     
 }
 
-async function exportCanvasToPDF(allGroups, mode = "continuous", penColor = "#000") {
-    const { jsPDF } = window.jspdf;
+// ═══════════════════════════════════════════════════════════════════════════
+// UNIFIED EXPORT/SHARE POPUP
+// ═══════════════════════════════════════════════════════════════════════════
 
-    // --- Compute full bounding box ---
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const group of allGroups) {
-        if (group.stroke) {
-            for (const pt of group.stroke) {
-                minX = Math.min(minX, pt.x);
-                minY = Math.min(minY, pt.y);
-                maxX = Math.max(maxX, pt.x);
-                maxY = Math.max(maxY, pt.y);
+function showExportSharePopup() {
+    // Remove existing popup
+    const existing = document.getElementById('exportSharePopup');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'exportSharePopup';
+    overlay.style.cssText = `
+        position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 99999; backdrop-filter: blur(3px);
+    `;
+
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        background: #1f1f1f; color: #fff; padding: 24px 28px;
+        border-radius: 16px; font-family: 'Mali', sans-serif;
+        min-width: 320px; max-width: 400px;
+    `;
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 500;">Export & Share</h3>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Export PDF Option -->
+            <div class="export-option" data-type="pdf" style="
+                background: #2a2a2a; border-radius: 12px; padding: 16px;
+                cursor: pointer; border: 2px solid transparent;
+                transition: border-color 0.2s, background 0.2s;
+            ">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class='bx bxs-file-pdf' style="font-size: 28px; color: #ff6b6b;"></i>
+                    <div>
+                        <div style="font-weight: 500;">Export as PDF</div>
+                        <div style="font-size: 12px; color: #888;">Save current note as PDF file</div>
+                    </div>
+                </div>
+
+                <!-- PDF Options (hidden by default) -->
+                <div class="pdf-options" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #444;">
+                    <div style="margin-bottom: 12px; font-size: 13px; color: #aaa;">Export Mode:</div>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
+                        <input type="radio" name="pdfMode" value="continuous" checked style="accent-color: #4ecdc4;">
+                        <span>Continuous (single long page)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
+                        <input type="radio" name="pdfMode" value="paginated" style="accent-color: #4ecdc4;">
+                        <span>Paginated (A4 pages)</span>
+                    </label>
+
+                    <div style="margin-bottom: 12px; font-size: 13px; color: #aaa;">Include:</div>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
+                        <input type="checkbox" id="includeGrid" checked style="accent-color: #4ecdc4;">
+                        <span>Background grid</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
+                        <input type="checkbox" id="includeMedia" checked style="accent-color: #4ecdc4;">
+                        <span>Images & media</span>
+                    </label>
+
+                    <button id="exportPdfBtn" style="
+                        width: 100%; padding: 10px; background: #4ecdc4; color: #000;
+                        border: none; border-radius: 8px; font-weight: 600;
+                        cursor: pointer; font-family: inherit; font-size: 14px;
+                    ">Export PDF</button>
+                </div>
+            </div>
+
+            <!-- Share Notebook Option -->
+            <div class="export-option" data-type="share" style="
+                background: #2a2a2a; border-radius: 12px; padding: 16px;
+                cursor: pointer; border: 2px solid transparent;
+                transition: border-color 0.2s, background 0.2s;
+            ">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class='bx bxs-share-alt' style="font-size: 28px; color: #a855f7;"></i>
+                    <div>
+                        <div style="font-weight: 500;">Share Notebook</div>
+                        <div style="font-size: 12px; color: #888;">Export notes as shareable file</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="cancelExportBtn" style="
+            width: 100%; padding: 10px; margin-top: 16px;
+            background: transparent; color: #888; border: 1px solid #444;
+            border-radius: 8px; cursor: pointer; font-family: inherit;
+        ">Cancel</button>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Event handlers
+    const exportOptions = modal.querySelectorAll('.export-option');
+    const pdfOptions = modal.querySelector('.pdf-options');
+
+    exportOptions.forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            // Don't trigger if clicking inside pdf-options
+            if (e.target.closest('.pdf-options')) return;
+
+            const type = opt.dataset.type;
+
+            // Reset all options
+            exportOptions.forEach(o => {
+                o.style.borderColor = 'transparent';
+                o.style.background = '#2a2a2a';
+            });
+
+            // Select this option
+            opt.style.borderColor = '#4ecdc4';
+            opt.style.background = '#333';
+
+            if (type === 'pdf') {
+                pdfOptions.style.display = 'block';
+            } else if (type === 'share') {
+                pdfOptions.style.display = 'none';
+                // Show share notebook popup
+                overlay.remove();
+                showSharePopup();
             }
-        } else if (group.bbox) {
-            minX = Math.min(minX, group.bbox.x);
-            minY = Math.min(minY, group.bbox.y);
-            maxX = Math.max(maxX, group.bbox.x + group.bbox.w);
-            maxY = Math.max(maxY, group.bbox.y + group.bbox.h);
-        }
-    }
-
-    const padding = 20;
-    const contentWidth = maxX - minX + padding * 2;
-    const contentHeight = maxY - minY + padding * 2;
-    const dpr = window.devicePixelRatio || 1;
-
-    // --- Create offscreen canvas ---
-    const fullCanvas = document.createElement("canvas");
-    fullCanvas.width = contentWidth * dpr;
-    fullCanvas.height = contentHeight * dpr;
-    const fullCtx = fullCanvas.getContext("2d");
-    fullCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    fullCtx.translate(-minX + padding, -minY + padding);
-
-    // --- Optional background/grid ---
-    drawGrid(fullCtx);
-
-    // --- Draw all groups ---
-    allGroups.forEach(group => {
-        if (!group?.bbox || group?.visibility === false) return;
-        const hasStroke = Array.isArray(group.stroke) && group.stroke.length > 0;
-
-        if (hasStroke) {
-            if (group.type === "math_result") {
-                // Render math text
-                const text = group.text || "?";
-                const textHeight = group.bbox.h;
-                const fontSize = Math.max(14, textHeight * 0.8);
-                fullCtx.save();
-                fullCtx.font = `200 ${fontSize}px Mali`;
-                fullCtx.fillStyle = group.color || penColor;
-                fullCtx.textBaseline = "top";
-                fullCtx.fillText(text, group.bbox.x, group.bbox.y);
-                fullCtx.restore();
-            } 
-            else if (group.predictedLabel === 7) {
-                drawHighlight(group.bbox, group.color, fullCtx);
-            }
-            else if (group.titleStatus) {
-                drawStroke(fullCtx, group.stroke, group.color, 3);
-            }
-            else if (group.predictedLabel <= 6) {
-                drawStroke(fullCtx, group.stroke, group.color);
-            }
-        } 
-        else {
-            if (group.shape === 0) drawFinalLine(fullCtx, group.bbox, group.color, group.directX, group.directY);
-            if (group.shape === 1) drawFinalRectangle(fullCtx, group.bbox, group.color);
-            if (group.shape === 2) drawFinalCircle(fullCtx, group.bbox, group.color);
-        }
+        });
     });
 
-    // --- Convert to PDF ---
-    const jpegQuality = 0.9;
-    if (mode === "continuous") {
-        const pdf = new jsPDF({
-            orientation: "portrait",
-            unit: "pt",
-            format: [contentWidth, contentHeight],
-            compress: true,
-        });
-        const imgData = fullCanvas.toDataURL("image/jpeg", jpegQuality);
-        pdf.addImage(imgData, "JPEG", 0, 0, contentWidth, contentHeight, undefined, "FAST");
-        pdf.save("canvas_continuous.pdf");
-    } 
-    else if (mode === "paginated") {
+    // Export PDF button
+    modal.querySelector('#exportPdfBtn').addEventListener('click', async () => {
+        const mode = modal.querySelector('input[name="pdfMode"]:checked').value;
+        const includeGrid = modal.querySelector('#includeGrid').checked;
+        const includeMedia = modal.querySelector('#includeMedia').checked;
+
+        overlay.remove();
+        await exportCanvasToPDF(allGroups, mode, includeGrid, includeMedia);
+    });
+
+    // Cancel button
+    modal.querySelector('#cancelExportBtn').addEventListener('click', () => {
+        overlay.remove();
+    });
+
+    // Click outside to close
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPROVED PDF EXPORT (matches reDrawAll rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true, includeMedia = true) {
+    const { jsPDF } = window.jspdf;
+
+    // Show loading indicator
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'pdfLoadingOverlay';
+    loadingOverlay.style.cssText = `
+        position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 999999; flex-direction: column; gap: 16px;
+    `;
+    loadingOverlay.innerHTML = `
+        <div style="color: #fff; font-family: Mali; font-size: 18px;">Generating PDF...</div>
+        <div style="width: 200px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+            <div id="pdfProgress" style="width: 0%; height: 100%; background: #4ecdc4; transition: width 0.3s;"></div>
+        </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+
+    const updateProgress = (percent) => {
+        const bar = document.getElementById('pdfProgress');
+        if (bar) bar.style.width = percent + '%';
+    };
+
+    try {
+        updateProgress(10);
+
+        // --- Compute full bounding box ---
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const group of groups) {
+            if (!group?.bbox || group?.visibility === false) continue;
+            minX = Math.min(minX, group.bbox.x);
+            minY = Math.min(minY, group.bbox.y);
+            maxX = Math.max(maxX, group.bbox.x + (group.bbox.w || 0));
+            maxY = Math.max(maxY, group.bbox.y + (group.bbox.h || 0));
+        }
+
+        // Handle empty canvas
+        if (minX === Infinity) {
+            loadingOverlay.remove();
+            alert('No content to export');
+            return;
+        }
+
+        // --- Apply minimum A4 ratio size ---
         const A4_WIDTH_PT = 595.28;
         const A4_HEIGHT_PT = 841.89;
-        const scale = A4_WIDTH_PT / contentWidth;
-        const scaledHeight = contentHeight * scale;
-        const pageCount = Math.ceil(scaledHeight / A4_HEIGHT_PT);
+        const A4_RATIO = A4_WIDTH_PT / A4_HEIGHT_PT;
 
-        const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4", compress: true });
+        const padding = 40;
+        let contentWidth = maxX - minX + padding * 2;
+        let contentHeight = maxY - minY + padding * 2;
 
-        for (let i = 0; i < pageCount; i++) {
-            const pageCanvas = document.createElement("canvas");
-            pageCanvas.width = fullCanvas.width;
-            pageCanvas.height = Math.min(fullCanvas.height - i * (A4_HEIGHT_PT / scale) * dpr, A4_HEIGHT_PT / scale * dpr);
-            const pageCtx = pageCanvas.getContext("2d");
+        // Ensure minimum size based on A4 ratio (at least half A4 width equivalent)
+        const MIN_WIDTH = 400;
+        const MIN_HEIGHT = MIN_WIDTH / A4_RATIO;
 
-            pageCtx.drawImage(
-                fullCanvas,
-                0,
-                i * (A4_HEIGHT_PT / scale) * dpr,
-                fullCanvas.width,
-                pageCanvas.height,
-                0,
-                0,
-                fullCanvas.width,
-                pageCanvas.height
-            );
-
-            const imgData = pageCanvas.toDataURL("image/jpeg", jpegQuality);
-            if (i > 0) pdf.addPage();
-            pdf.addImage(imgData, "JPEG", 0, 0, A4_WIDTH_PT, A4_WIDTH_PT * (pageCanvas.height / fullCanvas.width), undefined, "FAST");
+        if (contentWidth < MIN_WIDTH) {
+            const diff = MIN_WIDTH - contentWidth;
+            minX -= diff / 2;
+            contentWidth = MIN_WIDTH;
         }
-        pdf.save("canvas_paginated_a4.pdf");
-    } 
-    else {
-        alert("Invalid export mode. Use 'continuous' or 'paginated'.");
+        if (contentHeight < MIN_HEIGHT) {
+            const diff = MIN_HEIGHT - contentHeight;
+            minY -= diff / 2;
+            contentHeight = MIN_HEIGHT;
+        }
+
+        updateProgress(20);
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2x for performance
+
+        // --- Create offscreen canvas ---
+        const fullCanvas = document.createElement("canvas");
+        fullCanvas.width = contentWidth * dpr;
+        fullCanvas.height = contentHeight * dpr;
+        const ctx = fullCanvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.translate(-minX + padding, -minY + padding);
+
+        updateProgress(30);
+
+        // --- Draw background ---
+        if (includeGrid) {
+            // Draw background color
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = backgroundColor || CONFIG.DEFAULT_BG_COLOR;
+            ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+            ctx.restore();
+
+            // Draw grid
+            ctx.save();
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const gridColor = gridLineColor || CONFIG.DEFAULT_GRIDLINE_COLOR;
+            const gridSz = gridSize || CONFIG.DEFAULT_GRID_SIZE;
+            ctx.strokeStyle = gridColor;
+            ctx.lineWidth = 0.5;
+
+            const startX = Math.floor((minX - padding) / gridSz) * gridSz;
+            const startY = Math.floor((minY - padding) / gridSz) * gridSz;
+            const endX = minX - padding + contentWidth;
+            const endY = minY - padding + contentHeight;
+
+            // Horizontal lines
+            for (let y = startY; y <= endY; y += gridSz) {
+                ctx.beginPath();
+                ctx.moveTo(0, y - (minY - padding));
+                ctx.lineTo(contentWidth, y - (minY - padding));
+                ctx.stroke();
+            }
+
+            // Vertical lines (if square grid)
+            if (gridStyle === 'square') {
+                for (let x = startX; x <= endX; x += gridSz) {
+                    ctx.beginPath();
+                    ctx.moveTo(x - (minX - padding), 0);
+                    ctx.lineTo(x - (minX - padding), contentHeight);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.translate(-minX + padding, -minY + padding);
+        } else {
+            // White background
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+            ctx.restore();
+        }
+
+        updateProgress(40);
+
+        // --- First pass: Draw media groups (behind strokes) ---
+        if (includeMedia) {
+            for (const group of groups) {
+                if (!group?.bbox || group?.visibility === false) continue;
+                if (group.type === "media") {
+                    await drawMediaForExport(ctx, group);
+                }
+            }
+        }
+
+        updateProgress(60);
+
+        // --- Second pass: Draw all other groups (matching reDrawAll) ---
+        for (const group of groups) {
+            if (!group?.bbox || group?.visibility === false) continue;
+            if (group.type === "media") continue; // Already drawn
+
+            const hasStroke = Array.isArray(group.stroke) && group.stroke.length > 0;
+
+            if (group.type === "stickynote") {
+                const { x, y, w, h } = group.bbox;
+                ctx.save();
+                ctx.strokeStyle = group.color || "#FFD700";
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 3]);
+                ctx.strokeRect(x, y, w, h);
+                ctx.setLineDash([]);
+                ctx.restore();
+                continue;
+            }
+
+            if (group.type === "link") {
+                const { x, y, w, h } = group.bbox;
+                ctx.save();
+                ctx.strokeStyle = group.color || "#0077ff";
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 3]);
+                ctx.strokeRect(x, y, w, h);
+                ctx.setLineDash([]);
+                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "#0077ff";
+                ctx.fillText("🔗", x + w / 2 - 8, y + h / 2 + 6);
+                ctx.restore();
+                continue;
+            }
+
+            if (group.type === "tape") {
+                drawTapeForExport(ctx, group);
+                continue;
+            }
+
+            if (hasStroke) {
+                if (group.type === "math_result") {
+                    const text = group.text || "??";
+                    const textHeight = group.bbox.h;
+                    const fontSize = Math.max(14, textHeight * 0.8);
+                    ctx.save();
+                    ctx.font = `300 ${fontSize}px Mali`;
+                    ctx.fillStyle = group.color || "red";
+                    ctx.textBaseline = "top";
+                    ctx.fillText(text, group.bbox.x, group.bbox.y + 10);
+                    ctx.restore();
+                }
+                else if (group.titleStatus) {
+                    const size = group?.size ?? 3;
+                    drawStroke(ctx, group.stroke, group.color, size);
+                }
+                else if (group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
+                    drawHighlight(ctx, group.bbox, group.color);
+                }
+                else {
+                    const size = group?.size ?? 2;
+                    drawStroke(ctx, group.stroke, group.color, size);
+                }
+            } else {
+                if (group.shape === 0) drawFinalLine(ctx, group.bbox, group.color, group.directX, group.directY);
+                if (group.shape === 1) drawFinalRectangle(ctx, group.bbox, group.color);
+                if (group.shape === 2) drawFinalCircle(ctx, group.bbox, group.color);
+            }
+        }
+
+        updateProgress(80);
+
+        // --- Convert to PDF ---
+        const jpegQuality = 0.92;
+        const fileName = (title || 'untitled').replace(/[^a-zA-Z0-9]/g, '_');
+
+        // Ensure dimensions are valid positive numbers
+        const pdfWidth = Math.max(Math.floor(contentWidth), 100);
+        const pdfHeight = Math.max(Math.floor(contentHeight), 100);
+
+        console.log('PDF Export Debug:', { contentWidth, contentHeight, pdfWidth, pdfHeight, canvasW: fullCanvas.width, canvasH: fullCanvas.height, mode });
+
+        // Get image data first
+        const imgData = fullCanvas.toDataURL("image/jpeg", jpegQuality);
+
+        // Get jsPDF constructor (handle different module formats)
+        const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF;
+        if (!jsPDFConstructor) {
+            throw new Error('jsPDF library not loaded');
+        }
+
+        if (mode === "continuous") {
+            // Use mm units which are most reliable in jsPDF
+            // Convert pixels to mm (assuming 96 DPI: 1 inch = 25.4mm, 1 inch = 96px)
+            const pxToMm = 25.4 / 96;
+            const widthMm = pdfWidth * pxToMm;
+            const heightMm = pdfHeight * pxToMm;
+
+            const orientation = widthMm > heightMm ? "landscape" : "portrait";
+
+            const pdf = new jsPDFConstructor({
+                orientation: orientation,
+                unit: "mm",
+                format: [Math.max(widthMm, 10), Math.max(heightMm, 10)]
+            });
+
+            // Add image filling the page
+            pdf.addImage(imgData, "JPEG", 0, 0, widthMm, heightMm);
+            pdf.save(`${fileName}_continuous.pdf`);
+        }
+        else if (mode === "paginated") {
+            // A4 in mm: 210 x 297
+            const pdf = new jsPDFConstructor({
+                orientation: "portrait",
+                unit: "mm",
+                format: "a4"
+            });
+
+            const pageWidthMm = 210;
+            const pageHeightMm = 297;
+
+            // Convert content to mm
+            const pxToMm = 25.4 / 96;
+            const contentWidthMm = pdfWidth * pxToMm;
+            const contentHeightMm = pdfHeight * pxToMm;
+
+            // Scale to fit page width
+            const imgScale = pageWidthMm / contentWidthMm;
+            const scaledHeightMm = contentHeightMm * imgScale;
+            const pageCount = Math.max(1, Math.ceil(scaledHeightMm / pageHeightMm));
+
+            for (let i = 0; i < pageCount; i++) {
+                if (i > 0) pdf.addPage();
+
+                // Offset the image to show correct portion
+                const yOffset = -(i * pageHeightMm);
+
+                pdf.addImage(imgData, "JPEG", 0, yOffset, pageWidthMm, scaledHeightMm);
+                updateProgress(80 + (i / pageCount) * 15);
+            }
+
+            pdf.save(`${fileName}_a4.pdf`);
+        }
+
+        updateProgress(100);
+        setTimeout(() => loadingOverlay.remove(), 300);
+
+    } catch (error) {
+        console.error('PDF export error:', error);
+        loadingOverlay.remove();
+        alert('Error exporting PDF: ' + error.message);
     }
+}
+
+// Helper: Draw media for export (handles async image loading)
+async function drawMediaForExport(ctx, group) {
+    if (!group.dataUrl) return;
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const { x, y, w, h } = group.bbox;
+            ctx.save();
+            ctx.globalAlpha = group.opacity !== undefined ? group.opacity : 1.0;
+
+            if (group.rotation && group.rotation !== 0) {
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                ctx.translate(cx, cy);
+                ctx.rotate((group.rotation * Math.PI) / 180);
+                ctx.translate(-cx, -cy);
+            }
+
+            ctx.drawImage(img, x, y, w, h);
+            ctx.restore();
+            resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = group.dataUrl;
+    });
+}
+
+// Helper: Draw tape for export
+function drawTapeForExport(ctx, group) {
+    const { x, y, w, h } = group.bbox;
+    const revealed = group.revealed || false;
+    const preset = group.preset || 'polkadot';
+
+    const padding = 6;
+    const tx = x - padding;
+    const ty = y - padding;
+    const tw = w + padding * 2;
+    const th = h + padding * 2;
+
+    ctx.save();
+
+    // Draw strokes underneath
+    if (Array.isArray(group.stroke) && group.stroke.length > 0) {
+        group.stroke.forEach(st => {
+            if (!st.path || st.path.length < 2) return;
+            ctx.beginPath();
+            for (let i = 0; i < st.path.length; i++) {
+                const point = st.path[i];
+                if (i === 0) ctx.moveTo(point.x, point.y);
+                else ctx.lineTo(point.x, point.y);
+            }
+            ctx.strokeStyle = st.color || '#ffffff';
+            ctx.lineWidth = st.size || 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        });
+    }
+
+    // Draw tape if not revealed
+    if (!revealed) {
+        const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === preset) || CONFIG.TAPE.PRESETS[0];
+        const patternCanvas = generateTapePattern(preset);
+        const pattern = ctx.createPattern(patternCanvas, 'repeat');
+
+        // Draw zigzag tape shape
+        ctx.beginPath();
+        const zigzagSize = 8;
+        ctx.moveTo(tx, ty);
+        for (let px = tx; px < tx + tw; px += zigzagSize * 2) {
+            ctx.lineTo(Math.min(px + zigzagSize, tx + tw), ty - zigzagSize);
+            ctx.lineTo(Math.min(px + zigzagSize * 2, tx + tw), ty);
+        }
+        ctx.lineTo(tx + tw, ty + th);
+        for (let px = tx + tw; px > tx; px -= zigzagSize * 2) {
+            ctx.lineTo(Math.max(px - zigzagSize, tx), ty + th + zigzagSize);
+            ctx.lineTo(Math.max(px - zigzagSize * 2, tx), ty + th);
+        }
+        ctx.closePath();
+
+        ctx.fillStyle = pattern;
+        ctx.fill();
+    }
+
+    ctx.restore();
 }
 
 // =============== SMART SUMMARIZE FEATURE ===================
