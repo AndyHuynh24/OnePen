@@ -45,15 +45,17 @@ function drawGrid(ctx) {
   const startX = (-viewportOffset.x % gridSize + gridSize) % gridSize;
   const startY = (-viewportOffset.y % gridSize + gridSize) % gridSize;
 
-  // Vertical lines
-  for (let x = startX; x <= width; x += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
+  // Vertical lines (only for square grid style)
+  if (gridStyle === 'square') {
+    for (let x = startX; x <= width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
   }
 
-  // Horizontal lines
+  // Horizontal lines (always drawn)
   for (let y = startY; y <= height; y += gridSize) {
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -64,6 +66,127 @@ function drawGrid(ctx) {
   ctx.restore();
 }
 
+// Draw tape (flashcard cover) with pattern tiling and zigzag edges
+function drawTapeGroup(ctx, group) {
+  const { x, y, w, h } = group.bbox;
+  const revealed = group.revealed || false;
+  const fadeProgress = group.fadeProgress ?? 1;
+  const preset = group.preset || 'polkadot';
+
+  // Add padding to fully cover strokes
+  const padding = 6;
+  const tx = x - padding;
+  const ty = y - padding;
+  const tw = w + padding * 2;
+  const th = h + padding * 2;
+
+  ctx.save();
+
+  // First draw the strokes underneath
+  if (Array.isArray(group.stroke) && group.stroke.length > 0) {
+    group.stroke.forEach(st => {
+      if (!st.path || st.path.length < 2) return;
+
+      ctx.save();
+      ctx.beginPath();
+
+      for (let i = 0; i < st.path.length; i++) {
+        const point = st.path[i];
+        if (i === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      }
+
+      ctx.strokeStyle = st.color || '#ffffff';
+      ctx.lineWidth = st.size || 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  // Calculate opacity based on reveal state and fade progress
+  let tapeOpacity;
+  if (revealed) {
+    tapeOpacity = 1 - fadeProgress;
+  } else {
+    tapeOpacity = fadeProgress;
+  }
+
+  // Draw the tape pattern if not fully revealed
+  if (tapeOpacity > 0) {
+    ctx.save();
+    ctx.globalAlpha = tapeOpacity;
+
+    // Get or create pattern
+    let patternCanvas = tapePatternCache.get(preset);
+    if (!patternCanvas) {
+      patternCanvas = generateTapePattern(preset);
+      tapePatternCache.set(preset, patternCanvas);
+    }
+
+    // Create repeating pattern
+    const pattern = ctx.createPattern(patternCanvas, 'repeat');
+
+    // Draw tape shape with zigzag/torn edges
+    const zigzagSize = 8;
+    const zigzagDepth = 6;
+    const zigzagCount = Math.ceil(tw / zigzagSize);
+
+    ctx.beginPath();
+
+    // Top edge - zigzag (starts above to cover fully)
+    ctx.moveTo(tx, ty + zigzagDepth);
+    for (let i = 0; i <= zigzagCount; i++) {
+      const px = tx + (i * zigzagSize);
+      const py = ty + (i % 2 === 0 ? zigzagDepth : 0);
+      ctx.lineTo(Math.min(px, tx + tw), py);
+    }
+
+    // Right edge
+    ctx.lineTo(tx + tw, ty + th - zigzagDepth);
+
+    // Bottom edge - zigzag (reversed, extends below)
+    for (let i = zigzagCount; i >= 0; i--) {
+      const px = tx + (i * zigzagSize);
+      const py = ty + th + (i % 2 === 0 ? -zigzagDepth : 0);
+      ctx.lineTo(Math.max(px, tx), py);
+    }
+
+    // Left edge
+    ctx.lineTo(tx, ty + zigzagDepth);
+    ctx.closePath();
+
+    // Fill with pattern
+    ctx.fillStyle = pattern;
+    ctx.fill();
+
+    // Add semi-transparent overlay for tape look
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fill();
+
+    // Add subtle shadow/depth on edges
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Draw border when revealed (flashing indicator)
+  if (revealed && fadeProgress >= 1) {
+    ctx.strokeStyle = group.borderColor || CONFIG.COLORS.FLASH_TAPE;
+    ctx.lineWidth = CONFIG.TAPE.BORDER_WIDTH;
+    ctx.setLineDash([8, 4]);
+    ctx.strokeRect(tx, ty, tw, th);
+    ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+}
 
 function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
     drawctx.save();
@@ -776,13 +899,24 @@ function reDrawAll(ctx) {
 
     let drawCount = 0;
 
+    // First pass: draw media groups (so they appear behind strokes)
     allGroups.forEach((group) => {
         if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
+        if (group.type === "media") {
+            drawCount++;
+            drawMediaGroup(ctx, group);
+        }
+    });
+
+    // Second pass: draw all other groups
+    allGroups.forEach((group) => {
+        if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
+        if (group.type === "media") return; // Skip media, already drawn
 
         drawCount ++;
 
         const hasStroke = Array.isArray(group.stroke) && group.stroke.length > 0;
-    
+
         if (group.type === "stickynote") {
             const { x, y, w, h } = group.bbox;
             ctx.save();
@@ -813,9 +947,9 @@ function reDrawAll(ctx) {
 
             ctx.restore();
             return;
-        } else if (group.type === "media") {
-            // Render media (image/PDF)
-            drawMediaGroup(ctx, group);
+        } else if (group.type === "tape") {
+            // Render tape (flashcard cover)
+            drawTapeGroup(ctx, group);
             return;
         }
 
@@ -858,14 +992,14 @@ function reDrawAll(ctx) {
                 const size  = group?.size ?? 3;
                 drawStroke(drawCtx, group.stroke, group.color, size);
             } 
-            else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE) && group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
-                const size  = group?.size ?? 2;
-                drawStroke(drawCtx, group.stroke, group.color, size);
-            } 
-            else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
+            else if (group.type === STROKE_TYPE.HIGHLIGHT) {
                 console.log("highlight");
                 drawHighlight(group.bbox, group.color);
             }
+            else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE)) {
+                const size  = group?.size ?? 2;
+                drawStroke(drawCtx, group.stroke, group.color, size);
+            } 
         }
         else {
             if (group.shape == 0) {
@@ -893,8 +1027,10 @@ function hideToolbox() {
     pointerDownForToolbox = false; 
 }
 
-function showToolbox(x, y, tools) {
+function showToolbox(x, y, toolBox) {
     if (isClosingToolbox) return;
+
+    const tools = toolboxLayout[toolBox];
 
     // Get the nav-content div
     const navContent = document.querySelector('#penTools .nav-content');
@@ -907,7 +1043,15 @@ function showToolbox(x, y, tools) {
 
         const a = document.createElement('a');
         a.href = '#';
-        a.style = `background-color: ${tool.color || '#fff'};`;
+        // Inner border with thickness based on pen size (0.4-30 → 1.5-11px, sqrt curve, capped at 11px)
+        const borderThickness = Math.min(Math.sqrt(tool.size || 2) * 2.46, 11);
+        // Use gradient for tape tool, solid color for others
+        if (tool.id === "tape") {
+            const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === currentTapePreset) || CONFIG.TAPE.PRESETS[0];
+            a.style = `background: linear-gradient(135deg, ${presetData.color1}, ${presetData.color2}); box-shadow: inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35);`;
+        } else {
+            a.style = `background-color: ${tool.color || '#fff'}; box-shadow: inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35);`;
+        }
 
         const icon = document.createElement('i');
         icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
@@ -915,6 +1059,7 @@ function showToolbox(x, y, tools) {
         icon.setAttribute('data-color', tool.color);
         icon.setAttribute('data-size', tool?.size ?? 0);
         icon.setAttribute('data-visibility', tool.visibility);
+        icon.setAttribute('data-toolBox', toolBox);
 
         // Build DOM
         a.appendChild(icon);
@@ -1063,7 +1208,7 @@ function selectTitle(titleColor, visibility, level=0, size) {
 }
 
 function selectHighlight(highlightColor){
-    //allGroups.pop();
+    allGroups.pop();
     modifiedGroups.modifiedGroups.pop();
     highlightColor = hexToRgb(highlightColor);
   
@@ -1084,11 +1229,12 @@ function selectHighlight(highlightColor){
     //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
 
     newgroup = {
-      id: id_count++, 
+      id: idCount++, 
       stroke: [...modifiedGroups.modifiedGroups[0].stroke, ...modifiedGroups.modifiedGroups[modifiedGroups.modifiedGroups.length-1].stroke],
       bbox: bbox,
       color: highlightColor,
-      predictedLabel: STROKE_TYPE.HIGHLIGHT,
+      predictedLabel: STROKE_TYPE.NONE,
+      type: TOOL_ID.HIGHLIGHT,
       titleStatus: false,
     };
     //modifiedGroups.groupsToDraw.push(newgroup);

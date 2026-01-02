@@ -94,6 +94,25 @@ const CONFIG = Object.freeze({
     CURLY_SHORTCUT: 'rgba(116, 232, 256,1)',
     FLASH_STICKY: '#FFD700',
     FLASH_LINK: '#00b7ff',
+    FLASH_TAPE: '#ff69b4',
+  }),
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAPE (Flashcard Cover)
+  // ─────────────────────────────────────────────────────────────────────────
+  TAPE: Object.freeze({
+    FADE_DURATION: 300,           // Fade animation duration in ms
+    DOUBLE_CLICK_DELAY: 300,      // Max time between clicks for double-click
+    PATTERN_SIZE: 64,             // Default pattern tile size
+    BORDER_WIDTH: 3,              // Border width when revealed
+    PRESETS: Object.freeze([
+      { id: 'polkadot', name: 'Polka Dots', color1: '#ff6b9d', color2: '#ffd93d' },
+      { id: 'stripes', name: 'Candy Stripes', color1: '#4ecdc4', color2: '#ff6b6b' },
+      { id: 'stars', name: 'Starry', color1: '#a855f7', color2: '#fbbf24' },
+      { id: 'hearts', name: 'Hearts', color1: '#f472b6', color2: '#fca5a5' },
+      { id: 'confetti', name: 'Confetti', color1: '#34d399', color2: '#60a5fa' },
+      { id: 'zigzag', name: 'Zigzag', color1: '#fb923c', color2: '#fef08a' },
+    ]),
   }),
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -146,15 +165,71 @@ const TOOL_ID = Object.freeze({
   LINK: "link",
   MATH: "mathSolver",
   MEDIA: "media",
+  TAPE: "tape",
 });
 
+
+const TOOLBOX_SELECTION = {
+  color: Object.freeze({
+    PEN: "pen",
+    HIGHLIGHT: "highlight",
+    ERASER: "eraser",
+    MEDIA: "media",
+    PASTE: "paste",
+  }),
+  underline: Object.freeze({
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    HIGHLIGHT: "highlight",
+    STICKY: "stickynote",
+    BOLD_DEFAULT: "bold",
+    BOLD_CUSTOM: "bold_custom",
+    DELETE: "delete",
+    MOVE: "move",
+    LINK: "link",
+    TAPE: "tape",
+    COPY: "copy",
+    PASTE: "paste",
+  }),
+  box: Object.freeze({
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    HIGHLIGHT: "highlight",
+    STICKY: "stickynote",
+    BOLD_DEFAULT: "bold",
+    BOLD_CUSTOM: "bold_custom",
+    DELETE: "delete",
+    MOVE: "move",
+    LINK: "link",
+    TAPE: "tape",
+    COPY: "copy",
+    PASTE: "paste",
+  }),
+  curly: Object.freeze({
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    HIGHLIGHT: "highlight",
+    STICKY: "stickynote",
+    BOLD_DEFAULT: "bold",
+    BOLD_CUSTOM: "bold_custom",
+    DELETE: "delete",
+    MOVE: "move",
+    LINK: "link",
+    TAPE: "tape",
+    COPY: "copy",
+    PASTE: "paste",
+  })
+}
 // ═══════════════════════════════════════════════════════════════════════════
 // PEN TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 const PEN_TYPES = Object.freeze({
-  NORMAL: "normal",
+  NORMAL: "none",
   TITLE: "title",
-  HIGHLIGHT: "highlight",
+  HIGHLIGHTER: "highlighter",
   BOLD: "bold"
 });
 
@@ -168,7 +243,8 @@ const TOOL_REGISTRY = Object.freeze({
   title2: { icon: "bx-capitalize", customizable: true },
   title3: { icon: "bx-capitalize", customizable: true },
   highlight: { icon: "bx-highlight", customizable: true },
-  bold: { icon: "bx-bold", color: "red", customizable: true },
+  bold: { icon: "bx-bold", color: "red", customizable: false },
+  bold_custom: { icon: "bx-bold", color: "white", customizable: true },
   delete: { icon: "bx-trash", customizable: false },
   move: { icon: "bx-move", customizable: false },
   mathSolver: { icon: "bx-calculator", customizable: false },
@@ -176,7 +252,8 @@ const TOOL_REGISTRY = Object.freeze({
   paste: { icon: "bx-paste", customizable: false },
   stickynote: { icon: "bx-sticker", customizable: false },
   link: { icon: "bx-link-break", customizable: false },
-  media: { icon: "bx-image-add", customizable: false }
+  media: { icon: "bx-file-plus", customizable: false },
+  tape: { icon: "bx-band-aid", customizable: true }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
