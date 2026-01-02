@@ -7,6 +7,7 @@ let scale = CONFIG.DEFAULT_SCALE;
 let backgroundColor;
 let gridLineColor;
 let gridSize = Number(document.getElementById("gridWidth").value);
+let gridStyle = "square"; // "line" = horizontal only, "square" = both horizontal and vertical
 let penSize;
 const backgroundColorPicker = document.getElementById("backgroundColorPicker");
 const gridLineColorPicker = document.getElementById("gridLineColorPicker");
@@ -35,9 +36,17 @@ let screenBox = {
 
 //parameters for moving
 let movingToggle = false; // Toggle for moving mode
-let dxRecord = 0; 
+let dxRecord = 0;
 let dyRecord = 0;
 let movingColor = null;
+let moveStartX = null;
+let moveStartY = null;
+
+//parameters for copy/paste
+let clipboard = null; // Stores copied strokes
+let pasteMode = false; // Toggle for paste-move mode
+let pastedGroups = []; // Groups being pasted
+let pasteBBox = null; // Bounding box of pasted strokes
 
 //parameters for scrolling:
 let panningLimit = {left: 0, right:-1, top: 0, bottom: -1}
@@ -105,6 +114,7 @@ const shortcutGroup = [STROKE_TYPE.BOXS, STROKE_TYPE.CURLYS, STROKE_TYPE.CIRCLES
 
 //parameters for tools/colors setting
 let defaultPenColor = CONFIG.DEFAULT_PEN_COLOR; // Can be changed at runtime
+let defaultPenType = STROKE_TYPE.NONE;
 
 //parameters for google sync
 const accessToken = localStorage.getItem("accessToken");
@@ -148,6 +158,296 @@ function flashLink(link) {
   }, 200);
 }
 
+//-----------functions for copy/paste---------
+function drawPastePreview() {
+  if (!pasteMode || pastedGroups.length === 0) return;
+
+  liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+  liveCtx.save();
+  liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
+
+  // Draw dashed bounding box (without label, we'll draw it separately)
+  if (pasteBBox) {
+    const padding = 8;
+    const boxWithPadding = {
+      x: pasteBBox.x - padding,
+      y: pasteBBox.y - padding,
+      w: pasteBBox.w + padding * 2,
+      h: pasteBBox.h + padding * 2
+    };
+    drawBox(boxWithPadding, 'rgba(200, 200, 200, 0.8)', '', true, liveCtx);
+
+    // Draw label within box width with text wrap
+    const label = 'Hold and drag to move, click outside to paste';
+    const maxWidth = boxWithPadding.w;
+    const lineHeight = 16;
+    liveCtx.font = '200 14px "Mali"';
+    liveCtx.fillStyle = 'rgba(200, 200, 200, 0.9)';
+
+    // Wrap text into lines that fit within maxWidth
+    const words = label.split(' ');
+    const lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      if (liveCtx.measureText(testLine).width <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+
+    // Draw lines centered above the box
+    const totalHeight = lines.length * lineHeight;
+    lines.forEach((line, i) => {
+      const lineWidth = liveCtx.measureText(line).width;
+      const textX = boxWithPadding.x + (maxWidth - lineWidth) / 2;
+      const textY = boxWithPadding.y - totalHeight + (i * lineHeight) - 4;
+      liveCtx.fillText(line, textX, textY);
+    });
+  }
+
+  // Draw the pasted strokes (like move feature uses drawStroke)
+  pastedGroups.forEach(group => {
+    if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
+      drawHighlight(liveCtx, group.bbox, group.color);
+    } else {
+      drawStroke(liveCtx, group.stroke, group.color, 2);
+    }
+  });
+
+  liveCtx.restore();
+}
+
+function isPointInPasteBBox(worldX, worldY) {
+  if (!pasteBBox) return false;
+  const padding = 8;
+  return (
+    worldX >= pasteBBox.x - padding &&
+    worldX <= pasteBBox.x + pasteBBox.w + padding &&
+    worldY >= pasteBBox.y - padding &&
+    worldY <= pasteBBox.y + pasteBBox.h + padding
+  );
+}
+
+function finalizePaste() {
+  if (!pasteMode || pastedGroups.length === 0) return;
+
+  // Add pasted groups to allGroups
+  pastedGroups.forEach(group => {
+    allGroups.push(group);
+  });
+
+  // Save to undo history
+  pastGroups.push({
+    change: 'paste',
+    modifiedGroups: [...pastedGroups],
+    dx: dxRecord,
+    dy: dyRecord
+  });
+
+  // Reset paste state
+  pasteMode = false;
+  pastedGroups = [];
+  pasteBBox = null;
+  dxRecord = 0;
+  dyRecord = 0;
+  moveStartX = null;
+  moveStartY = null;
+
+  liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+  reDrawAll(drawCtx);
+  if (title) saveNote(title, allGroups);
+}
+
+function cancelPaste() {
+  pasteMode = false;
+  pastedGroups = [];
+  pasteBBox = null;
+  dxRecord = 0;
+  dyRecord = 0;
+  moveStartX = null;
+  moveStartY = null;
+  liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+  reDrawAll(drawCtx);
+}
+
+//-----------functions for tape (flashcard cover)---------
+let currentTapePreset = 'polkadot'; // Default preset
+let lastTapeClickTime = 0;
+let lastTapeClickTarget = null;
+
+function flashTape(tape) {
+  const originalColor = tape.borderColor;
+  tape.borderColor = CONFIG.COLORS.FLASH_TAPE;
+  reDrawAll(drawCtx);
+
+  setTimeout(() => {
+    tape.borderColor = originalColor;
+    reDrawAll(drawCtx);
+  }, CONFIG.FLASH_DURATION);
+}
+
+// Toggle tape reveal state with fade animation
+function toggleTapeReveal(tape) {
+  tape.revealed = !tape.revealed;
+  tape.fadeProgress = 0;
+
+  // Animate fade
+  const startTime = performance.now();
+  const duration = CONFIG.TAPE.FADE_DURATION;
+
+  function animateFade(currentTime) {
+    const elapsed = currentTime - startTime;
+    tape.fadeProgress = Math.min(elapsed / duration, 1);
+    reDrawAll(drawCtx);
+
+    if (tape.fadeProgress < 1) {
+      requestAnimationFrame(animateFade);
+    } else {
+      tape.fadeProgress = 1;
+      if (tape.revealed) {
+        flashTape(tape);
+      }
+      // Save after toggle
+      if (title) saveNote(title, allGroups);
+    }
+  }
+
+  requestAnimationFrame(animateFade);
+}
+
+// Remove tape permanently
+function removeTape(tape) {
+  const index = allGroups.findIndex(g => g.id === tape.id);
+  if (index !== -1) {
+    // Save to undo stack
+    pastGroups.push({
+      change: 'delete',
+      modifiedGroups: [allGroups[index]]
+    });
+
+    allGroups.splice(index, 1);
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups);
+  }
+}
+
+// Generate pattern canvas for tape preset
+function generateTapePattern(preset, size = CONFIG.TAPE.PATTERN_SIZE) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === preset) || CONFIG.TAPE.PRESETS[0];
+  const { color1, color2 } = presetData;
+
+  // Fill background
+  ctx.fillStyle = color1;
+  ctx.fillRect(0, 0, size, size);
+
+  switch (preset) {
+    case 'polkadot':
+      ctx.fillStyle = color2;
+      const dotRadius = size / 6;
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, dotRadius, 0, Math.PI * 2);
+      ctx.fill();
+      // Corner dots (quarter visible)
+      ctx.beginPath();
+      ctx.arc(0, 0, dotRadius, 0, Math.PI * 2);
+      ctx.arc(size, 0, dotRadius, 0, Math.PI * 2);
+      ctx.arc(0, size, dotRadius, 0, Math.PI * 2);
+      ctx.arc(size, size, dotRadius, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+
+    case 'stripes':
+      ctx.strokeStyle = color2;
+      ctx.lineWidth = size / 4;
+      for (let i = -size; i < size * 2; i += size / 3) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + size, size);
+        ctx.stroke();
+      }
+      break;
+
+    case 'stars':
+      ctx.fillStyle = color2;
+      const drawStar = (cx, cy, r) => {
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawStar(size / 2, size / 2, size / 4);
+      drawStar(0, 0, size / 6);
+      drawStar(size, size, size / 6);
+      break;
+
+    case 'hearts':
+      ctx.fillStyle = color2;
+      const drawHeart = (cx, cy, s) => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + s / 4);
+        ctx.bezierCurveTo(cx, cy, cx - s / 2, cy, cx - s / 2, cy + s / 4);
+        ctx.bezierCurveTo(cx - s / 2, cy + s / 2, cx, cy + s * 0.7, cx, cy + s * 0.7);
+        ctx.bezierCurveTo(cx, cy + s * 0.7, cx + s / 2, cy + s / 2, cx + s / 2, cy + s / 4);
+        ctx.bezierCurveTo(cx + s / 2, cy, cx, cy, cx, cy + s / 4);
+        ctx.fill();
+      };
+      drawHeart(size / 2, size / 4, size / 2);
+      break;
+
+    case 'confetti':
+      const colors = [color1, color2, '#ffffff', '#ffd700'];
+      for (let i = 0; i < 12; i++) {
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.save();
+        ctx.translate(Math.random() * size, Math.random() * size);
+        ctx.rotate(Math.random() * Math.PI);
+        ctx.fillRect(-3, -6, 6, 12);
+        ctx.restore();
+      }
+      break;
+
+    case 'zigzag':
+      ctx.strokeStyle = color2;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let y = 0; y < size; y += size / 4) {
+        for (let x = 0; x <= size; x += size / 8) {
+          const yOffset = (x / (size / 8)) % 2 === 0 ? 0 : size / 8;
+          if (x === 0) ctx.moveTo(x, y + yOffset);
+          else ctx.lineTo(x, y + yOffset);
+        }
+      }
+      ctx.stroke();
+      break;
+
+    default:
+      // Solid color fallback
+      break;
+  }
+
+  return canvas;
+}
+
+// Cache for tape patterns
+const tapePatternCache = new Map();
+
 // -------------------- CONSTANTS (now in config.js) --------------------
 // TOOL_ID, TOOL_REGISTRY, PEN_TYPES are defined in config.js
 
@@ -158,49 +458,49 @@ const DEFAULT_MODIFIERS = {
     boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
     curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 3, visibility: false},
     circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
-    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58}
+    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"}
 }; 
 
 const DEFAULT_TOOLBOX_LAYOUT = {
   color: [
-    { id: TOOL_ID.ERASER},
-    { id: TOOL_ID.PEN, color: "#ffffff"},
-    { id: TOOL_ID.PEN, color: "#f4c64a" },
-    { id: TOOL_ID.PEN, color: "#ff6a00" },
-    { id: TOOL_ID.PEN, color: "#ffff00" }, 
-    { id: TOOL_ID.PEN, color: "#ffb6ff"},
-    { id: TOOL_ID.PEN, color: "#ffff00"},
-    { id: TOOL_ID.PEN, colorFrom: "#ffff00" },
+    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
+    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
+    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
   ],
   underline: [
-    { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true },
-    { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false },
-    { id: TOOL_ID.TITLE3, color: "#ffb6ff", visibility: true },
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00" },
-    { id: TOOL_ID.BOLD, color: "none" },
-    { id: TOOL_ID.BOLD, color: "purple", visibility: true },
-    { id: TOOL_ID.PEN, color: "pink" }
+    { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 2},
+    { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false, size: 2 },
+    { id: TOOL_ID.TITLE3, color: "#ffb6ff", visibility: true, size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2 },
+    { id: TOOL_ID.BOLD, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.BOLD, color: "#9718ffff", visibility: true, size: 2 },
+    { id: TOOL_ID.PEN, color: "#ff52a0ff", size: 2 }
   ],
   box: [
-    { id: TOOL_ID.DELETE },
-    { id: TOOL_ID.MOVE },
-    { id: TOOL_ID.MATH },
-    { id: TOOL_ID.COPY },
-    { id: TOOL_ID.PASTE },
-    { id: TOOL_ID.STICKY },
-    { id: TOOL_ID.LINK },
-    { id: TOOL_ID.BOLD }
-  ], 
+    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.MOVE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.MATH, color: "#ffffff", size: 2},
+    { id: TOOL_ID.COPY, color: "#ffffff" , size: 2},
+    { id: TOOL_ID.PASTE, color: "#ffffff" , size: 2},
+    { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2 }
+  ],
    curly: [
-    { id: TOOL_ID.DELETE },
-    { id: TOOL_ID.MOVE },
-    { id: TOOL_ID.MATH },
-    { id: TOOL_ID.COPY },
-    { id: TOOL_ID.PASTE },
-    { id: TOOL_ID.STICKY },
-    { id: TOOL_ID.LINK },
-    { id: TOOL_ID.BOLD }
+    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.MOVE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.MATH, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.COPY, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.PASTE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2 }
   ]
 };
 // -------------------- GLOBAL STATE --------------------
@@ -220,19 +520,13 @@ function createModifierCard(id, mod) {
     <div class="modifier-title">${mod.label}</div>
     <label>Color:</label>
     <input type="color" class="modifier-color" value="${mod.color}" ${mod.label == "Default Pen" ? "id = 'defaultPen'" : ""}>
-    <label>Pen type:</label>
-    <select class="modifier-penType">
-      ${Object.values(PEN_TYPES).map(t => `
-        <option value="${t}" ${t === mod.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
-      `).join("")}
-    </select>
     <label>Stroke size:</label>
     <div class="range-row grid-range">
         <input
           type="range"
           id="penSize"
           min="0.4"
-          max="15"
+          max="30"
           step="0.2"
           value="2"
         />
@@ -240,7 +534,7 @@ function createModifierCard(id, mod) {
           type="number"
           id="penSizeValue"
           min="0.4"
-          max="15"
+          max="30"
           step="0.2"
           value="2"
         />
@@ -253,20 +547,6 @@ function createModifierCard(id, mod) {
       </label>
     </div>
   `;
-
-  const btn = document.createElement('button');
-  btn.textContent = '✕';
-  btn.className = 'delete-modifier-btn';
-  btn.style.position = 'absolute';
-  btn.style.top = '5px';
-  btn.style.right = '5px';
-  btn.style.border = 'none';
-  btn.style.background = 'transparent';
-  btn.style.cursor = 'pointer';
-  btn.style.color = '#ff4d4f';
-  btn.title = 'Delete Modifier';
-  btn.onclick = () => deleteModifier(id);
-  card.appendChild(btn);
 
     if (mod.label == "Default Pen") {
         card.style.backgroundColor = "#142231ff";
@@ -376,6 +656,42 @@ function renderModifiers(mods = modifiers) {
             e.target.blur();
         }
         });
+
+        // Grid style selection
+        gridStyle = mod.gridStyle || "square";
+        const gridStyleLineBtn = document.getElementById("gridStyleLine");
+        const gridStyleSquareBtn = document.getElementById("gridStyleSquare");
+
+        // Set initial active state based on saved gridStyle
+        if (gridStyle === "line") {
+            gridStyleLineBtn?.classList.add("active");
+            gridStyleSquareBtn?.classList.remove("active");
+        } else {
+            gridStyleLineBtn?.classList.remove("active");
+            gridStyleSquareBtn?.classList.add("active");
+        }
+
+        // Redraw grid with loaded style
+        drawGrid(backgroundCtx);
+
+        // Handle grid style button clicks
+        gridStyleLineBtn?.addEventListener("click", () => {
+            gridStyle = "line";
+            mod.gridStyle = "line";
+            gridStyleLineBtn.classList.add("active");
+            gridStyleSquareBtn?.classList.remove("active");
+            drawGrid(backgroundCtx);
+            updateTools();
+        });
+
+        gridStyleSquareBtn?.addEventListener("click", () => {
+            gridStyle = "square";
+            mod.gridStyle = "square";
+            gridStyleSquareBtn.classList.add("active");
+            gridStyleLineBtn?.classList.remove("active");
+            drawGrid(backgroundCtx);
+            updateTools();
+        });
     }
   });
   bindModifierUI(mods);
@@ -472,7 +788,18 @@ async function renderTools() {
             toolDiv.className = "tool";
             toolDiv.style.left = `${center + x - toolHalfSize}px`;
             toolDiv.style.top = `${center + y - toolHalfSize}px`;
-            toolDiv.style.backgroundColor = tool.color || "#fff";
+
+            // Use gradient for tape tool, solid color for others
+            if (tool.id === "tape") {
+                const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === currentTapePreset) || CONFIG.TAPE.PRESETS[0];
+                toolDiv.style.background = `linear-gradient(135deg, ${presetData.color1}, ${presetData.color2})`;
+            } else {
+                toolDiv.style.backgroundColor = tool.color || "#fff";
+            }
+
+            // Inner border with thickness based on pen size (0.4-30 → 1.5-11px, sqrt curve, capped at 11px)
+            const borderThickness = Math.min(Math.sqrt(tool.size || 2) * 2.46, 11);
+            toolDiv.style.boxShadow = `inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35)`;
             
             const icon = document.createElement('i');
             icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
@@ -486,63 +813,95 @@ async function renderTools() {
 
             toolDiv.addEventListener("click", function(e) {
                 popup.innerHTML = `
-                    <div class="modifier-title">Tool selection</div>
-                    <label for"toolPicker">Tool:</label>
+                    <div class="modifier-title">Tool Settings</div>
+                    <label>Tool:</label>
                     <select class="modifier-toolType" id="toolPicker">
-                    ${Object.values(TOOL_ID).map(t => `
-                        <option value="${t}" ${t === tool.id ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                    `).join("")}
+                    ${Object.values(TOOLBOX_SELECTION[id]).map(t => `<option value="${t}" ${t === tool.id ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join("")}
                     </select>
-                    <label for="colorPicker" id="colorLabel">Color:</label>
+                    <div id="customizable">
+                    <label id="colorLabel">Color:</label>
                     <input type="color" id="colorPicker" class="modifier-color" value="${tool.color}">
-                    <label for="penPicker" id="penLabel">Pen type:</label>
-                    <select class="modifier-penType" id="penPicker">
-                    ${Object.values(PEN_TYPES).map(t => `
-                        <option value="${t}" ${t === tool.penType ? "selected" : ""}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                    `).join("")}
-                    </select>
-                    <label>Stroke size:</label>
-                    <div class="range-row grid-range">
-                        <input
-                        type="range"
-                        id="penSize"
-                        min="0.4"
-                        max="15"
-                        step="0.2"
-                        value="2"
-                        />
-                        <input
-                        type="number"
-                        id="penSizeValue"
-                        min="0.4"
-                        max="15"
-                        step="0.2"
-                        value="2"
-                        />
+                    <label id="sizeLabel">Size:</label>
+                    <div class="range-row">
+                        <input type="range" id="penSize" min="0.4" max="30" step="0.2" value="2"/>
+                        <input type="number" id="penSizeValue" min="0.4" max="30" step="0.2" value="2"/>
                     </div>
                     <div class="modifier-footer">
-                    <label id="visibilityLabel">Visibility:</label>
-                    <label class="toggle-switch">
-                        <input type="checkbox" ${tool.visibility ? "checked" : ""}>
-                        <span class="slider"></span>
-                    </label>
+                        <label id="visibilityLabel">Visible</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${tool.visibility ? "checked" : ""}>
+                            <span class="slider"></span>
+                        </label>
                     </div>
+                    </div>
+                    <div id="tapePresets" style="display: none;">
+                        <label>Tape Style:</label>
+                        <div class="tape-preset-grid">
+                            ${CONFIG.TAPE.PRESETS.map(p => `
+                                <button class="tape-preset-btn ${currentTapePreset === p.id ? 'active' : ''}"
+                                        data-preset="${p.id}"
+                                        title="${p.name}">
+                                    <canvas class="tape-preview-canvas" width="40" height="40"></canvas>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <button class="delete-modifier-btn" title="Close">✕</button>
                 `;
 
-                const btn = document.createElement('button');
-                btn.textContent = '✕';
-                btn.className = 'delete-modifier-btn';
-                btn.style.position = 'absolute';
-                btn.style.fontSize = "20px";
-                btn.style.top = '5px';
-                btn.style.right = '5px';
-                btn.style.border = 'none';
-                btn.style.background = 'transparent';
-                btn.style.cursor = 'pointer';
-                btn.style.color = '#ff4d4f';
-                btn.title = 'Delete Modifier';
-                btn.onclick = () => {popup.style.display = "none"};
-                popup.appendChild(btn);
+                if (id == "color") {
+                    toolDiv.querySelector(".modifier-footer").style.display = "none";
+                }
+
+                if (TOOL_REGISTRY[tool.id].customizable  == false) {
+                    popup.querySelector("#customizable").style.display = "none";
+                } else if (id != "color" && tool.id == "highlight") {
+                    popup.querySelector("#sizeLabel").style.display = "none";
+                    popup.querySelector(".range-row").style.display = "none";
+                    popup.querySelector(".modifier-footer").style.display = "none";
+                } else {
+                    popup.querySelector("#sizeLabel").style.display = "block";
+                    popup.querySelector(".range-row").style.display = "flex";
+                    popup.querySelector(".modifier-footer").style.display = "flex";
+                    popup.querySelector("#customizable").style.display = "block";
+                    // toolDiv.style.backgroundcolor = tool.color;
+                }
+
+                // Show tape presets for tape tool
+                if (tool.id === "tape") {
+                    popup.querySelector("#tapePresets").style.display = "block";
+                    // Render actual tape patterns on preview canvases
+                    popup.querySelectorAll(".tape-preset-btn").forEach(btn => {
+                        const presetId = btn.dataset.preset;
+                        const canvas = btn.querySelector(".tape-preview-canvas");
+                        if (canvas) {
+                            const ctx = canvas.getContext("2d");
+                            const patternCanvas = generateTapePattern(presetId, 40);
+                            ctx.drawImage(patternCanvas, 0, 0);
+                        }
+                        // Setup click handler
+                        btn.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            // Remove active from all
+                            popup.querySelectorAll(".tape-preset-btn").forEach(b => b.classList.remove("active"));
+                            // Add active to clicked
+                            btn.classList.add("active");
+                            // Update current preset
+                            currentTapePreset = btn.dataset.preset;
+                            // Clear pattern cache to regenerate
+                            tapePatternCache.clear();
+                            // Update dial background with new preset gradient
+                            const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === presetId);
+                            if (presetData) {
+                                toolDiv.style.background = `linear-gradient(135deg, ${presetData.color1}, ${presetData.color2})`;
+                            }
+                        });
+                    });
+                } else {
+                    popup.querySelector("#tapePresets").style.display = "none";
+                }
+
+                popup.querySelector('.delete-modifier-btn').onclick = () => {popup.style.display = "none"};
 
                 // popup.style.display = popup.style.display === "block" ? "none" : "block";
                 popup.style.display = "flex";
@@ -557,19 +916,34 @@ async function renderTools() {
                 
                 if (toolInput) toolInput.oninput = () => { 
                     tool.id = toolInput.value; 
-                    updateTools();
                     icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
                     icon.setAttribute('data-label', tool.id);  
                     if (TOOL_REGISTRY[tool.id].customizable  == false) { 
-                        popup.querySelector("#colorLabel").style.opacity = 0;
-                        popup.querySelector("#colorPicker").style.opacity = 0; 
-                        popup.querySelector("#penLabel").style.opacity = 0; 
-                        popup.querySelector("#penPicker").style.opacity = 0; 
-                        popup.querySelector("#visibilityLabel").style.opacity = 0; 
-                        popup.querySelector(".toggle-switch").style.opacity = 0;
-                        toolDiv.style.backgroundColor = "#fff";  
+                        popup.querySelector("#customizable").style.display = "none";
+                    } else if (id != "color" && tool.id == "highlight") {
+                        popup.querySelector("#sizeLabel").style.display = "none";
+                        popup.querySelector(".range-row").style.display = "none";
+                        popup.querySelector(".modifier-footer").style.display = "none";
                     } 
+                    else {
+                        popup.querySelector("#sizeLabel").style.display = "block";
+                        popup.querySelector(".range-row").style.display = "flex";
+                        popup.querySelector(".modifier-footer").style.display = "flex";
+                        popup.querySelector("#customizable").style.display = "block";
+                        // toolDiv.style.backgroundcolor = tool.color;
+                    }
+                    if (toolInput.value == "highlight") {
+                        setPenSize(30);
+                    } else {
+                        setPenSize(2);
+                    }
+                    tool.color = "#ffffff";
+                    toolDiv.style.backgroundColor = tool.color;
+                    popup.querySelector("#colorPicker").value = tool.color;
+                    updateTools();
                 };
+
+                
 
                 const penSizeSlider = popup.querySelector("#penSize");
                 const penSizeInput  = popup.querySelector("#penSizeValue");
@@ -586,7 +960,9 @@ async function renderTools() {
                     penSizeSlider.value = v;
                     penSizeInput.value = v;
                     tool.size = v;
-                    //penSize = v;        // <-- your existing gridSize
+                    // Update inner border thickness based on new size (0.4-30 → 1.5-11px, sqrt curve, capped at 11px)
+                    const borderThickness = Math.min(Math.sqrt(v) * 2.46, 11);
+                    toolDiv.style.boxShadow = `inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35)`;
                 }
 
                 setPenSize(tool?.size ?? 0);
@@ -615,8 +991,10 @@ async function renderTools() {
                     updateTools(); 
                     toolDiv.style.backgroundColor = tool.color || "#fff";
                 };
-                if (penTypeSelect) penTypeSelect.onchange = () => { tool.penType = penTypeSelect.value; updateTools(); };
-                if (visibilityCheckbox) visibilityCheckbox.onchange = () => { tool.visibility = visibilityCheckbox.checked; updateTools(); };
+                if (visibilityCheckbox) {
+                    visibilityCheckbox.onchange = () => { tool.visibility = visibilityCheckbox.checked;
+                    updateTools(); };
+                }
             });
 
             dial.appendChild(toolDiv);
@@ -796,7 +1174,7 @@ async function classifyStroke(stroke, hold = false) {
             stroke: currentStroke, //strokes data
             bbox: newBox,
             color: defaultPenColor,
-            predictedLabel: predictedLabel,
+            predictedLabel: defaultPenType,
             visibility: shownModifier, 
             size: penSize
         };
@@ -922,8 +1300,8 @@ async function classifyStroke(stroke, hold = false) {
         stroke: currentStroke, //strokes data
         bbox: newBox,
         color: defaultPenColor,
-        predictedLabel: predictedLabel,
-        visibility: shownModifier, 
+        predictedLabel: predictedLabel,  // Use actual AI prediction, not defaultPenType
+        visibility: shownModifier,
         size: penSize
     };
     
@@ -976,11 +1354,12 @@ async function classifyStroke(stroke, hold = false) {
         if (hold) {
             continue;
         }
-        if (predictedLabel === STROKE_TYPE.DELETE) {
-            allGroups.filter(g => g.type != 'media').splice(allGroups.indexOf(group), 1);
+        if (predictedLabel === STROKE_TYPE.DELETE && group.type != 'media' && defaultPenType != PEN_TYPES.HIGHLIGHTER) {
+            allGroups.splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
-            if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT) {
-                group.color = color;    
+            if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT && group.predictedLabel != PEN_TYPES.HIGHLIGHTER) {
+                group.color = color;   
+                group.size = modifiers[predictedLabel]?.size ?? group.size; 
             }
         }
     }
@@ -1000,11 +1379,11 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     drawing = false;
 
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE || modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
-        showToolbox(e.offsetX, e.offsetY, toolboxLayout.color);
+        showToolbox(e.offsetX, e.offsetY, "color");
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE || modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
-        showToolbox(e.offsetX, e.offsetY, toolboxLayout.underline);
+        showToolbox(e.offsetX, e.offsetY, "underline");
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.BOX) {
-        showToolbox(e.offsetX, e.offsetY, toolboxLayout.box);
+        showToolbox(e.offsetX, e.offsetY, "box");
     }
     
     pointerDownForToolbox = true; 
@@ -1122,14 +1501,14 @@ window.onload = async () => {
         lastPointerY = e.offsetY/scale;
         totalMovement = 0;
 
-        // === 🟨 Sticky Note / 🔗 Link Click Detection ===
+        // === 🟨 Sticky Note / 🔗 Link / 🎁 Tape Click Detection ===
         const worldX = (e.offsetX / scale) + viewportOffset.x;
         const worldY = (e.offsetY / scale) + viewportOffset.y;
 
-        // One pass through allGroups for both link and stickynote
+        // One pass through allGroups for stickynote, link, and tape
         const clicked = allGroups.find(
             (g) =>
-            (g?.type === "stickynote" || g?.type === "link") &&
+            (g?.type === "stickynote" || g?.type === "link" || g?.type === "tape") &&
             g.visibility !== false &&
             g.bbox &&
             worldX >= g.bbox.x &&
@@ -1143,15 +1522,44 @@ window.onload = async () => {
             e.stopPropagation();
 
             if (clicked.type === "stickynote") {
-            flashStickyNote(clicked);
-            showStickyPopup(clicked);
+                flashStickyNote(clicked);
+                showStickyPopup(clicked);
             }
             else if (clicked.type === "link") {
-            flashLink(clicked);
-            showLinkPopup(clicked);
+                flashLink(clicked);
+                showLinkPopup(clicked);
+            }
+            else if (clicked.type === "tape") {
+                const now = Date.now();
+                // Check for double-click (same target, within delay)
+                if (lastTapeClickTarget === clicked.id &&
+                    now - lastTapeClickTime < CONFIG.TAPE.DOUBLE_CLICK_DELAY) {
+                    // Double-click: remove tape permanently
+                    removeTape(clicked);
+                    lastTapeClickTarget = null;
+                    lastTapeClickTime = 0;
+                } else {
+                    // Single click: toggle reveal
+                    toggleTapeReveal(clicked);
+                    lastTapeClickTarget = clicked.id;
+                    lastTapeClickTime = now;
+                }
             }
 
             return; // Prevents other canvas actions
+        }
+
+        // === Paste Mode Click Detection ===
+        if (pasteMode) {
+            if (isPointInPasteBBox(worldX, worldY)) {
+                // Start moving paste
+                moveStartX = e.offsetX / scale;
+                moveStartY = e.offsetY / scale;
+            } else {
+                // Click outside - cancel paste
+                cancelPaste();
+            }
+            return;
         }
 
         // === Media Resize Handle Detection ===
@@ -1262,6 +1670,44 @@ window.onload = async () => {
             e.preventDefault();
             handleMediaDrag(e.offsetX, e.offsetY);
             return; // Don't do anything else while dragging
+        }
+
+        // === Paste Mode Movement ===
+        if (pasteMode && moveStartX !== null) {
+            const dx = e.offsetX / scale - moveStartX;
+            const dy = e.offsetY / scale - moveStartY;
+
+            dxRecord += dx;
+            dyRecord += dy;
+
+            // Move all pasted strokes
+            pastedGroups.forEach(group => {
+                group.bbox.x += dx;
+                group.bbox.y += dy;
+                if (group.stroke) {
+                    group.stroke.forEach(st => {
+                        if (st.path) {
+                            st.path.forEach(point => {
+                                point.x += dx;
+                                point.y += dy;
+                            });
+                        }
+                        st.x += dx;
+                        st.y += dy;
+                    });
+                }
+            });
+
+            // Update pasteBBox
+            if (pasteBBox) {
+                pasteBBox.x += dx;
+                pasteBBox.y += dy;
+            }
+
+            moveStartX = e.offsetX / scale;
+            moveStartY = e.offsetY / scale;
+            drawPastePreview();
+            return;
         }
 
         // === Media Cursor Feedback ===
@@ -1437,6 +1883,12 @@ window.onload = async () => {
             return;
         }
 
+        // === End Paste Mode Movement ===
+        if (pasteMode && moveStartX !== null) {
+            finalizePaste();
+            return;
+        }
+
         if (isPanning) {
             isPanning = false;
 
@@ -1514,14 +1966,19 @@ window.onload = async () => {
                 toolColor = icon?.getAttribute('data-color') || null;
                 toolVisibility = icon?.getAttribute('data-visibility') || null;
                 toolSize = icon?.getAttribute('data-size') || null;
+                toolBox = icon?.getAttribute('data-toolBox') || null;
 
                 //delete tool
-                executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortcut);
+                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut);
             } else {
                 allGroups.pop();
-            } 
+            }
             hideToolbox();
             reDrawAll(drawCtx);
+            // Redraw paste preview if we just entered paste mode
+            if (pasteMode) {
+                drawPastePreview();
+            }
             return;
         }
         else if (eraserMode) {
@@ -1867,7 +2324,7 @@ function startScrollBarCountdown() {
     }, 1000);
 }
 
-function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortcut) {
+function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut) {
     if (selectedTool.includes("pen")) {
         allGroups.pop();
         eraserMode = false; 
@@ -1880,9 +2337,11 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortc
         }
         else {
             defaultPenColor = toolColor;
-            document.getElementById('defaultPen').value = toolColor;
-            modifiers['defaultPen'].color = toolColor;
-            updateTools();
+            penSize = toolSize;
+            defaultPenType = STROKE_TYPE.NONE;
+            // document.getElementById('defaultPen').value = toolColor;
+            // modifiers['defaultPen'].color = toolColor;
+            // updateTools();
         }
     }
     else if (selectedTool == "delete") {
@@ -1898,14 +2357,22 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortc
         
     //highlighter tool
     }else if (selectedTool == "highlight") {
-        selectHighlight(toolColor);
+        if (toolBox == "color") {
+            defaultPenColor = hexToRgb(toolColor);
+            penSize = toolSize;
+            defaultPenType = TOOL_ID.HIGHLIGHT;
+        } else {
+            selectHighlight(toolColor);
+        }
     }  
     else if (selectedTool.includes('bold')) {
-        allGroups.pop();
+        if (!toolVisibility) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.forEach(group => {
-            group.thickness = 3;
+            group.size = group.size + 2;
             //group.color = 'pink';
-            if (toolColor == 'none') {
+            if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
             } else {
                 group.color = toolColor;
@@ -1929,6 +2396,75 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortc
         //     group.color = 'lightgray'; // Set to white
         // });
         movingToggle = true;
+    }
+    else if (selectedTool == "copy") {
+        // Deep clone the selected strokes to clipboard
+        allGroups.pop();
+        modifiedGroups.modifiedGroups.pop();
+        clipboard = modifiedGroups.modifiedGroups.map(group => ({
+            ...group,
+            stroke: group.stroke.map(s => ({
+                ...s,
+                path: s.path ? s.path.map(p => ({ ...p })) : undefined,
+                x: s.x,
+                y: s.y
+            })),
+            bbox: { ...group.bbox }
+        }));
+        // Flash feedback
+        reDrawAll(drawCtx);
+        return;
+    }
+    else if (selectedTool == "paste") {
+        allGroups.pop();
+        modifiedGroups.modifiedGroups.pop();
+
+        if (!clipboard || clipboard.length === 0) {
+            reDrawAll(drawCtx);
+            return;
+        }
+
+        // Deep clone clipboard strokes at original position (no offset)
+        pastedGroups = clipboard.map(group => {
+            const newGroup = {
+                ...group,
+                id: idCount++,
+                stroke: group.stroke.map(s => ({
+                    ...s,
+                    path: s.path ? s.path.map(p => ({ x: p.x, y: p.y })) : undefined,
+                    x: s.x,
+                    y: s.y
+                })),
+                bbox: {
+                    x: group.bbox.x,
+                    y: group.bbox.y,
+                    w: group.bbox.w,
+                    h: group.bbox.h
+                }
+            };
+            return newGroup;
+        });
+
+        // Calculate combined bounding box from group bboxes
+        const allBboxes = pastedGroups.map(g => g.bbox);
+        pasteBBox = {
+            x: Math.min(...allBboxes.map(b => b.x)),
+            y: Math.min(...allBboxes.map(b => b.y)),
+            w: Math.max(...allBboxes.map(b => b.x + b.w)) - Math.min(...allBboxes.map(b => b.x)),
+            h: Math.max(...allBboxes.map(b => b.y + b.h)) - Math.min(...allBboxes.map(b => b.y))
+        };
+
+        // Enter paste mode
+        pasteMode = true;
+        dxRecord = 0;
+        dyRecord = 0;
+        moveStartX = null;
+        moveStartY = null;
+
+        // Draw the paste preview immediately with border
+        reDrawAll(drawCtx);
+        drawPastePreview();
+        return;
     }
     else if (selectedTool == "eraser") {
         toggleEraser();
@@ -1990,6 +2526,36 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, isShortc
         };
 
         allGroups.push(linkGroup);
+    }
+    else if (selectedTool == "tape") {
+        // Remove selection highlights
+        allGroups.pop();
+        modifiedGroups.modifiedGroups.pop();
+
+        const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
+
+        // Store IDs of covered groups
+        const coveredGroupIds = modifiedGroups.modifiedGroups.map(g => g.id);
+
+        // Create the tape group
+        const tapeGroup = {
+            id: idCount++,
+            type: "tape",
+            bbox: groupBBox,
+            stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
+            coveredGroupIds: coveredGroupIds,
+            preset: currentTapePreset,
+            revealed: false,
+            fadeProgress: 1,
+            borderColor: CONFIG.COLORS.FLASH_TAPE,
+            visibility: true,
+        };
+
+        allGroups.push(tapeGroup);
+        flashTape(tapeGroup);
+        reDrawAll(drawCtx);
+        if (title) saveNote(title, allGroups);
+        return;
     }
 }
 
@@ -2060,6 +2626,21 @@ function undo() {
     else if (action.change == "shape") {
         allGroups.splice(allGroups.indexOf(action.modifiedGroups), 1);
     }
+    else if (action.change == "paste") {
+        const redo = {
+            change: 'paste',
+            modifiedGroups: action.modifiedGroups,
+        }
+        redoGroups.push(redo);
+
+        // Remove pasted groups from allGroups
+        action.modifiedGroups.forEach(group => {
+            const index = allGroups.indexOf(group);
+            if (index > -1) {
+                allGroups.splice(index, 1);
+            }
+        });
+    }
     reDrawAll(drawCtx);
 }
 
@@ -2110,7 +2691,7 @@ function redo() {
         } 
     }
     else if (action.change == 'move') {
-        pastGroups.push(action); 
+        pastGroups.push(action);
 
         const dx = action.dx;
         const dy = action.dy;
@@ -2127,7 +2708,17 @@ function redo() {
           group.bbox.y -= dy;
         });
     }
-    
+    else if (action.change == 'paste') {
+        const change = {
+            change: 'paste',
+            modifiedGroups: action.modifiedGroups,
+        }
+        pastGroups.push(change);
+
+        // Re-add pasted groups
+        allGroups.push(...action.modifiedGroups);
+    }
+
     reDrawAll(drawCtx);
 }
 
@@ -2677,6 +3268,19 @@ function regroupTitles() {
     return;
   }
 
+  // Remove any old anchors first
+  allGroups = allGroups.filter(g => !g.isTitleAnchor);
+
+  // Find all title groups (strokes with titleStatus: true)
+  const titleGroups = allGroups.filter(
+    g => g?.titleStatus && g?.bbox && g?.visibility !== false
+  );
+
+  if (titleGroups.length === 0) {
+    return;
+  }
+
+  // Find all underline modifiers
   const underlineMods = allGroups.filter(
     g => g?.predictedLabel === STROKE_TYPE.UNDERLINE && g?.bbox
   );
@@ -2685,76 +3289,79 @@ function regroupTitles() {
     return;
   }
 
-  // Step 2️⃣: remove any old anchors
-  allGroups = allGroups.filter(g => !g.isTitleAnchor);
+  // For each title group, find its BEST matching underline
+  // Best = closest underline that is below the title and overlaps horizontally
+  const titleToUnderline = new Map();
 
-  underlineMods.forEach((underline, i) => {
-    const uBox = underline.bbox;
-    let maxY = 100000;
-    let minY = uBox.y + uBox.h - normalHeight * 0.55;
-    //if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
+  titleGroups.forEach(title => {
+    const tBox = title.bbox;
+    let bestUnderline = null;
+    let bestScore = Infinity;
 
-    // Step 4️⃣: find possible title groups above
-    for (const group of allGroups) {
-        if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || !group.titleStatus) continue;
-        const box = group.bbox;
+    underlineMods.forEach(underline => {
+      const uBox = underline.bbox;
 
-        if (maxY >= minY - normalHeight * 0.55) maxY = Math.min(minY - 7, uBox.y);
-        const withinBand = (box.y + box.h) > maxY;
-        const approxAboveLine = Math.abs(box.y + box.h - uBox.y - uBox.h) < normalHeight * 0.7;
-        const overlapsX = box.x + box.w > uBox.x && box.x < uBox.x + uBox.w;
-        const above = withinBand && approxAboveLine && overlapsX;
-        if (above) {
-            maxY = Math.min(maxY, box.y, uBox.y);
-            minY = Math.max(minY, box.y + box.h, uBox.y + uBox.h)
-        }
-    }
+      // Check horizontal overlap
+      const overlapsX = tBox.x + tBox.w > uBox.x && tBox.x < uBox.x + uBox.w;
+      if (!overlapsX) return;
 
-    const latestbox = {
-            x: uBox.x - 14,
-            y: maxY - 8,
-            w: uBox.w + 14,
-            h: minY - maxY + 18
-        }
+      // Check if underline is below or at same level as title bottom
+      const titleBottom = tBox.y + tBox.h;
+      const underlineTop = uBox.y;
+      const verticalDist = underlineTop - titleBottom;
 
-    const titleGroups = allGroups.filter(group => {
-        if (!group?.bbox || !group?.titleStatus) return false;
+      // Underline should be close to or below the title (within reasonable range)
+      if (verticalDist < -tBox.h * 0.5 || verticalDist > normalHeight * 2) return;
 
-        const box = group.bbox;
-        const insidelatestbox = isSBoxInLBox(box, latestbox);
-
-        return insidelatestbox;
+      // Score based on vertical distance (prefer closer underlines)
+      const score = Math.abs(verticalDist);
+      if (score < bestScore) {
+        bestScore = score;
+        bestUnderline = underline;
+      }
     });
 
-    if (titleGroups.length === 0) {
-      return;
+    if (bestUnderline) {
+      titleToUnderline.set(title.id, bestUnderline.id);
     }
+  });
 
-    // Step 5️⃣: separate level 1 and 2 titles
-    const level1Groups = titleGroups.filter(g => g.titleLevel === 1);
-    const level2Groups = titleGroups.filter(g => g.titleLevel === 2);
+  // Group title groups by their assigned underline AND title level
+  // Key: "underlineId_level" → groups
+  const anchorGroups = new Map();
 
-    const createAnchor = (groupSet, level) => {
-      if (groupSet.length === 0) return;
+  titleGroups.forEach(title => {
+    const underlineId = titleToUnderline.get(title.id);
+    if (!underlineId) return;
 
-      const minX = Math.min(...groupSet.map(g => g.bbox.x));
-      const minY = Math.min(...groupSet.map(g => g.bbox.y));
-      const maxX = Math.max(...groupSet.map(g => g.bbox.x + g.bbox.w));
-      const maxY = Math.max(...groupSet.map(g => g.bbox.y + g.bbox.h));
+    const level = title.titleLevel || 1;
+    const key = `${underlineId}_${level}`;
 
-      const anchor = {
-        id: idCount++,
-        bbox: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
-        isTitleAnchor: true,
-        titleLevel: level,
-        titleText: `Title ${idCount} (Level ${level})`,
-        underlineRef: underline.id,
-      };
-      allGroups.push(anchor);
+    if (!anchorGroups.has(key)) {
+      anchorGroups.set(key, { underlineId, level, groups: [] });
+    }
+    anchorGroups.get(key).groups.push(title);
+  });
+
+  // Create one anchor per unique (underline, level) combination
+  anchorGroups.forEach(({ underlineId, level, groups }) => {
+    if (groups.length === 0) return;
+
+    const minX = Math.min(...groups.map(g => g.bbox.x));
+    const minY = Math.min(...groups.map(g => g.bbox.y));
+    const maxX = Math.max(...groups.map(g => g.bbox.x + g.bbox.w));
+    const maxY = Math.max(...groups.map(g => g.bbox.y + g.bbox.h));
+
+    const anchor = {
+      id: idCount++,
+      bbox: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+      isTitleAnchor: true,
+      titleLevel: level,
+      titleText: `Title (Level ${level})`,
+      underlineRef: underlineId,
+      titleGroupIds: groups.map(g => g.id), // Track which groups belong to this anchor
     };
-
-    createAnchor(level1Groups, 1);
-    createAnchor(level2Groups, 2);
+    allGroups.push(anchor);
   });
 
   reDrawAll?.(drawCtx);
@@ -2765,7 +3372,6 @@ function regroupTitles() {
 // ======================= HIGH DPI THUMBNAIL RENDER ==========================
 function renderTitleThumbnailFromAnchor(anchor) {
   const PAD = 16;
-  const STROKE_WIDTH = 3.8;
   const { x, y, w, h } = anchor.bbox;
   const dpr = window.devicePixelRatio || 2; // Default to 2x for HiDPI
 
@@ -2798,11 +3404,13 @@ function renderTitleThumbnailFromAnchor(anchor) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // Render strokes with thicker lines
+  // Render strokes using each group's actual size
   strokes.forEach(st => {
     if (!st.stroke || st.stroke.length < 2) return;
     ctx.strokeStyle = st.color || "#fff";
-    ctx.lineWidth = STROKE_WIDTH;
+    // Use the group's size, with a minimum of 2 and scale up slightly for visibility
+    const strokeSize = Math.max(2, (st.size || 2) * 1.2);
+    ctx.lineWidth = strokeSize;
     ctx.beginPath();
     st.stroke.forEach((pt, i) => {
       if (i === 0) ctx.moveTo(pt.x, pt.y);

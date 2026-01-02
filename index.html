@@ -169,9 +169,26 @@
       <input type="color" id="gridLineColorPicker">
 
       <label>Grid style:</label>
-      <div class="grid-row grid-style-options">
-        <button class="active">Line + symbol</button>
-        <button>Square + symbol</button>
+      <div class="grid-style-options">
+        <button id="gridStyleLine" class="grid-style-btn" data-style="line">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="2" y1="6" x2="22" y2="6"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/>
+          </svg>
+          <span>Lines</span>
+        </button>
+        <button id="gridStyleSquare" class="grid-style-btn active" data-style="square">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="2" y1="6" x2="22" y2="6"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/>
+            <line x1="6" y1="2" x2="6" y2="22"/>
+            <line x1="12" y1="2" x2="12" y2="22"/>
+            <line x1="18" y1="2" x2="18" y2="22"/>
+          </svg>
+          <span>Square</span>
+        </button>
       </div>
 
       <label>Grid width:</label>
@@ -180,7 +197,7 @@
           type="range"
           id="gridWidth"
           min="15"
-          max="60"
+          max="100"
           step="1"
           value="58"
         />
@@ -189,7 +206,7 @@
           type="number"
           id="gridWidthValue"
           min="15"
-          max="60"
+          max="100"
           step="1"
           value="58"
         />
