@@ -594,11 +594,23 @@ body {
     right: 0;
 }
 .buttonGroup {
-    width: 430px;
+    width: 420px;
     display: flex;
     flex-direction: row;
     margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
 }
+
+.buttonGroup button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex-grow: 1;
+}
+
 .buttonGroup #driveGroup{
     display: flex;
     flex-direction: row;

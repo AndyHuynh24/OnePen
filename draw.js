@@ -540,18 +540,32 @@ function alterRgbaBrightness(rgba, percent = 7) {
   return `rgba(${newR}, ${newG}, ${newB}, ${a})`;
 }
 
-function drawEraserBox() {
-    liveCtx.strokeStyle = 'red';
-    liveCtx.lineWidth = 2;
-    liveCtx.setLineDash([5, 5]);
-    liveCtx.strokeRect(eraserBox.x, eraserBox.y, eraserBox.w, eraserBox.h);
-    liveCtx.setLineDash([]);
-}
+// Draw eraser circle indicator on liveCanvas
+function drawEraserIndicator() {
+    const centerX = eraserBox.x + eraserSize / 2;
+    const centerY = eraserBox.y + eraserSize / 2;
+    const radius = eraserSize / 2;
 
+    liveCtx.save();
+    liveCtx.beginPath();
+    liveCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+
+    // White circle with black outline for visibility on any background
+    liveCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    liveCtx.lineWidth = 2;
+    liveCtx.stroke();
+
+    liveCtx.beginPath();
+    liveCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    liveCtx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    liveCtx.lineWidth = 1;
+    liveCtx.stroke();
+
+    liveCtx.restore();
+}
 
 function toggleEraser() {
     eraserMode = !eraserMode;
-    console.log(`Eraser Mode: ${eraserMode ? "ON" : "OFF"}`);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 }
 
@@ -596,7 +610,7 @@ function reDrawMovement() {
             }
         }
     } else if (eraserMode) {
-        drawEraserBox();
+        drawEraserIndicator();
     }
     liveCtx.restore();
 }
@@ -710,6 +724,8 @@ function showStickyPopup(note) {
 
   const popupWidth = 240;
   const popupHeight = 180;
+  const canvasHeight = popupHeight - 28;
+  const stickyDpr = window.devicePixelRatio || 1;
 
   // convert world → screen
   const screenX = note.bbox.x - viewportOffset.x;
@@ -723,13 +739,14 @@ function showStickyPopup(note) {
   // === popup shell ===
   const popup = document.createElement("div");
   popup.id = "stickyPopup";
+  popup.dataset.noteId = String(note.id); // Store note id for toggle detection
   popup.style.position = "fixed";
   popup.style.left = `${popupLeft}px`;
   popup.style.top = `${popupTop}px`;
   popup.style.width = `${popupWidth}px`;
   popup.style.height = `${popupHeight}px`;
   popup.style.background = "rgba(255, 255, 200, 0.98)";
-  popup.style.border = "2px solid #d4af37";
+  popup.style.border = "2px solid #ffd700"; // Yellow border
   popup.style.borderRadius = "12px";
   popup.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
   popup.style.zIndex = 999999;
@@ -750,25 +767,30 @@ function showStickyPopup(note) {
   eraseBtn.style.border = "none";
   eraseBtn.style.background = "transparent";
   eraseBtn.style.cursor = "pointer";
+  eraseBtn.style.fontFamily = "'Mali', sans-serif";
+  eraseBtn.style.fontSize = "13px";
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "✕";
   closeBtn.style.border = "none";
   closeBtn.style.background = "transparent";
   closeBtn.style.cursor = "pointer";
+  closeBtn.style.fontSize = "16px";
   closeBtn.addEventListener("click", () => popup.remove());
 
   toolbar.appendChild(eraseBtn);
   toolbar.appendChild(closeBtn);
 
-  // === canvas ===
+  // === High DPI canvas (same pattern as main canvas setupHiDPICanvas) ===
   const miniCanvas = document.createElement("canvas");
-  miniCanvas.width = popupWidth;
-  miniCanvas.height = popupHeight - 28;
-  miniCanvas.style.width = "100%";
-  miniCanvas.style.height = `${popupHeight - 28}px`;
+  // Set CSS size
+  miniCanvas.style.width = `${popupWidth}px`;
+  miniCanvas.style.height = `${canvasHeight}px`;
+  // Set actual canvas size scaled by devicePixelRatio
+  miniCanvas.width = popupWidth * stickyDpr;
+  miniCanvas.height = canvasHeight * stickyDpr;
   miniCanvas.style.background = "rgba(255,255,230,0.95)";
-  miniCanvas.style.cursor = "crosshair";
+  miniCanvas.style.cursor = "default";
   miniCanvas.style.display = "block";
 
   popup.appendChild(toolbar);
@@ -776,106 +798,171 @@ function showStickyPopup(note) {
   document.body.appendChild(popup);
 
   const ctx = miniCanvas.getContext("2d");
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#222";
+  // Apply transform like main canvas: setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.setTransform(stickyDpr, 0, 0, stickyDpr, 0, 0);
 
   // === state ===
   let drawing = false;
-    let erasing = false;
-    let erasingActive = false; // 🔹 new flag for pointer-held erase
-    let currentStroke = [];
-    let eraseRadius = 12; // change for bigger hit area
+  let erasing = false;
+  let erasingActive = false;
+  let currentStroke = [];
+  let eraseRadius = 12;
 
-    // toggle mode
-    eraseBtn.addEventListener("click", () => {
+  // Generate eraser cursor for sticky note
+  function generateStickyEraserCursor(size) {
+    const cursorCanvas = document.createElement('canvas');
+    cursorCanvas.width = size + 4;
+    cursorCanvas.height = size + 4;
+    const cursorCtx = cursorCanvas.getContext('2d');
+
+    // Outer circle (dark for visibility on light background)
+    cursorCtx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    cursorCtx.lineWidth = 2;
+    cursorCtx.beginPath();
+    cursorCtx.arc(cursorCanvas.width / 2, cursorCanvas.height / 2, size / 2, 0, Math.PI * 2);
+    cursorCtx.stroke();
+
+    // Inner circle
+    cursorCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    cursorCtx.lineWidth = 1;
+    cursorCtx.beginPath();
+    cursorCtx.arc(cursorCanvas.width / 2, cursorCanvas.height / 2, size / 2 - 1, 0, Math.PI * 2);
+    cursorCtx.stroke();
+
+    return cursorCanvas.toDataURL();
+  }
+
+  // Update cursor based on mode
+  function updateCursor() {
+    if (erasing) {
+      const cursorSize = eraseRadius * 2;
+      const cursorUrl = generateStickyEraserCursor(cursorSize);
+      const hotspot = Math.floor((cursorSize + 4) / 2);
+      miniCanvas.style.cursor = `url('${cursorUrl}') ${hotspot} ${hotspot}, crosshair`;
+    } else {
+      miniCanvas.style.cursor = "default";
+    }
+  }
+
+  // Draw a single stroke with smooth curves (same as main canvas drawStroke)
+  function drawStickyStroke(stroke, color = "#222", widthFactor = 1.7) {
+    if (stroke.length < 2) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = widthFactor;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.moveTo(stroke[0].x, stroke[0].y);
+
+    // Use quadraticCurveTo for smooth curves like main canvas
+    for (let i = 1; i < stroke.length - 1; i++) {
+      const curr = stroke[i];
+      const next = stroke[i + 1];
+      const midX = (curr.x + next.x) / 2;
+      const midY = (curr.y + next.y) / 2;
+      ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+    }
+
+    const last = stroke[stroke.length - 1];
+    ctx.lineTo(last.x, last.y);
+
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // toggle mode
+  eraseBtn.addEventListener("click", () => {
     erasing = !erasing;
     eraseBtn.textContent = erasing ? "✏️ Draw" : "🩹 Erase";
-    });
+    updateCursor();
+  });
 
-    // pointer down
-    miniCanvas.addEventListener("pointerdown", (e) => {
+  // pointer down
+  miniCanvas.addEventListener("pointerdown", (e) => {
     const rect = miniCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     if (erasing) {
-        erasingActive = true; // ✅ only erase while held
-        eraseStrokeAt(x, y);
-        return;
+      erasingActive = true;
+      eraseStrokeAt(x, y);
+      return;
     }
 
     drawing = true;
     currentStroke = [{ x, y }];
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    });
+  });
 
-    // pointer move
-    miniCanvas.addEventListener("pointermove", (e) => {
+  // pointer move
+  miniCanvas.addEventListener("pointermove", (e) => {
     const rect = miniCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     if (erasing && erasingActive) {
-        eraseStrokeAt(x, y);
-        return;
+      eraseStrokeAt(x, y);
+      return;
     }
 
     if (!drawing) return;
     currentStroke.push({ x, y });
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    });
 
-    // pointer up
-    miniCanvas.addEventListener("pointerup", () => {
+    // Redraw all strokes + current stroke for smooth rendering
+    redrawAll();
+    if (currentStroke.length >= 2) {
+      drawStickyStroke(currentStroke, "#222", 1.7);
+    }
+  });
+
+  // pointer up
+  miniCanvas.addEventListener("pointerup", () => {
     if (drawing) {
-        drawing = false;
-        if (currentStroke.length > 1) {
+      drawing = false;
+      if (currentStroke.length > 1) {
         if (!note.strokes) note.strokes = [];
-        note.strokes.push(currentStroke);
-        }
-        currentStroke = [];
+        note.strokes.push([...currentStroke]);
+      }
+      currentStroke = [];
+      redrawAll();
     }
 
     if (erasingActive) {
-        erasingActive = false; // ✅ stop erasing when released
+      erasingActive = false;
     }
-    });
+  });
 
-    // pointer leave
-    miniCanvas.addEventListener("pointerleave", () => {
+  // pointer leave
+  miniCanvas.addEventListener("pointerleave", () => {
+    if (drawing && currentStroke.length > 1) {
+      if (!note.strokes) note.strokes = [];
+      note.strokes.push([...currentStroke]);
+    }
     drawing = false;
     erasingActive = false;
-    });
+    currentStroke = [];
+    redrawAll();
+  });
 
-
-  // === restore old drawing ===
+  // === restore old drawing with high DPI and smooth curves ===
   function redrawAll() {
-    ctx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#222";
+    // Clear using CSS dimensions (transform handles scaling)
+    ctx.clearRect(0, 0, popupWidth, canvasHeight);
+
     if (note.strokes && note.strokes.length > 0) {
       for (const stroke of note.strokes) {
         if (stroke.length === 0) continue;
-        ctx.beginPath();
-        ctx.moveTo(stroke[0].x, stroke[0].y);
-        for (let i = 1; i < stroke.length; i++) {
-          ctx.lineTo(stroke[i].x, stroke[i].y);
-        }
-        ctx.stroke();
+        drawStickyStroke(stroke, "#222", 1.7);
       }
     }
   }
 
   function eraseStrokeAt(x, y) {
     if (!note.strokes) return;
-    // find stroke close to (x,y)
     const beforeCount = note.strokes.length;
     note.strokes = note.strokes.filter((stroke) => {
-      // compute distance to any point in stroke
       return !stroke.some(pt => {
         const dx = pt.x - x;
         const dy = pt.y - y;
@@ -883,7 +970,7 @@ function showStickyPopup(note) {
       });
     });
     if (note.strokes.length !== beforeCount) {
-      redrawAll(); // refresh view if we deleted something
+      redrawAll();
     }
   }
 
@@ -1010,9 +1097,18 @@ function reDrawAll(ctx) {
             } 
             else if (group.shape == 2) {
                 drawFinalCircle(ctx, group.bbox, group.color);
-            } 
+            }
         }
     });
+
+    // Third pass: draw media selection handles on top of everything
+    if (selectedMedia) {
+        allGroups.forEach((group) => {
+            if (group.type === "media" && group.id === selectedMedia.id) {
+                drawMediaSelection(ctx, group);
+            }
+        });
+    }
 
     ctx.restore();
 }
@@ -1286,17 +1382,28 @@ function drawMediaGroup(ctx, group) {
   // Draw the image
   ctx.drawImage(img, x, y, w, h);
 
-  // Draw selection border if this is the selected media
-  if (selectedMedia && selectedMedia.id === group.id) {
-    ctx.strokeStyle = '#007aff';
-    ctx.lineWidth = 2 / scale;
-    ctx.setLineDash([6 / scale, 4 / scale]);
-    ctx.strokeRect(x, y, w, h);
-    ctx.setLineDash([]);
+  ctx.restore();
+}
 
-    // Draw resize handles at corners
-    drawMediaHandles(ctx, group);
-  }
+/**
+ * Draw selection border and handles for selected media (called separately to appear on top)
+ */
+function drawMediaSelection(ctx, group) {
+  if (!selectedMedia || selectedMedia.id !== group.id) return;
+
+  const { x, y, w, h } = group.bbox;
+
+  ctx.save();
+
+  // Draw selection border
+  ctx.strokeStyle = '#007aff';
+  ctx.lineWidth = 2 / scale;
+  ctx.setLineDash([6 / scale, 4 / scale]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+
+  // Draw resize handles at corners
+  drawMediaHandles(ctx, group);
 
   ctx.restore();
 }

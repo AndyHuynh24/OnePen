@@ -80,18 +80,18 @@
     <button id="openNavBtn" onclick="toggleNav()">☰ Notes</button>
     <div id="notenavbar">
         <div class="buttonGroup">
-            <div id="driveGroup">
-              <button onclick="backupToDrive()">Sync To Drive</button>
-              <button onclick="restoreBackupFromDrive()">Load from Drive</button>
-            </div>
-            <div id="functionGroup" >
-                <button onclick="promptNewFolder()" class="navBtn" style="font-size: 20px;">
-                  <i class='bx  bx-plus-circle'></i> 
-                </button>
-                <button onclick="showSharePopup(allGroups)" style="font-size: 20px;"> <i class='bx  bx-arrow-down-stroke-circle'></i></button>
-                <button onclick="importSharedNotesFromFile()" style="font-size: 20px;"> <i class='bx  bx-arrow-out-up-left-stroke-square'></i></button>
-            </div>
-   
+            <button onclick="showExportSharePopup()" title="Export & Share"> 
+              Help
+            </button>
+            <button onclick="showExportSharePopup()" title="Export & Share"> 
+              Share
+            </button>
+            <button onclick="importSharedNotesFromFile()" > 
+              Import shared notebook
+            </button>
+            <button onclick="promptNewFolder()" class="navBtn">
+              New notebook 
+            </button>
         </div>
         <div class="shelf">
             <div class="notes">
@@ -211,6 +211,28 @@
           value="58"
         />
     </div>
+
+      <div class="settings-divider"></div>
+      <h2>Eraser:</h2>
+      <label>Eraser size:</label>
+      <div class="range-row">
+        <input
+          type="range"
+          id="eraserSizeSlider"
+          min="5"
+          max="80"
+          step="1"
+          value="20"
+        />
+        <input
+          type="number"
+          id="eraserSizeValue"
+          min="5"
+          max="80"
+          step="1"
+          value="20"
+        />
+      </div>
 
     <div class="modifier-section">
       <h2>Modifier styles</h2>
