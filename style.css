@@ -422,6 +422,19 @@ body {
     display: none;
 }
 
+/* TOC level indentation */
+.toc-level-1 {
+    padding-left: 10px;
+}
+
+.toc-level-2 {
+    padding-left: 26px;
+}
+
+.toc-level-3 {
+    padding-left: 42px;
+}
+
 /* ------------tool box style -------------- */
 .penTools {
     position: absolute;

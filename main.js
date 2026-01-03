@@ -462,55 +462,55 @@ const DEFAULT_MODIFIERS = {
 }; 
 
 const DEFAULT_TOOLBOX_LAYOUT = {
-  color: [
+  press: [
     { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
-    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 4 },
     { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
-    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#000dff", size: 30 }, 
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 30},
+    { id: TOOL_ID.MEDIA, color: "#ffffff", size: 2},
+    { id: TOOL_ID.PASTE, color: "#ffffff", size: 2 },
   ],
   bracket: [
-    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
-    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
-    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2},
     { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
+    { id: TOOL_ID.PEN, color: "#a3fba9", size: 2 },
+    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2 },
+    { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2 }, 
+    { id: TOOL_ID.TITLE1, color: "#f4c64a", size: 2},
+    { id: TOOL_ID.TITLE2, color: "#ff6a00", size: 2},
+    { id: TOOL_ID.TITLE3, color: "#7adb13", size: 2 },
   ],
   underline: [
     { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 2},
     { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false, size: 2 },
-    { id: TOOL_ID.TITLE3, color: "#ffb6ff", visibility: true, size: 2 },
+    { id: TOOL_ID.TITLE3, color: "#7adb13", visibility: true, size: 2 },
     { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2 },
-    { id: TOOL_ID.BOLD, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.BOLD, color: "#9718ffff", visibility: true, size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#000dff", size: 2 },
+    { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.BOLD_CUSTOM, color: "#fa6e6e", visibility: true, size: 2 },
     { id: TOOL_ID.PEN, color: "#ff52a0ff", size: 2 }
   ],
   box: [
     { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
     { id: TOOL_ID.MOVE, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.MATH, color: "#ffffff", size: 2},
+    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2},
+    { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2, tapePreset: "polkadot" },
     { id: TOOL_ID.COPY, color: "#ffffff" , size: 2},
     { id: TOOL_ID.PASTE, color: "#ffffff" , size: 2},
-    { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2 }
   ],
    curly: [
-    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.MOVE, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.MATH, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.COPY, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.PASTE, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2 }
+    { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.BOLD_CUSTOM, color: "#55ffd7ff", size: 2 },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "polkadot" },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stripes" },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stars" },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "hearts" },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "confetti" },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "zigzag" },
   ]
 };
 // -------------------- GLOBAL STATE --------------------
@@ -799,11 +799,13 @@ async function renderTools() {
             toolDiv.style.left = `${center + x - toolHalfSize}px`;
             toolDiv.style.top = `${center + y - toolHalfSize}px`;
 
-            // Use gradient for tape tool, solid color for others
+            // Use gradient for tape tool (with tool's own preset), solid color for others
             if (tool.id === "tape") {
-                const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === currentTapePreset) || CONFIG.TAPE.PRESETS[0];
+                const toolPreset = tool.tapePreset || "polkadot";
+                const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === toolPreset) || CONFIG.TAPE.PRESETS[0];
                 toolDiv.style.background = `linear-gradient(135deg, ${presetData.color1}, ${presetData.color2})`;
-            } else {
+            }
+            else {
                 toolDiv.style.backgroundColor = tool.color || "#fff";
             }
 
@@ -848,7 +850,7 @@ async function renderTools() {
                         <label>Tape Style:</label>
                         <div class="tape-preset-grid">
                             ${CONFIG.TAPE.PRESETS.map(p => `
-                                <button class="tape-preset-btn ${currentTapePreset === p.id ? 'active' : ''}"
+                                <button class="tape-preset-btn ${(tool.tapePreset || 'polkadot') === p.id ? 'active' : ''}"
                                         data-preset="${p.id}"
                                         title="${p.name}">
                                     <canvas class="tape-preview-canvas" width="40" height="40"></canvas>
@@ -863,9 +865,9 @@ async function renderTools() {
                     toolDiv.querySelector(".modifier-footer").style.display = "none";
                 }
 
-                if (TOOL_REGISTRY[tool.id].customizable  == false) {
+                if (TOOL_REGISTRY[tool.id].customizable  == false || tool.id == "tape") {
                     popup.querySelector("#customizable").style.display = "none";
-                } else if (id != "color" && tool.id == "highlight") {
+                } else if (id != "press" && tool.id == "highlight") {
                     popup.querySelector("#sizeLabel").style.display = "none";
                     popup.querySelector(".range-row").style.display = "none";
                     popup.querySelector(".modifier-footer").style.display = "none";
@@ -896,8 +898,8 @@ async function renderTools() {
                             popup.querySelectorAll(".tape-preset-btn").forEach(b => b.classList.remove("active"));
                             // Add active to clicked
                             btn.classList.add("active");
-                            // Update current preset
-                            currentTapePreset = btn.dataset.preset;
+                            // Update THIS tool's preset (not global)
+                            tool.tapePreset = btn.dataset.preset;
                             // Clear pattern cache to regenerate
                             tapePatternCache.clear();
                             // Update dial background with new preset gradient
@@ -905,6 +907,8 @@ async function renderTools() {
                             if (presetData) {
                                 toolDiv.style.background = `linear-gradient(135deg, ${presetData.color1}, ${presetData.color2})`;
                             }
+                            // Save the toolbox layout with updated preset
+                            updateTools();
                         });
                     });
                 } else {
@@ -924,32 +928,87 @@ async function renderTools() {
                 const penTypeSelect = popup.querySelector(".modifier-penType");
                 const visibilityCheckbox = popup.querySelector("input[type=checkbox]");
                 
-                if (toolInput) toolInput.oninput = () => { 
-                    tool.id = toolInput.value; 
+                if (toolInput) toolInput.oninput = () => {
+                    tool.id = toolInput.value;
                     icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
-                    icon.setAttribute('data-label', tool.id);  
-                    if (TOOL_REGISTRY[tool.id].customizable  == false) { 
+                    icon.setAttribute('data-label', tool.id);
+
+                    // Handle tape tool specially
+                    if (tool.id === "tape") {
+                        // Hide customizable section for tape
                         popup.querySelector("#customizable").style.display = "none";
-                    } else if (id != "color" && tool.id == "highlight") {
-                        popup.querySelector("#sizeLabel").style.display = "none";
-                        popup.querySelector(".range-row").style.display = "none";
-                        popup.querySelector(".modifier-footer").style.display = "none";
-                    } 
-                    else {
-                        popup.querySelector("#sizeLabel").style.display = "block";
-                        popup.querySelector(".range-row").style.display = "flex";
-                        popup.querySelector(".modifier-footer").style.display = "flex";
-                        popup.querySelector("#customizable").style.display = "block";
-                        // toolDiv.style.backgroundcolor = tool.color;
+                        // Show tape presets
+                        popup.querySelector("#tapePresets").style.display = "block";
+                        // Set default tape preset if not set
+                        if (!tool.tapePreset) tool.tapePreset = "polkadot";
+                        // Update dial with gradient background
+                        const currentPresetData = CONFIG.TAPE.PRESETS.find(p => p.id === tool.tapePreset) || CONFIG.TAPE.PRESETS[0];
+                        toolDiv.style.background = `linear-gradient(135deg, ${currentPresetData.color1}, ${currentPresetData.color2})`;
+                        toolDiv.style.backgroundColor = ""; // Clear solid color
+                        // Render tape preset previews and setup click handlers
+                        popup.querySelectorAll(".tape-preset-btn").forEach(btn => {
+                            const presetId = btn.dataset.preset;
+                            // Clone and replace to remove old handlers first
+                            const newBtn = btn.cloneNode(true);
+                            btn.parentNode.replaceChild(newBtn, btn);
+                            // Update active state on the new button
+                            newBtn.classList.toggle("active", presetId === tool.tapePreset);
+                            // Now draw on the cloned canvas (cloneNode doesn't preserve canvas content)
+                            const canvas = newBtn.querySelector(".tape-preview-canvas");
+                            if (canvas) {
+                                const ctx = canvas.getContext("2d");
+                                const patternCanvas = generateTapePattern(presetId, 40);
+                                ctx.drawImage(patternCanvas, 0, 0);
+                            }
+                            // Add click handler
+                            newBtn.addEventListener("click", (e) => {
+                                e.stopPropagation();
+                                // Remove active from all
+                                popup.querySelectorAll(".tape-preset-btn").forEach(b => b.classList.remove("active"));
+                                // Add active to clicked
+                                newBtn.classList.add("active");
+                                // Update tool's preset
+                                tool.tapePreset = newBtn.dataset.preset;
+                                // Clear pattern cache
+                                tapePatternCache.clear();
+                                // Update dial background
+                                const newPresetData = CONFIG.TAPE.PRESETS.find(p => p.id === newBtn.dataset.preset);
+                                if (newPresetData) {
+                                    toolDiv.style.background = `linear-gradient(135deg, ${newPresetData.color1}, ${newPresetData.color2})`;
+                                }
+                                updateTools();
+                            });
+                        });
+                    } else {
+                        // Hide tape presets for non-tape tools
+                        popup.querySelector("#tapePresets").style.display = "none";
+                        // Clear gradient and use solid color
+                        toolDiv.style.background = "";
+                        tool.color = "#ffffff";
+                        toolDiv.style.backgroundColor = tool.color;
+                        popup.querySelector("#colorPicker").value = tool.color;
+
+                        // Handle customizable section visibility
+                        if (TOOL_REGISTRY[tool.id].customizable === false) {
+                            popup.querySelector("#customizable").style.display = "none";
+                        } else if (id != "press" && tool.id == "highlight") {
+                            popup.querySelector("#sizeLabel").style.display = "none";
+                            popup.querySelector(".range-row").style.display = "none";
+                            popup.querySelector(".modifier-footer").style.display = "none";
+                            popup.querySelector("#customizable").style.display = "block";
+                        } else {
+                            popup.querySelector("#sizeLabel").style.display = "block";
+                            popup.querySelector(".range-row").style.display = "flex";
+                            popup.querySelector(".modifier-footer").style.display = "flex";
+                            popup.querySelector("#customizable").style.display = "block";
+                        }
                     }
+
                     if (toolInput.value == "highlight") {
                         setPenSize(30);
                     } else {
                         setPenSize(2);
                     }
-                    tool.color = "#ffffff";
-                    toolDiv.style.backgroundColor = tool.color;
-                    popup.querySelector("#colorPicker").value = tool.color;
                     updateTools();
                 };
 
@@ -1038,7 +1097,7 @@ async function initModifiers() {
 
   // Render UI and assign tools
   renderModifiers(modifiers);
-  assignToolBox();
+  //assignToolBox();
   renderTools();
 
   return modifiers;
@@ -1389,7 +1448,7 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     drawing = false;
 
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
-        showToolbox(e.offsetX, e.offsetY, "color");
+        showToolbox(e.offsetX, e.offsetY, "press");
     } 
     else if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
         showToolbox(e.offsetX, e.offsetY, "curly");
@@ -2025,9 +2084,11 @@ window.onload = async () => {
                 toolVisibility = icon?.getAttribute('data-visibility') || null;
                 toolSize = icon?.getAttribute('data-size') || null;
                 toolBox = icon?.getAttribute('data-toolBox') || null;
+                const toolTapePreset = icon?.getAttribute('data-tapePreset') || null;
+                const toolIndex = icon?.getAttribute('data-toolIndex') || null;
 
                 //delete tool
-                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut);
+                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut, toolTapePreset, toolIndex);
             } else {
                 allGroups.pop();
             }
@@ -2433,7 +2494,7 @@ function startScrollBarCountdown() {
     }, 1000);
 }
 
-function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut) {
+function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut, toolTapePreset = null, toolIndex = null) {
     if (selectedTool.includes("pen")) {
         allGroups.pop();
         eraserMode = false; 
@@ -2466,7 +2527,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         
     //highlighter tool
     }else if (selectedTool == "highlight") {
-        if (toolBox == "color") {
+        if (toolBox == "press") {
             defaultPenColor = hexToRgb(toolColor);
             penSize = toolSize;
             defaultPenType = TOOL_ID.HIGHLIGHT;
@@ -2643,6 +2704,9 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         // Store IDs of covered groups
         const coveredGroupIds = modifiedGroups.modifiedGroups.map(g => g.id);
 
+        // Use the tool's preset (from toolbox) or fallback to default
+        const tapePresetToUse = toolTapePreset || "polkadot";
+
         // Create the tape group
         const tapeGroup = {
             id: idCount++,
@@ -2650,7 +2714,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
             coveredGroupIds: coveredGroupIds,
-            preset: currentTapePreset,
+            preset: tapePresetToUse,
             revealed: false,
             fadeProgress: 1,
             borderColor: CONFIG.COLORS.FLASH_TAPE,
@@ -3782,7 +3846,8 @@ function populateTocList() {
 
   anchors.forEach(anchor => {
     const item = document.createElement("div");
-    item.className = "toc-item";
+    const level = anchor.titleLevel || 1;
+    item.className = `toc-item toc-level-${level}`;
 
     // Thumbnail preview only (no text label)
     const img = document.createElement("img");
@@ -3844,6 +3909,8 @@ if (tocTab) {
 
 
 // ======================= REGROUP TITLES ==========================
+// Groups title strokes by their titleGroupId (strokes selected in the same
+// selectTitle call belong to the same title group)
 function regroupTitles() {
   if (!Array.isArray(allGroups) || allGroups.length === 0) {
     return;
@@ -3879,73 +3946,42 @@ function regroupTitles() {
     return;
   }
 
-  // Check if two boxes are on the same line (lenient check)
-  // Uses multiple criteria to avoid missing strokes
-  function areOnSameLine(box1, box2) {
-    const top1 = box1.y;
-    const bottom1 = box1.y + box1.h;
-    const center1 = box1.y + box1.h / 2;
-
-    const top2 = box2.y;
-    const bottom2 = box2.y + box2.h;
-    const center2 = box2.y + box2.h / 2;
-
-    // Method 1: Centers are within each other's vertical range
-    const center1InBox2 = center1 >= top2 && center1 <= bottom2;
-    const center2InBox1 = center2 >= top1 && center2 <= bottom1;
-    if (center1InBox2 || center2InBox1) return true;
-
-    // Method 2: Any vertical overlap exists
-    const hasOverlap = !(bottom1 < top2 || bottom2 < top1);
-    if (hasOverlap) return true;
-
-    // Method 3: Very close vertically (within normalHeight tolerance)
-    const verticalGap = Math.max(top1, top2) - Math.min(bottom1, bottom2);
-    const tolerance = normalHeight || 29;
-    if (verticalGap < tolerance * 0.3) return true;
-
-    return false;
-  }
-
-  // Greedy grouping with expanding bounds
-  // Each group tracks its combined Y range
-  const groups = []; // Array of { level, minY, maxY, strokes }
-
-  // Sort by Y position for consistent grouping
-  titleStrokes.sort((a, b) => {
-    const boxA = normalizeBbox(a.bbox);
-    const boxB = normalizeBbox(b.bbox);
-    return (boxA?.y || 0) - (boxB?.y || 0);
-  });
+  // Group by titleGroupId - strokes selected in the same selectTitle call belong together
+  const groupsMap = new Map(); // titleGroupId -> { level, strokes, minX, maxX, minY, maxY }
 
   for (const stroke of titleStrokes) {
     const box = normalizeBbox(stroke.bbox);
     if (!box) continue;
 
+    const groupId = stroke.titleGroupId;
     const level = stroke.titleLevel || 1;
-    let foundGroup = null;
 
-    // Try to find an existing group this stroke belongs to
-    for (const group of groups) {
-      if (group.level !== level) continue;
-
-      // Check if stroke overlaps with the group's Y range
-      const groupBox = { y: group.minY, h: group.maxY - group.minY };
-      if (areOnSameLine(box, groupBox)) {
-        foundGroup = group;
-        break;
+    if (groupId) {
+      // Use titleGroupId for grouping (accurate method)
+      if (!groupsMap.has(groupId)) {
+        groupsMap.set(groupId, {
+          level: level,
+          minX: box.x,
+          maxX: box.x + box.w,
+          minY: box.y,
+          maxY: box.y + box.h,
+          strokes: [stroke]
+        });
+      } else {
+        const group = groupsMap.get(groupId);
+        group.strokes.push(stroke);
+        group.minX = Math.min(group.minX, box.x);
+        group.maxX = Math.max(group.maxX, box.x + box.w);
+        group.minY = Math.min(group.minY, box.y);
+        group.maxY = Math.max(group.maxY, box.y + box.h);
       }
-    }
-
-    if (foundGroup) {
-      // Add to existing group and expand its bounds
-      foundGroup.strokes.push(stroke);
-      foundGroup.minY = Math.min(foundGroup.minY, box.y);
-      foundGroup.maxY = Math.max(foundGroup.maxY, box.y + box.h);
     } else {
-      // Create new group
-      groups.push({
+      // Fallback for old notes without titleGroupId: create individual groups
+      const fallbackKey = `fallback_${stroke.id}`;
+      groupsMap.set(fallbackKey, {
         level: level,
+        minX: box.x,
+        maxX: box.x + box.w,
         minY: box.y,
         maxY: box.y + box.h,
         strokes: [stroke]
@@ -3953,21 +3989,58 @@ function regroupTitles() {
     }
   }
 
+  // Convert map to array of groups
+  const groups = Array.from(groupsMap.values());
+
+  // For fallback groups (old notes without titleGroupId), merge nearby ones with same level
+  function shouldMergeGroups(g1, g2) {
+    if (g1.level !== g2.level) return false;
+    const tolerance = normalHeight || 29;
+
+    // Check vertical proximity
+    const yOverlap = !(g1.maxY < g2.minY - tolerance || g2.maxY < g1.minY - tolerance);
+    if (!yOverlap) return false;
+
+    // Check horizontal proximity
+    const xOverlap = !(g1.maxX < g2.minX - tolerance || g2.maxX < g1.minX - tolerance);
+    return xOverlap;
+  }
+
+  // Merge fallback groups that should be together
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let i = 0; i < groups.length; i++) {
+      // Only merge fallback groups (single stroke, no real titleGroupId)
+      if (groups[i].strokes.length > 1 ||
+          groups[i].strokes[0]?.titleGroupId) continue;
+
+      for (let j = i + 1; j < groups.length; j++) {
+        if (groups[j].strokes.length > 1 ||
+            groups[j].strokes[0]?.titleGroupId) continue;
+
+        if (shouldMergeGroups(groups[i], groups[j])) {
+          groups[i].strokes.push(...groups[j].strokes);
+          groups[i].minX = Math.min(groups[i].minX, groups[j].minX);
+          groups[i].maxX = Math.max(groups[i].maxX, groups[j].maxX);
+          groups[i].minY = Math.min(groups[i].minY, groups[j].minY);
+          groups[i].maxY = Math.max(groups[i].maxY, groups[j].maxY);
+          groups.splice(j, 1);
+          merged = true;
+          break;
+        }
+      }
+      if (merged) break;
+    }
+  }
+
   // Create one anchor per group
   for (const group of groups) {
     if (group.strokes.length === 0) continue;
 
-    const bboxes = group.strokes.map(g => normalizeBbox(g.bbox)).filter(b => b);
-    if (bboxes.length === 0) continue;
-
-    const minX = Math.min(...bboxes.map(b => b.x));
-    const minY = Math.min(...bboxes.map(b => b.y));
-    const maxX = Math.max(...bboxes.map(b => b.x + b.w));
-    const maxY = Math.max(...bboxes.map(b => b.y + b.h));
-
     const anchor = {
       id: idCount++,
-      bbox: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+      bbox: { x: group.minX, y: group.minY, w: group.maxX - group.minX, h: group.maxY - group.minY },
       isTitleAnchor: true,
       titleLevel: group.level,
       titleText: `Title (Level ${group.level})`,

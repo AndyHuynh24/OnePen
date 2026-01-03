@@ -158,7 +158,8 @@ const TOOL_ID = Object.freeze({
   HIGHLIGHT: "highlight",
   DELETE: "delete",
   MOVE: "move",
-  BOLD: "bold",
+  BOLD_DEFAULT: "bold",
+  BOLD_CUSTOM: "bold_custom",
   COPY: "copy",
   PASTE: "paste",
   STICKY: "stickynote",
@@ -170,14 +171,14 @@ const TOOL_ID = Object.freeze({
 
 
 const TOOLBOX_SELECTION = {
-  color: Object.freeze({
+  press: Object.freeze({
     PEN: "pen",
     HIGHLIGHT: "highlight",
     ERASER: "eraser",
     MEDIA: "media",
     PASTE: "paste",
   }),
-  shortcut: Object.freeze({
+  bracket: Object.freeze({
     PEN: "pen",
     TITLE1: "title1",
     TITLE2: "title2",
