@@ -482,6 +482,16 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.TITLE2, color: "#ff6a00", size: 2},
     { id: TOOL_ID.TITLE3, color: "#7adb13", size: 2 },
   ],
+  bracket: [
+    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
+    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
+    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
+  ],
   underline: [
     { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 2},
     { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false, size: 2 },
