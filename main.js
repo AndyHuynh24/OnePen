@@ -1078,7 +1078,7 @@ async function renderTools() {
 
 // -------------------- INIT --------------------
 async function initModifiers() {
-  const saved = await loadToolboxSettings(); // may return null
+  const saved = await loadToolboxSettings(); // may return nul
   //const saved = null;
 
   // Load modifiers: use saved if exists, otherwise defaults
