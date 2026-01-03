@@ -177,6 +177,14 @@ const TOOLBOX_SELECTION = {
     MEDIA: "media",
     PASTE: "paste",
   }),
+  shortcut: Object.freeze({
+    PEN: "pen",
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    DELETE: "delete",
+    COPY: "copy",
+  }),
   underline: Object.freeze({
     TITLE1: "title1",
     TITLE2: "title2",

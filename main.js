@@ -472,6 +472,16 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
     { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
   ],
+  bracket: [
+    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
+    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
+    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
+    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
+  ],
   underline: [
     { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 2},
     { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false, size: 2 },
@@ -1378,9 +1388,16 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     drawing = false;
 
-    if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE || modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
+    if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
         showToolbox(e.offsetX, e.offsetY, "color");
-    } else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE || modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
+    } 
+    else if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
+        showToolbox(e.offsetX, e.offsetY, "curly");
+    }
+    else if (shortcutGroup.includes(modifiedGroups.predictedLabel)) {
+        showToolbox(e.offsetX, e.offsetY, "bracket");
+    }
+    else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE) {
         showToolbox(e.offsetX, e.offsetY, "underline");
     } else if (modifiedGroups.predictedLabel == STROKE_TYPE.BOX) {
         showToolbox(e.offsetX, e.offsetY, "box");
@@ -2073,13 +2090,52 @@ window.onload = async () => {
     });
 
     // ═══════════════════════════════════════════════════════════════════════
-    // TOUCH GESTURE DETECTION
+    // TOUCH GESTURE DETECTION (with palm rejection)
     // 1 finger double tap = toggle AI mode
     // 2 fingers single tap = undo
+    //
+    // Palm rejection methods:
+    // 1. Pen cooldown - ignore touches for 600ms after stylus use
+    // 2. Touch size - palms have larger contact area than fingertips
     // ═══════════════════════════════════════════════════════════════════════
     const TAP_THRESHOLD = 250;      // Max duration for a tap
     const DOUBLE_TAP_GAP = 300;     // Max gap between double taps
     const MOVE_THRESHOLD = 20;      // Max movement for a tap
+    const PEN_COOLDOWN = 600;       // Ignore touch gestures for this long after pen use
+    const MAX_TOUCH_RADIUS = 35;    // Max touch radius for valid finger tap (palms are larger)
+
+    let lastPenUseTime = 0;         // Track when stylus was last used
+
+    // Update pen use time on any pen interaction
+    canvasGroup.addEventListener("pointerdown", function(e) {
+        if (e.pointerType === "pen") {
+            lastPenUseTime = Date.now();
+        }
+    }, { passive: true });
+
+    canvasGroup.addEventListener("pointermove", function(e) {
+        if (e.pointerType === "pen" && e.pressure > 0) {
+            lastPenUseTime = Date.now();
+        }
+    }, { passive: true });
+
+    // Helper: check if touch is likely a palm (too large)
+    function isTouchTooBig(touch) {
+        const radiusX = touch.radiusX || 0;
+        const radiusY = touch.radiusY || 0;
+        return radiusX > MAX_TOUCH_RADIUS || radiusY > MAX_TOUCH_RADIUS;
+    }
+
+    // Helper: check if we should ignore touch gestures
+    function shouldIgnoreTouchGesture(touch) {
+        // Method 1: Pen was used recently
+        if ((Date.now() - lastPenUseTime) < PEN_COOLDOWN) return true;
+
+        // Method 2: Touch is too large (likely palm)
+        if (touch && isTouchTooBig(touch)) return true;
+
+        return false;
+    }
 
     // --- 1-finger double tap for AI toggle ---
     let singleFingerTap = {
@@ -2092,6 +2148,10 @@ window.onload = async () => {
         // Only process if no fingers remain and it was a single finger
         if (e.touches.length === 0 && e.changedTouches.length === 1) {
             const touch = e.changedTouches[0];
+
+            // Palm rejection check (with touch info for size/position)
+            if (shouldIgnoreTouchGesture(touch)) return;
+
             const now = Date.now();
             const timeSinceLastTap = now - singleFingerTap.lastTapTime;
             const dx = Math.abs(touch.clientX - singleFingerTap.lastTapX);
@@ -2121,6 +2181,12 @@ window.onload = async () => {
 
     canvasGroup.addEventListener("touchstart", function(e) {
         if (e.touches.length === 2) {
+            // Palm rejection check on both touches
+            if (shouldIgnoreTouchGesture(e.touches[0]) || shouldIgnoreTouchGesture(e.touches[1])) {
+                twoFingerTap.startTime = 0;
+                return;
+            }
+
             twoFingerTap.startTime = Date.now();
             twoFingerTap.moved = false;
             twoFingerTap.startPositions = [
@@ -2153,6 +2219,7 @@ window.onload = async () => {
             const duration = Date.now() - twoFingerTap.startTime;
 
             // Valid 2-finger tap: quick and didn't move
+            // (palm rejection already checked at touchstart)
             if (duration < TAP_THRESHOLD && !twoFingerTap.moved) {
                 // === 2-FINGER SINGLE TAP: undo ===
                 undo();
@@ -2936,8 +3003,6 @@ function showExportSharePopup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true, includeMedia = true) {
-    const { jsPDF } = window.jspdf;
-
     // Show loading indicator
     const loadingOverlay = document.createElement('div');
     loadingOverlay.id = 'pdfLoadingOverlay';
@@ -2962,18 +3027,71 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
     try {
         updateProgress(10);
 
-        // --- Compute full bounding box ---
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const group of groups) {
-            if (!group?.bbox || group?.visibility === false) continue;
-            minX = Math.min(minX, group.bbox.x);
-            minY = Math.min(minY, group.bbox.y);
-            maxX = Math.max(maxX, group.bbox.x + (group.bbox.w || 0));
-            maxY = Math.max(maxY, group.bbox.y + (group.bbox.h || 0));
+        // Helper to get bbox from group (compute from stroke if missing)
+        function getGroupBounds(group) {
+            // Try bbox first
+            if (group.bbox) {
+                const b = group.bbox;
+                if (typeof b.x === 'number' && typeof b.y === 'number') {
+                    return {
+                        minX: b.x,
+                        minY: b.y,
+                        maxX: b.x + (b.w || 0),
+                        maxY: b.y + (b.h || 0)
+                    };
+                }
+                if (typeof b.minX === 'number') {
+                    return { minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY };
+                }
+            }
+
+            // Compute from stroke if available
+            if (Array.isArray(group.stroke) && group.stroke.length > 0) {
+                const points = group.stroke.flat ? group.stroke.flat() : group.stroke;
+                if (points.length > 0 && points[0]?.x !== undefined) {
+                    const xs = points.map(p => p.x).filter(v => Number.isFinite(v));
+                    const ys = points.map(p => p.y).filter(v => Number.isFinite(v));
+                    if (xs.length > 0 && ys.length > 0) {
+                        return {
+                            minX: Math.min(...xs),
+                            minY: Math.min(...ys),
+                            maxX: Math.max(...xs),
+                            maxY: Math.max(...ys)
+                        };
+                    }
+                }
+            }
+
+            return null;
         }
 
+        // --- Compute full bounding box ---
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let validGroupCount = 0;
+
+        for (const group of groups) {
+            if (group?.visibility === false) continue;
+
+            const bounds = getGroupBounds(group);
+            if (!bounds) continue;
+
+            // Validate all values are finite numbers
+            if (!Number.isFinite(bounds.minX) || !Number.isFinite(bounds.minY) ||
+                !Number.isFinite(bounds.maxX) || !Number.isFinite(bounds.maxY)) {
+                continue;
+            }
+
+            minX = Math.min(minX, bounds.minX);
+            minY = Math.min(minY, bounds.minY);
+            maxX = Math.max(maxX, bounds.maxX);
+            maxY = Math.max(maxY, bounds.maxY);
+            validGroupCount++;
+        }
+
+        console.log('PDF Export - Valid groups:', validGroupCount, 'Bounds:', { minX, minY, maxX, maxY });
+
         // Handle empty canvas
-        if (minX === Infinity) {
+        if (minX === Infinity || validGroupCount === 0) {
             loadingOverlay.remove();
             alert('No content to export');
             return;
@@ -3060,12 +3178,14 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.translate(-minX + padding, -minY + padding);
         } else {
-            // White background
+            // Use app background color (not white)
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = backgroundColor || CONFIG.DEFAULT_BG_COLOR;
             ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
             ctx.restore();
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.translate(-minX + padding, -minY + padding);
         }
 
         updateProgress(40);
@@ -3089,35 +3209,12 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
 
             const hasStroke = Array.isArray(group.stroke) && group.stroke.length > 0;
 
-            if (group.type === "stickynote") {
-                const { x, y, w, h } = group.bbox;
-                ctx.save();
-                ctx.strokeStyle = group.color || "#FFD700";
-                ctx.lineWidth = 2;
-                ctx.setLineDash([6, 3]);
-                ctx.strokeRect(x, y, w, h);
-                ctx.setLineDash([]);
-                ctx.restore();
-                continue;
-            }
-
-            if (group.type === "link") {
-                const { x, y, w, h } = group.bbox;
-                ctx.save();
-                ctx.strokeStyle = group.color || "#0077ff";
-                ctx.lineWidth = 2;
-                ctx.setLineDash([6, 3]);
-                ctx.strokeRect(x, y, w, h);
-                ctx.setLineDash([]);
-                ctx.font = "16px sans-serif";
-                ctx.fillStyle = "#0077ff";
-                ctx.fillText("🔗", x + w / 2 - 8, y + h / 2 + 6);
-                ctx.restore();
-                continue;
-            }
-
-            if (group.type === "tape") {
-                drawTapeForExport(ctx, group);
+            // For stickynote, link, and tape - just render the strokes, not the decorative boxes
+            if (group.type === "stickynote" || group.type === "link" || group.type === "tape") {
+                if (hasStroke) {
+                    const size = group?.size ?? 2;
+                    drawStroke(ctx, group.stroke, group.color || defaultPenColor, size);
+                }
                 continue;
             }
 
@@ -3166,63 +3263,88 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
         // Get image data first
         const imgData = fullCanvas.toDataURL("image/jpeg", jpegQuality);
 
-        // Get jsPDF constructor (handle different module formats)
-        const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF;
-        if (!jsPDFConstructor) {
-            throw new Error('jsPDF library not loaded');
+        // Access jsPDF from the global jspdf object (UMD build)
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('jsPDF library not loaded properly');
         }
+        const { jsPDF } = window.jspdf;
+
+        // Validate dimensions
+        if (!Number.isFinite(pdfWidth) || !Number.isFinite(pdfHeight) || pdfWidth <= 0 || pdfHeight <= 0) {
+            throw new Error(`Invalid dimensions: ${pdfWidth} x ${pdfHeight}`);
+        }
+
+        // Parse background color for PDF page fill (handles rgba format)
+        function parseRgbaToRgb(rgbaStr) {
+            const match = rgbaStr.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+            if (match) {
+                return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]) };
+            }
+            // Default dark background
+            return { r: 32, g: 31, b: 30 };
+        }
+        const bgColorStr = backgroundColor || CONFIG.DEFAULT_BG_COLOR;
+        const bgRgb = parseRgbaToRgb(bgColorStr);
 
         if (mode === "continuous") {
-            // Use mm units which are most reliable in jsPDF
-            // Convert pixels to mm (assuming 96 DPI: 1 inch = 25.4mm, 1 inch = 96px)
-            const pxToMm = 25.4 / 96;
-            const widthMm = pdfWidth * pxToMm;
-            const heightMm = pdfHeight * pxToMm;
+            // Create a single-page PDF matching the canvas aspect ratio
+            // Use A4 as base and scale appropriately
+            const aspectRatio = pdfWidth / pdfHeight;
+            let pageW, pageH;
 
-            const orientation = widthMm > heightMm ? "landscape" : "portrait";
-
-            const pdf = new jsPDFConstructor({
-                orientation: orientation,
-                unit: "mm",
-                format: [Math.max(widthMm, 10), Math.max(heightMm, 10)]
-            });
-
-            // Add image filling the page
-            pdf.addImage(imgData, "JPEG", 0, 0, widthMm, heightMm);
-            pdf.save(`${fileName}_continuous.pdf`);
-        }
-        else if (mode === "paginated") {
-            // A4 in mm: 210 x 297
-            const pdf = new jsPDFConstructor({
-                orientation: "portrait",
-                unit: "mm",
-                format: "a4"
-            });
-
-            const pageWidthMm = 210;
-            const pageHeightMm = 297;
-
-            // Convert content to mm
-            const pxToMm = 25.4 / 96;
-            const contentWidthMm = pdfWidth * pxToMm;
-            const contentHeightMm = pdfHeight * pxToMm;
-
-            // Scale to fit page width
-            const imgScale = pageWidthMm / contentWidthMm;
-            const scaledHeightMm = contentHeightMm * imgScale;
-            const pageCount = Math.max(1, Math.ceil(scaledHeightMm / pageHeightMm));
-
-            for (let i = 0; i < pageCount; i++) {
-                if (i > 0) pdf.addPage();
-
-                // Offset the image to show correct portion
-                const yOffset = -(i * pageHeightMm);
-
-                pdf.addImage(imgData, "JPEG", 0, yOffset, pageWidthMm, scaledHeightMm);
-                updateProgress(80 + (i / pageCount) * 15);
+            if (aspectRatio > 1) {
+                // Landscape
+                pageW = 297;
+                pageH = 297 / aspectRatio;
+            } else {
+                // Portrait
+                pageH = 297;
+                pageW = 297 * aspectRatio;
             }
 
-            pdf.save(`${fileName}_a4.pdf`);
+            const doc = new jsPDF({
+                orientation: aspectRatio > 1 ? 'l' : 'p',
+                unit: 'mm',
+                format: [pageW, pageH]
+            });
+
+            // Fill page with background color (covers any extra space)
+            doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+            doc.rect(0, 0, pageW, pageH, 'F');
+
+            doc.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
+            doc.save(`${fileName}_continuous.pdf`);
+        }
+        else if (mode === "paginated") {
+            // A4 dimensions in mm
+            const A4_W = 210;
+            const A4_H = 297;
+
+            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+            // Calculate how to scale the image to fit A4 width
+            const aspectRatio = pdfWidth / pdfHeight;
+            const imgW = A4_W;
+            const imgH = A4_W / aspectRatio;
+
+            // How many pages needed
+            const totalPages = Math.ceil(imgH / A4_H);
+
+            for (let page = 0; page < totalPages; page++) {
+                if (page > 0) doc.addPage();
+
+                // Fill page with background color (covers any extra space on this page)
+                doc.setFillColor(bgRgb.r, bgRgb.g, bgRgb.b);
+                doc.rect(0, 0, A4_W, A4_H, 'F');
+
+                // Draw the full image, offset by page number
+                const yPos = -(page * A4_H);
+                doc.addImage(imgData, 'JPEG', 0, yPos, imgW, imgH);
+
+                updateProgress(80 + (page / totalPages) * 15);
+            }
+
+            doc.save(`${fileName}_a4.pdf`);
         }
 
         updateProgress(100);
@@ -3730,98 +3852,129 @@ function regroupTitles() {
   // Remove any old anchors first
   allGroups = allGroups.filter(g => !g.isTitleAnchor);
 
-  // Find all title groups (strokes with titleStatus: true)
-  const titleGroups = allGroups.filter(
-    g => g?.titleStatus && g?.bbox && g?.visibility !== false
-  );
+  // Helper to normalize bbox to {x, y, w, h} format
+  function normalizeBbox(bbox) {
+    if (!bbox) return null;
+    if (typeof bbox.x === 'number' && typeof bbox.y === 'number') {
+      return { x: bbox.x, y: bbox.y, w: bbox.w || 0, h: bbox.h || 0 };
+    }
+    if (typeof bbox.minX === 'number' && typeof bbox.minY === 'number') {
+      return {
+        x: bbox.minX,
+        y: bbox.minY,
+        w: (bbox.maxX || bbox.minX) - bbox.minX,
+        h: (bbox.maxY || bbox.minY) - bbox.minY
+      };
+    }
+    return null;
+  }
 
-  if (titleGroups.length === 0) {
+  // Find all title strokes (with titleStatus: true)
+  const titleStrokes = allGroups.filter(g => {
+    if (!g?.titleStatus || g?.visibility === false) return false;
+    return normalizeBbox(g?.bbox) !== null;
+  });
+
+  if (titleStrokes.length === 0) {
     return;
   }
 
-  // Find all underline modifiers
-  const underlineMods = allGroups.filter(
-    g => g?.predictedLabel === STROKE_TYPE.UNDERLINE && g?.bbox
-  );
+  // Check if two boxes are on the same line (lenient check)
+  // Uses multiple criteria to avoid missing strokes
+  function areOnSameLine(box1, box2) {
+    const top1 = box1.y;
+    const bottom1 = box1.y + box1.h;
+    const center1 = box1.y + box1.h / 2;
 
-  if (underlineMods.length === 0) {
-    return;
+    const top2 = box2.y;
+    const bottom2 = box2.y + box2.h;
+    const center2 = box2.y + box2.h / 2;
+
+    // Method 1: Centers are within each other's vertical range
+    const center1InBox2 = center1 >= top2 && center1 <= bottom2;
+    const center2InBox1 = center2 >= top1 && center2 <= bottom1;
+    if (center1InBox2 || center2InBox1) return true;
+
+    // Method 2: Any vertical overlap exists
+    const hasOverlap = !(bottom1 < top2 || bottom2 < top1);
+    if (hasOverlap) return true;
+
+    // Method 3: Very close vertically (within normalHeight tolerance)
+    const verticalGap = Math.max(top1, top2) - Math.min(bottom1, bottom2);
+    const tolerance = normalHeight || 29;
+    if (verticalGap < tolerance * 0.3) return true;
+
+    return false;
   }
 
-  // For each title group, find its BEST matching underline
-  // Best = closest underline that is below the title and overlaps horizontally
-  const titleToUnderline = new Map();
+  // Greedy grouping with expanding bounds
+  // Each group tracks its combined Y range
+  const groups = []; // Array of { level, minY, maxY, strokes }
 
-  titleGroups.forEach(title => {
-    const tBox = title.bbox;
-    let bestUnderline = null;
-    let bestScore = Infinity;
+  // Sort by Y position for consistent grouping
+  titleStrokes.sort((a, b) => {
+    const boxA = normalizeBbox(a.bbox);
+    const boxB = normalizeBbox(b.bbox);
+    return (boxA?.y || 0) - (boxB?.y || 0);
+  });
 
-    underlineMods.forEach(underline => {
-      const uBox = underline.bbox;
+  for (const stroke of titleStrokes) {
+    const box = normalizeBbox(stroke.bbox);
+    if (!box) continue;
 
-      // Check horizontal overlap
-      const overlapsX = tBox.x + tBox.w > uBox.x && tBox.x < uBox.x + uBox.w;
-      if (!overlapsX) return;
+    const level = stroke.titleLevel || 1;
+    let foundGroup = null;
 
-      // Check if underline is below or at same level as title bottom
-      const titleBottom = tBox.y + tBox.h;
-      const underlineTop = uBox.y;
-      const verticalDist = underlineTop - titleBottom;
+    // Try to find an existing group this stroke belongs to
+    for (const group of groups) {
+      if (group.level !== level) continue;
 
-      // Underline should be close to or below the title (within reasonable range)
-      if (verticalDist < -tBox.h * 0.5 || verticalDist > normalHeight * 2) return;
-
-      // Score based on vertical distance (prefer closer underlines)
-      const score = Math.abs(verticalDist);
-      if (score < bestScore) {
-        bestScore = score;
-        bestUnderline = underline;
+      // Check if stroke overlaps with the group's Y range
+      const groupBox = { y: group.minY, h: group.maxY - group.minY };
+      if (areOnSameLine(box, groupBox)) {
+        foundGroup = group;
+        break;
       }
-    });
-
-    if (bestUnderline) {
-      titleToUnderline.set(title.id, bestUnderline.id);
     }
-  });
 
-  // Group title groups by their assigned underline AND title level
-  // Key: "underlineId_level" → groups
-  const anchorGroups = new Map();
-
-  titleGroups.forEach(title => {
-    const underlineId = titleToUnderline.get(title.id);
-    if (!underlineId) return;
-
-    const level = title.titleLevel || 1;
-    const key = `${underlineId}_${level}`;
-
-    if (!anchorGroups.has(key)) {
-      anchorGroups.set(key, { underlineId, level, groups: [] });
+    if (foundGroup) {
+      // Add to existing group and expand its bounds
+      foundGroup.strokes.push(stroke);
+      foundGroup.minY = Math.min(foundGroup.minY, box.y);
+      foundGroup.maxY = Math.max(foundGroup.maxY, box.y + box.h);
+    } else {
+      // Create new group
+      groups.push({
+        level: level,
+        minY: box.y,
+        maxY: box.y + box.h,
+        strokes: [stroke]
+      });
     }
-    anchorGroups.get(key).groups.push(title);
-  });
+  }
 
-  // Create one anchor per unique (underline, level) combination
-  anchorGroups.forEach(({ underlineId, level, groups }) => {
-    if (groups.length === 0) return;
+  // Create one anchor per group
+  for (const group of groups) {
+    if (group.strokes.length === 0) continue;
 
-    const minX = Math.min(...groups.map(g => g.bbox.x));
-    const minY = Math.min(...groups.map(g => g.bbox.y));
-    const maxX = Math.max(...groups.map(g => g.bbox.x + g.bbox.w));
-    const maxY = Math.max(...groups.map(g => g.bbox.y + g.bbox.h));
+    const bboxes = group.strokes.map(g => normalizeBbox(g.bbox)).filter(b => b);
+    if (bboxes.length === 0) continue;
+
+    const minX = Math.min(...bboxes.map(b => b.x));
+    const minY = Math.min(...bboxes.map(b => b.y));
+    const maxX = Math.max(...bboxes.map(b => b.x + b.w));
+    const maxY = Math.max(...bboxes.map(b => b.y + b.h));
 
     const anchor = {
       id: idCount++,
       bbox: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
       isTitleAnchor: true,
-      titleLevel: level,
-      titleText: `Title (Level ${level})`,
-      underlineRef: underlineId,
-      titleGroupIds: groups.map(g => g.id), // Track which groups belong to this anchor
+      titleLevel: group.level,
+      titleText: `Title (Level ${group.level})`,
+      titleGroupIds: group.strokes.map(g => g.id),
     };
     allGroups.push(anchor);
-  });
+  }
 
   reDrawAll?.(drawCtx);
 }
@@ -3834,15 +3987,32 @@ function renderTitleThumbnailFromAnchor(anchor) {
   const { x, y, w, h } = anchor.bbox;
   const dpr = window.devicePixelRatio || 2; // Default to 2x for HiDPI
 
+  // Helper to normalize bbox
+  function normBox(bbox) {
+    if (!bbox) return null;
+    if (typeof bbox.x === 'number') {
+      return { x: bbox.x, y: bbox.y, w: bbox.w || 0, h: bbox.h || 0 };
+    }
+    if (typeof bbox.minX === 'number') {
+      return {
+        x: bbox.minX, y: bbox.minY,
+        w: (bbox.maxX || bbox.minX) - bbox.minX,
+        h: (bbox.maxY || bbox.minY) - bbox.minY
+      };
+    }
+    return null;
+  }
+
   // Find strokes within anchor bbox with small tolerance
-  const strokes = allGroups.filter(g =>
-    g.titleStatus &&
-    g.bbox &&
-    g.bbox.x >= x - 4 &&
-    g.bbox.y >= y - 4 &&
-    (g.bbox.x + g.bbox.w) <= x + w + 4 &&
-    (g.bbox.y + g.bbox.h) <= y + h + 4
-  );
+  const strokes = allGroups.filter(g => {
+    if (!g.titleStatus || !g.bbox) return false;
+    const b = normBox(g.bbox);
+    if (!b) return false;
+    return b.x >= x - 4 &&
+           b.y >= y - 4 &&
+           (b.x + b.w) <= x + w + 4 &&
+           (b.y + b.h) <= y + h + 4;
+  });
 
   if (strokes.length === 0) {
     return "";
@@ -3995,11 +4165,15 @@ async function processPdfFile(file) {
   const pages = [];
   const dpr = window.devicePixelRatio || 1;
 
+  // Calculate 90% of viewport width for initial render
+  const viewportWidth = window.innerWidth / (scale || 1);
+  const targetWidth = Math.max(viewportWidth * 0.9, CONFIG.MEDIA.DEFAULT_INSERT_WIDTH);
+
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     console.log(`Processing PDF page ${pageNum} of ${totalPages}...`);
     const page = await pdf.getPage(pageNum);
     console.log(`Got page ${pageNum}, pageNumber:`, page.pageNumber);
-    const pageData = await renderPdfPageHiDPI(page, pageNum, totalPages, dpr);
+    const pageData = await renderPdfPageHiDPI(page, pageNum, totalPages, dpr, targetWidth);
     // Store PDF data for re-rendering
     pageData.pdfBase64 = pdfBase64;
     pages.push(pageData);
@@ -4232,7 +4406,9 @@ function createMediaGroup(mediaData) {
   const { dataUrl, width, height, mediaType, pdfPage, pdfTotalPages } = mediaData;
 
   // Calculate default size maintaining aspect ratio
-  const maxWidth = CONFIG.MEDIA.DEFAULT_INSERT_WIDTH;
+  // Use 90% of viewport width for better visibility
+  const viewportWidth = window.innerWidth / scale;
+  const maxWidth = Math.max(viewportWidth * 0.9, CONFIG.MEDIA.DEFAULT_INSERT_WIDTH);
   const aspectRatio = width / height;
   let displayWidth = Math.min(width, maxWidth);
   let displayHeight = displayWidth / aspectRatio;
@@ -4298,13 +4474,17 @@ function createMediaGroupsVertical(pagesData) {
 
   const createdGroups = [];
 
+  // Calculate 90% of viewport width for PDF pages
+  const viewportWidth = window.innerWidth / scale;
+  const targetWidth = Math.max(viewportWidth * 0.9, CONFIG.MEDIA.DEFAULT_INSERT_WIDTH);
+
   for (let i = 0; i < pagesData.length; i++) {
     const pageData = pagesData[i];
     const { dataUrl, width, height, displayWidth, mediaType, pdfPage, pdfTotalPages, pdfBase64 } = pageData;
 
     // Use the display width from render, calculate height from aspect ratio
     const aspectRatio = width / height;
-    const finalWidth = displayWidth || 700;
+    const finalWidth = displayWidth || targetWidth;
     const finalHeight = finalWidth / aspectRatio;
 
     const mediaGroup = {
