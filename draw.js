@@ -1141,9 +1141,10 @@ function showToolbox(x, y, toolBox) {
         a.href = '#';
         // Inner border with thickness based on pen size (0.4-30 → 1.5-11px, sqrt curve, capped at 11px)
         const borderThickness = Math.min(Math.sqrt(tool.size || 2) * 2.46, 11);
-        // Use gradient for tape tool, solid color for others
+        // Use gradient for tape tool (with tool's own preset), solid color for others
         if (tool.id === "tape") {
-            const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === currentTapePreset) || CONFIG.TAPE.PRESETS[0];
+            const toolPreset = tool.tapePreset || "polkadot";
+            const presetData = CONFIG.TAPE.PRESETS.find(p => p.id === toolPreset) || CONFIG.TAPE.PRESETS[0];
             a.style = `background: linear-gradient(135deg, ${presetData.color1}, ${presetData.color2}); box-shadow: inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35);`;
         } else {
             a.style = `background-color: ${tool.color || '#fff'}; box-shadow: inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35);`;
@@ -1156,6 +1157,10 @@ function showToolbox(x, y, toolBox) {
         icon.setAttribute('data-size', tool?.size ?? 0);
         icon.setAttribute('data-visibility', tool.visibility);
         icon.setAttribute('data-toolBox', toolBox);
+        icon.setAttribute('data-toolIndex', index);          // track which tool in the toolbox
+        if (tool.tapePreset) {
+            icon.setAttribute('data-tapePreset', tool.tapePreset);
+        }
 
         // Build DOM
         a.appendChild(icon);
@@ -1280,18 +1285,24 @@ function hexToRgb(hex) {
 function selectTitle(titleColor, visibility, level=0, size) {
     if (visibility == 'false') {
         const lastGroup = allGroups[allGroups.length - 1];
-        console.log('lastGroup', lastGroup);
         if (lastGroup) lastGroup.visibility = false;
-    } 
+    }
     const idToColorMap = {};
     modifiedGroups.modifiedGroups.forEach(group => {
       idToColorMap[group.id] = group.color;
     });
+
+    // Generate unique title group ID for TOC grouping
+    // Each selectTitle call creates a distinct title group
+    const titleGroupId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
     modifiedGroups.modifiedGroups.forEach(group => {
         group.titleStatus = true;
         group.titleLevel = level;
         group.color = titleColor;
         group.size = size;
+        // Store unique group ID for TOC grouping
+        group.titleGroupId = titleGroupId;
     });
 
     const change = {
