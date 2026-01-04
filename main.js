@@ -343,10 +343,10 @@ function toggleTapeReveal(tape) {
 function removeTape(tape) {
   const index = allGroups.findIndex(g => g.id === tape.id);
   if (index !== -1) {
-    // Save to undo stack
+    // Deep clone for undo before deletion
     pastGroups.push({
       change: 'delete',
-      modifiedGroups: [allGroups[index]]
+      modifiedGroups: [structuredClone(allGroups[index])]
     });
 
     allGroups.splice(index, 1);
@@ -1511,7 +1511,7 @@ async function classifyStroke(stroke, hold = false) {
     }  else if (predictedLabel === 3) {
         change = {
             change: 'delete',
-            modifiedGroups: modifiedGroups,
+            modifiedGroups: structuredClone(modifiedGroups),
         }
         pastGroups.push(change);
     }
@@ -1546,6 +1546,7 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     drawing = false;
 
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
+        allGroups.pop();
         showToolbox(e.offsetX, e.offsetY, "press");
     } 
     else if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
@@ -2629,15 +2630,15 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         }
     }
     else if (selectedTool == "delete") {
-        //console.log("delete", modifiedGroups.groups);
+        // Deep clone groups before deletion to preserve state for undo
         change = {
             change: 'delete',
-            modifiedGroups: modifiedGroups.modifiedGroups,
+            modifiedGroups: structuredClone(modifiedGroups.modifiedGroups),
         }
+        pastGroups.push(change);
         for (const group of modifiedGroups.modifiedGroups) {
             allGroups.splice(allGroups.indexOf(group), 1);
-        } 
-        pastGroups.push(change);
+        }
         
     //highlighter tool
     }else if (selectedTool == "highlight") {
@@ -5501,6 +5502,7 @@ function endMediaDrag() {
   penOverlay.style.display = "block";
   penOverlay.style.transition = "transform 0.25s ease";
   penOverlay.style.transformOrigin = "top left";
+  penOverlay.style.zIndex = "100000000";
 
   // --- Top-left anchor: no transform needed ---
   penOverlay.style.transform = "none";

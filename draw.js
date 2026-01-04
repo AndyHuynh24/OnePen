@@ -572,12 +572,11 @@ function toggleEraser() {
 function eraseStrokes() {
     for (const group of allGroups) {
         if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox) || group.type == 'media') continue;
-    
+
         // Check if any stroke intersects
         if (intersect(group.bbox, eraserBox)) {
-            console.log('erase');
-            // Save intersecting strokes as a new "deleted" group
-            erasedGroups.push(group);
+            // Deep clone the group to preserve its state for undo
+            erasedGroups.push(structuredClone(group));
             allGroups.splice(allGroups.indexOf(group), 1);
         }
     }
@@ -1041,10 +1040,10 @@ function reDrawAll(ctx) {
             ctx.strokeRect(x, y, w, h);
             ctx.setLineDash([]);
 
-            // --- Optional: draw small link icon
-            ctx.font = "16px sans-serif";
+            // --- Draw small link icon at top-left edge
+            ctx.font = "14px sans-serif";
             ctx.fillStyle = "#0077ff";
-            ctx.fillText("🔗", x + w / 2 - 8, y + h / 2 + 6);
+            ctx.fillText("🔗", x - 2, y - 4);
 
             ctx.restore();
             return;
