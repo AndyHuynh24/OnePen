@@ -533,8 +533,10 @@ function loadNoteOnBtn(path, selectedButton) {
     if (note) {
       if (note.content) {
         allGroups = note.content;
+        syncGroupIds(allGroups);
       } else {
         allGroups = [];
+        idCount = 0;
       }
       reDrawAll(drawCtx);
     }
