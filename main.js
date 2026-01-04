@@ -5573,10 +5573,12 @@ function endMediaDrag() {
   penOverlay.src = "cursor.png"; // your 945×1396 image
   penOverlay.alt = "pen cursor";
   penOverlay.style.position = "fixed";
-  penOverlay.style.height = "130px"; // scaled height
+  penOverlay.style.height = "300px"; // scaled height
   penOverlay.style.pointerEvents = "none";
   penOverlay.style.zIndex = "999999";
   penOverlay.style.display = "block";
+  penOverlay.style.transition = "scale 0.5s ease";
+  penOverlay.style.transformOrigin = "top left";
 
   // --- Top-left anchor: no transform needed ---
   penOverlay.style.transform = "none";
@@ -5591,9 +5593,11 @@ function endMediaDrag() {
 
   // --- Optional press feedback ---
   window.addEventListener("pointerdown", () => {
-    penOverlay.style.transform = "scale(0.9)";
+    penOverlay.style.transform = "scale(0.85)";
+    //penOverlay.style.opacity = 1;
   });
   window.addEventListener("pointerup", () => {
     penOverlay.style.transform = "scale(1)";
+    //penOverlay.style.opacity = 0;
   });
 })();
