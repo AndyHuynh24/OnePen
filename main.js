@@ -784,6 +784,78 @@ function assignToolBox() {
 
 const container = document.getElementById("toolboxes");
 
+/**
+ * Get the effective customization flags for a tool in a specific toolbox context.
+ * Handles contextual overrides (e.g., highlight has different settings in press vs other toolboxes).
+ * @param {string} toolId - The tool ID (e.g., "pen", "highlight")
+ * @param {string} toolboxId - The toolbox context (e.g., "press", "underline", "box", "curly")
+ * @returns {object} - { colorCustomizable, sizeCustomizable, visibilityCustomizable, tapePresetCustomizable }
+ */
+function getToolCustomization(toolId, toolboxId) {
+    const registry = TOOL_REGISTRY[toolId];
+    if (!registry) {
+        return {
+            colorCustomizable: false,
+            sizeCustomizable: false,
+            visibilityCustomizable: false,
+            tapePresetCustomizable: false
+        };
+    }
+
+    // Start with base values
+    let result = {
+        colorCustomizable: registry.colorCustomizable ?? false,
+        sizeCustomizable: registry.sizeCustomizable ?? false,
+        visibilityCustomizable: registry.visibilityCustomizable ?? false,
+        tapePresetCustomizable: registry.tapePresetCustomizable ?? false
+    };
+
+    // Apply contextual overrides if present
+    if (registry.contextual) {
+        const contextOverrides = registry.contextual[toolboxId] || registry.contextual.default || {};
+        result = { ...result, ...contextOverrides };
+    }
+
+    return result;
+}
+
+/**
+ * Update the tool settings popup to show/hide controls based on customization flags.
+ * @param {HTMLElement} popup - The popup element
+ * @param {object} customization - Result from getToolCustomization()
+ */
+function applyToolCustomization(popup, customization) {
+    const colorLabel = popup.querySelector("#colorLabel");
+    const colorPicker = popup.querySelector("#colorPicker");
+    const sizeLabel = popup.querySelector("#sizeLabel");
+    const rangeRow = popup.querySelector(".range-row");
+    const footer = popup.querySelector(".modifier-footer");
+    const customizable = popup.querySelector("#customizable");
+    const tapePresets = popup.querySelector("#tapePresets");
+
+    const hasAnyStandardCustomization =
+        customization.colorCustomizable ||
+        customization.sizeCustomizable ||
+        customization.visibilityCustomizable;
+
+    // Show/hide the main customizable section
+    if (customizable) {
+        customizable.style.display = hasAnyStandardCustomization ? "block" : "none";
+    }
+
+    // Show/hide individual controls
+    if (colorLabel) colorLabel.style.display = customization.colorCustomizable ? "block" : "none";
+    if (colorPicker) colorPicker.style.display = customization.colorCustomizable ? "block" : "none";
+    if (sizeLabel) sizeLabel.style.display = customization.sizeCustomizable ? "block" : "none";
+    if (rangeRow) rangeRow.style.display = customization.sizeCustomizable ? "flex" : "none";
+    if (footer) footer.style.display = customization.visibilityCustomizable ? "flex" : "none";
+
+    // Show/hide tape presets
+    if (tapePresets) {
+        tapePresets.style.display = customization.tapePresetCustomizable ? "block" : "none";
+    }
+}
+
 async function renderTools() {
     Object.entries(toolboxLayout).forEach(([id, tools]) => {
         const dial = document.createElement("div");
@@ -871,27 +943,12 @@ async function renderTools() {
                     <button class="delete-modifier-btn" title="Close">✕</button>
                 `;
 
-                if (id == "color") {
-                    toolDiv.querySelector(".modifier-footer").style.display = "none";
-                }
+                // Apply customization flags based on tool and toolbox context
+                const customization = getToolCustomization(tool.id, id);
+                applyToolCustomization(popup, customization);
 
-                if (TOOL_REGISTRY[tool.id].customizable  == false || tool.id == "tape") {
-                    popup.querySelector("#customizable").style.display = "none";
-                } else if (id != "press" && tool.id == "highlight") {
-                    popup.querySelector("#sizeLabel").style.display = "none";
-                    popup.querySelector(".range-row").style.display = "none";
-                    popup.querySelector(".modifier-footer").style.display = "none";
-                } else {
-                    popup.querySelector("#sizeLabel").style.display = "block";
-                    popup.querySelector(".range-row").style.display = "flex";
-                    popup.querySelector(".modifier-footer").style.display = "flex";
-                    popup.querySelector("#customizable").style.display = "block";
-                    // toolDiv.style.backgroundcolor = tool.color;
-                }
-
-                // Show tape presets for tape tool
-                if (tool.id === "tape") {
-                    popup.querySelector("#tapePresets").style.display = "block";
+                // Render tape preset canvases if tape tool
+                if (customization.tapePresetCustomizable) {
                     // Render actual tape patterns on preview canvases
                     popup.querySelectorAll(".tape-preset-btn").forEach(btn => {
                         const presetId = btn.dataset.preset;
@@ -921,8 +978,6 @@ async function renderTools() {
                             updateTools();
                         });
                     });
-                } else {
-                    popup.querySelector("#tapePresets").style.display = "none";
                 }
 
                 popup.querySelector('.delete-modifier-btn').onclick = () => {popup.style.display = "none"};
@@ -943,12 +998,12 @@ async function renderTools() {
                     icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
                     icon.setAttribute('data-label', tool.id);
 
-                    // Handle tape tool specially
-                    if (tool.id === "tape") {
-                        // Hide customizable section for tape
-                        popup.querySelector("#customizable").style.display = "none";
-                        // Show tape presets
-                        popup.querySelector("#tapePresets").style.display = "block";
+                    // Get customization flags for the new tool in this toolbox context
+                    const newCustomization = getToolCustomization(tool.id, id);
+                    applyToolCustomization(popup, newCustomization);
+
+                    // Handle tape tool dial background
+                    if (newCustomization.tapePresetCustomizable) {
                         // Set default tape preset if not set
                         if (!tool.tapePreset) tool.tapePreset = "polkadot";
                         // Update dial with gradient background
@@ -990,30 +1045,18 @@ async function renderTools() {
                             });
                         });
                     } else {
-                        // Hide tape presets for non-tape tools
-                        popup.querySelector("#tapePresets").style.display = "none";
-                        // Clear gradient and use solid color
+                        // Clear gradient and use solid color for non-tape tools
                         toolDiv.style.background = "";
-                        tool.color = "#ffffff";
-                        toolDiv.style.backgroundColor = tool.color;
-                        popup.querySelector("#colorPicker").value = tool.color;
-
-                        // Handle customizable section visibility
-                        if (TOOL_REGISTRY[tool.id].customizable === false) {
-                            popup.querySelector("#customizable").style.display = "none";
-                        } else if (id != "press" && tool.id == "highlight") {
-                            popup.querySelector("#sizeLabel").style.display = "none";
-                            popup.querySelector(".range-row").style.display = "none";
-                            popup.querySelector(".modifier-footer").style.display = "none";
-                            popup.querySelector("#customizable").style.display = "block";
+                        if (newCustomization.colorCustomizable) {
+                            tool.color = tool.color || "#ffffff";
+                            toolDiv.style.backgroundColor = tool.color;
+                            popup.querySelector("#colorPicker").value = tool.color;
                         } else {
-                            popup.querySelector("#sizeLabel").style.display = "block";
-                            popup.querySelector(".range-row").style.display = "flex";
-                            popup.querySelector(".modifier-footer").style.display = "flex";
-                            popup.querySelector("#customizable").style.display = "block";
+                            toolDiv.style.backgroundColor = "#ffffff";
                         }
                     }
 
+                    // Set default size for highlight
                     if (toolInput.value == "highlight") {
                         setPenSize(30);
                     } else {
@@ -1401,19 +1444,27 @@ async function classifyStroke(stroke, hold = false) {
         }
     } 
 
-    //save changes to pastgroups
+    //save changes to pastgroups - unified styling format
     if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
-        const idToColorMap = {};
-            modifiedGroups.forEach(group => {
-            idToColorMap[group.id] = group.color;
+        const originalStyles = {};
+        modifiedGroups.forEach(group => {
+            // Skip the modifier itself
+            if (group.id === modifier.id) return;
+            originalStyles[group.id] = {
+                color: group.color,
+                size: group.size,
+                titleStatus: group.titleStatus,
+                titleLevel: group.titleLevel,
+                titleGroupId: group.titleGroupId
+            };
         });
         const change = {
-            change: 'color',
-            modifiedGroups: idToColorMap,
-            groupToRemove: modifier
+            change: 'styling',
+            originalStyles: originalStyles,
+            groupToRemove: modifier,
         }
         pastGroups.push(change);
-        //console.log('sample', change.modifiedGroups['1'])
+        redoGroups = [];
     } else if (predictedLabel == STROKE_TYPE.NONE) {
         const change = {
             change: 'normalStroke',
@@ -1576,7 +1627,7 @@ window.onload = async () => {
 
                 if (allGroups.length > 0) {
                     maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox?.y + obj?.bbox?.h) > (max?.bbox?.y + max?.bbox?.h) ? obj : max, { bbox: { y: 0, h: 0 } });
-                    contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + 300;
+                    contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + viewportHeight;
                 } else {
                     contentHeight = viewportHeight;
                 }
@@ -1887,6 +1938,16 @@ window.onload = async () => {
                 return;
             }
 
+            // Enforce bottom scroll limit (1 extra screen + bottom stroke)
+            const bottomStroke = allGroups.reduce((max, obj) =>
+                (obj?.bbox?.y + obj?.bbox?.h) > (max?.bbox?.y + max?.bbox?.h) ? obj : max,
+                { bbox: { y: 0, h: 0 } }
+            );
+            const maxScrollY = bottomStroke.bbox.y + bottomStroke.bbox.h + viewportHeight;
+            if ((initialViewportOffset.y + dy) > maxScrollY - viewportHeight) {
+                dy = maxScrollY - viewportHeight - initialViewportOffset.y;
+            }
+
             if (dy < 0) {
                 lockScroll = false;
             }
@@ -2081,15 +2142,7 @@ window.onload = async () => {
             });
 
             // Execute tools
-            if (selectedTool) {
-                let isShortcut = false;
-                if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(modifiedGroups.predictedLabel)){
-                    isShortcut = true;
-                    if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
-                        allGroups.pop();
-                    }
-                }   
-                
+            if (selectedTool) {    
                 toolColor = icon?.getAttribute('data-color') || null;
                 toolVisibility = icon?.getAttribute('data-visibility') || null;
                 toolSize = icon?.getAttribute('data-size') || null;
@@ -2098,7 +2151,7 @@ window.onload = async () => {
                 const toolIndex = icon?.getAttribute('data-toolIndex') || null;
 
                 //delete tool
-                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut, toolTapePreset, toolIndex);
+                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, toolTapePreset, toolIndex);
             } else {
                 allGroups.pop();
             }
@@ -2402,8 +2455,25 @@ function applyMomentum() {
     if (momentumActive) return;
     momentumActive = true;
 
+    // Cache scroll limits once at start of momentum (avoid recalculating every frame)
+    const bottomStroke = allGroups.reduce((max, obj) =>
+        (obj?.bbox?.y + obj?.bbox?.h) > (max?.bbox?.y + max?.bbox?.h) ? obj : max,
+        { bbox: { y: 0, h: 0 } }
+    );
+    const maxScrollY = bottomStroke.bbox.y + bottomStroke.bbox.h + viewportHeight;
+    const cachedContentHeight = bottomStroke.bbox.y + bottomStroke.bbox.h + viewportHeight;
+    const cachedThumbHeight = Math.max((viewportHeight/cachedContentHeight)*(viewportHeight*0.86), 0);
+
+    // Update scrollbar dimensions once
+    contentHeight = cachedContentHeight;
+    thumbHeight = cachedThumbHeight;
+    thumb.style.height = thumbHeight + "px";
+
     function step() {
-        if (!momentumActive || lockScroll) return;
+        if (!momentumActive || lockScroll) {
+            momentumActive = false;
+            return;
+        }
 
         velocity.x *= CONFIG.FRICTION;
         velocity.y *= CONFIG.FRICTION;
@@ -2430,30 +2500,21 @@ function applyMomentum() {
             velocity.y = 0;
         }
 
+        // Enforce bottom scroll limit
+        if (viewportOffset.y + dy > maxScrollY - viewportHeight) {
+            dy = maxScrollY - viewportHeight - viewportOffset.y;
+            velocity.y = 0;
+        }
+
         viewportOffset.x += dx;
         viewportOffset.y += dy;
 
         screenBox.x = viewportOffset.x;
         screenBox.y = viewportOffset.y;
 
-        //------------Scroll bar--------------
-        //get contentHeight
-        maxHeightObj = allGroups.reduce((max, obj) => (obj?.bbox.y + obj?.bbox.h) > (max.bbox?.y + obj?.bbox.h) ? obj : max);
-        contentHeight = maxHeightObj.bbox.y + maxHeightObj.bbox.h + 300;
-        
-        console.log("maxheight", contentHeight);
-        
-        console.log("ratio", viewportHeight/contentHeight);
-        console.log("scrollbarheight", viewportHeight);
-        thumbHeight = Math.max((viewportHeight/contentHeight)*(viewportHeight*0.86), 0);
-        thumb.style.height = thumbHeight + "px";
-
         updateScrollbar();
-
         drawGrid(backgroundCtx);
         reDrawAll(drawCtx);
-
-        // Update popup position if media is selected
         updateMediaEditPopupPosition();
 
         requestAnimationFrame(step);
@@ -2504,15 +2565,20 @@ function startScrollBarCountdown() {
     }, 1000);
 }
 
-function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, isShortcut, toolTapePreset = null, toolIndex = null) {
+function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, toolTapePreset = null, toolIndex = null) {
     if (selectedTool.includes("pen")) {
-        allGroups.pop();
         eraserMode = false; 
+        
+        if (toolVisibility == "false" || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
+            allGroups.pop();
+        } 
+    
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
-        if (isShortcut) {
+        if (toolBox != "press") {
             modifiedGroups.modifiedGroups.forEach(group => {
                 group.color = toolColor;
+                group.size = toolSize;
             });
         }
         else {
@@ -2546,18 +2612,36 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         }
     }  
     else if (selectedTool.includes('bold')) {
-        if (!toolVisibility) {
+        if (toolVisibility === "false" || (selectedTool == TOOL_ID.BOLD_DEFAULT)) {
             allGroups.pop();
+            console.log('work');
         }
+
+        // Track original values for undo
+        const originalValues = {};
+        modifiedGroups.modifiedGroups.forEach(group => {
+            originalValues[group.id] = {
+                size: group.size,
+                color: group.color
+            };
+        });
+
         modifiedGroups.modifiedGroups.forEach(group => {
             group.size = group.size + 2;
-            //group.color = 'pink';
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
             } else {
                 group.color = toolColor;
             }
         });
+
+        // Track for undo
+        pastGroups.push({
+            change: 'bold',
+            modifiedGroups: originalValues,
+            groupToRemove: modifiedGroups.modifier
+        });
+        redoGroups = [];
     }
     else if (selectedTool == "title1") {
         selectTitle(toolColor, toolVisibility, 1, toolSize);
@@ -2661,7 +2745,16 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
             if (result != 'no equation'){
                 const resultGroup = createMathResultGroup(modifiedGroups.modifiedGroups, result);
                 allGroups.push(resultGroup);
+
+                // Track for undo
+                pastGroups.push({
+                    change: 'add',
+                    modifiedGroups: [resultGroup]
+                });
+                redoGroups = [];
+
                 reDrawAll(drawCtx);
+                if (title) saveNote(title, allGroups);
             }
         });
         }
@@ -2683,6 +2776,14 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         };
 
         allGroups.push(stickynoteGroup);
+
+        // Track for undo
+        pastGroups.push({
+            change: 'add',
+            modifiedGroups: [stickynoteGroup]
+        });
+        redoGroups = [];
+
         showStickyPopup(stickynoteGroup);
         return;
     }
@@ -2703,6 +2804,13 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         };
 
         allGroups.push(linkGroup);
+
+        // Track for undo
+        pastGroups.push({
+            change: 'add',
+            modifiedGroups: [linkGroup]
+        });
+        redoGroups = [];
     }
     else if (selectedTool == "tape") {
         // Remove selection highlights
@@ -2732,6 +2840,14 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         };
 
         allGroups.push(tapeGroup);
+
+        // Track for undo
+        pastGroups.push({
+            change: 'add',
+            modifiedGroups: [tapeGroup]
+        });
+        redoGroups = [];
+
         flashTape(tapeGroup);
         reDrawAll(drawCtx);
         if (title) saveNote(title, allGroups);
@@ -2767,7 +2883,110 @@ function undo() {
         if (action.groupToRemove) {
             allGroups.splice(allGroups.indexOf(action.groupToRemove), 1); // Removes 1 item at index
         }
-    } 
+    } else if (action.change == 'styling') {
+        const redo = {
+            change: 'styling', 
+            modifiedGroups: action.modifiedGroups, 
+            titleStatus: action?.titleStatus,
+            color: allGroups.find(g => g.id == Object.keys(action.modifiedGroups)[0]).color,
+            groupToAdd: action.groupToRemove,
+        }
+       
+        redoGroups.push(redo);
+
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            group.color = action.modifiedGroups[id];
+            if (action.titleStatus) {
+                group.titleStatus = false; 
+            }
+        }
+
+      
+        if (action.groupToRemove) {
+            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1); // Removes 1 item at index
+        }
+    }
+    else if (action.change == 'bold') {
+        // Track current values for redo
+        const currentValues = {};
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                currentValues[id] = {
+                    size: group.size,
+                    color: group.color
+                };
+            }
+        }
+
+        const redo = {
+            change: 'bold',
+            modifiedGroups: currentValues,
+            groupToAdd: action.groupToRemove
+        };
+        redoGroups.push(redo);
+
+        // Restore original values
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                group.size = action.modifiedGroups[id].size;
+                group.color = action.modifiedGroups[id].color;
+            }
+        }
+
+        if (action.groupToRemove) {
+            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1);
+        }
+    }
+    else if (action.change == 'title') {
+        // Track current values for redo
+        const currentValues = {};
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                currentValues[id] = {
+                    color: group.color,
+                    size: group.size,
+                    titleStatus: group.titleStatus,
+                    titleLevel: group.titleLevel,
+                    titleGroupId: group.titleGroupId
+                };
+            }
+        }
+
+        const redo = {
+            change: 'title',
+            modifiedGroups: currentValues,
+            newColor: action.newColor,
+            newSize: action.newSize,
+            newLevel: action.newLevel,
+            newTitleGroupId: action.newTitleGroupId,
+            groupToAdd: action.groupToRemove
+        };
+        redoGroups.push(redo);
+
+        // Restore original values
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                group.color = action.modifiedGroups[id].color;
+                group.size = action.modifiedGroups[id].size;
+                group.titleStatus = action.modifiedGroups[id].titleStatus;
+                group.titleLevel = action.modifiedGroups[id].titleLevel;
+                group.titleGroupId = action.modifiedGroups[id].titleGroupId;
+            }
+        }
+
+        if (action.groupToRemove) {
+            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1);
+        }
+
+        // Refresh TOC
+        titleAnchorsNeedRefresh = true;
+        if (typeof populateTocList === 'function') populateTocList();
+    }
     else if (action.change == 'normalStroke') { 
         const redo = {
             change: 'normalStroke',
@@ -2804,7 +3023,62 @@ function undo() {
         });
     }
     else if (action.change == "shape") {
+        const redo = {
+            change: 'shape',
+            modifiedGroups: action.modifiedGroups,
+        }
+        redoGroups.push(redo);
+
         allGroups.splice(allGroups.indexOf(action.modifiedGroups), 1);
+    }
+    else if (action.change == "add") {
+        // Handle add for stickynote, link, tape, and media
+        const redo = {
+            change: 'add',
+            modifiedGroups: action.modifiedGroups,
+        }
+        redoGroups.push(redo);
+
+        // Remove added groups from allGroups
+        action.modifiedGroups.forEach(group => {
+            const index = allGroups.indexOf(group);
+            if (index > -1) {
+                allGroups.splice(index, 1);
+                // Clear media cache if it's a media group
+                if (group.type === 'media' && typeof mediaCache !== 'undefined') {
+                    mediaCache.delete(group.id);
+                }
+            }
+        });
+    }
+    else if (action.action == "add") {
+        // Handle old media format (action instead of change)
+        const redo = {
+            action: 'add',
+            groups: action.groups,
+        }
+        redoGroups.push(redo);
+
+        action.groups.forEach(group => {
+            const index = allGroups.indexOf(group);
+            if (index > -1) {
+                allGroups.splice(index, 1);
+                if (typeof mediaCache !== 'undefined') {
+                    mediaCache.delete(group.id);
+                }
+            }
+        });
+    }
+    else if (action.action == "delete") {
+        // Handle old media delete format
+        const redo = {
+            action: 'delete',
+            groups: action.groups,
+        }
+        redoGroups.push(redo);
+
+        // Re-add the deleted groups
+        allGroups.push(...action.groups);
     }
     else if (action.change == "paste") {
         const redo = {
@@ -2846,9 +3120,89 @@ function redo() {
             const group = allGroups.find(g => g.id == id);
             group.color = action.color;
             if (action.titleStatus) {
-                group.titleStatus = true; 
+                group.titleStatus = true;
             }
         }
+    }
+    else if (action.change == 'bold') {
+        // Track current values for undo
+        const currentValues = {};
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                currentValues[id] = {
+                    size: group.size,
+                    color: group.color
+                };
+            }
+        }
+
+        const change = {
+            change: 'bold',
+            modifiedGroups: currentValues,
+            groupToRemove: action.groupToAdd
+        };
+        pastGroups.push(change);
+
+        // Apply bold values
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                group.size = action.modifiedGroups[id].size;
+                group.color = action.modifiedGroups[id].color;
+            }
+        }
+
+        if (action.groupToAdd) {
+            allGroups.push(action.groupToAdd);
+        }
+    }
+    else if (action.change == 'title') {
+        // Track current values for undo
+        const currentValues = {};
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                currentValues[id] = {
+                    color: group.color,
+                    size: group.size,
+                    titleStatus: group.titleStatus,
+                    titleLevel: group.titleLevel,
+                    titleGroupId: group.titleGroupId
+                };
+            }
+        }
+
+        const change = {
+            change: 'title',
+            modifiedGroups: currentValues,
+            newColor: action.newColor,
+            newSize: action.newSize,
+            newLevel: action.newLevel,
+            newTitleGroupId: action.newTitleGroupId,
+            groupToRemove: action.groupToAdd
+        };
+        pastGroups.push(change);
+
+        // Apply title values
+        for (const id in action.modifiedGroups) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                group.color = action.modifiedGroups[id].color;
+                group.size = action.modifiedGroups[id].size;
+                group.titleStatus = action.modifiedGroups[id].titleStatus;
+                group.titleLevel = action.modifiedGroups[id].titleLevel;
+                group.titleGroupId = action.modifiedGroups[id].titleGroupId;
+            }
+        }
+
+        if (action.groupToAdd) {
+            allGroups.push(action.groupToAdd);
+        }
+
+        // Refresh TOC
+        titleAnchorsNeedRefresh = true;
+        if (typeof populateTocList === 'function') populateTocList();
     }
     else if (action.change == 'normalStroke') {
         const change = {
@@ -2897,6 +3251,56 @@ function redo() {
 
         // Re-add pasted groups
         allGroups.push(...action.modifiedGroups);
+    }
+    else if (action.change == 'shape') {
+        const change = {
+            change: 'shape',
+            modifiedGroups: action.modifiedGroups,
+        }
+        pastGroups.push(change);
+
+        allGroups.push(action.modifiedGroups);
+    }
+    else if (action.change == 'add') {
+        // Handle add for stickynote, link, tape, and media
+        const change = {
+            change: 'add',
+            modifiedGroups: action.modifiedGroups,
+        }
+        pastGroups.push(change);
+
+        // Re-add the groups
+        allGroups.push(...action.modifiedGroups);
+    }
+    else if (action.action == "add") {
+        // Handle old media format (action instead of change)
+        const change = {
+            action: 'add',
+            groups: action.groups,
+        }
+        pastGroups.push(change);
+
+        // Re-add the groups
+        allGroups.push(...action.groups);
+    }
+    else if (action.action == "delete") {
+        // Handle old media delete format
+        const change = {
+            action: 'delete',
+            groups: action.groups,
+        }
+        pastGroups.push(change);
+
+        // Remove the groups again
+        action.groups.forEach(group => {
+            const index = allGroups.indexOf(group);
+            if (index > -1) {
+                allGroups.splice(index, 1);
+                if (typeof mediaCache !== 'undefined') {
+                    mediaCache.delete(group.id);
+                }
+            }
+        });
     }
 
     reDrawAll(drawCtx);
@@ -3876,7 +4280,8 @@ function populateTocList() {
 }
 
 function scrollToAnchor(anchor) {
-  const targetY = anchor.bbox.y - 40;
+  // Position title with generous top margin (100px from screen top)
+  const targetY = anchor.bbox.y - 80;
   const duration = 400;
   const startY = viewportOffset.y;
   const deltaY = targetY - startY;

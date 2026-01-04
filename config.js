@@ -187,6 +187,7 @@ const TOOLBOX_SELECTION = {
     COPY: "copy",
   }),
   underline: Object.freeze({
+    PEN: "pen",
     TITLE1: "title1",
     TITLE2: "title2",
     TITLE3: "title3",
@@ -202,6 +203,7 @@ const TOOLBOX_SELECTION = {
     PASTE: "paste",
   }),
   box: Object.freeze({
+    PEN: "pen",
     TITLE1: "title1",
     TITLE2: "title2",
     TITLE3: "title3",
@@ -217,6 +219,7 @@ const TOOLBOX_SELECTION = {
     PASTE: "paste",
   }),
   curly: Object.freeze({
+    PEN: "pen",
     TITLE1: "title1",
     TITLE2: "title2",
     TITLE3: "title3",
@@ -243,26 +246,122 @@ const PEN_TYPES = Object.freeze({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TOOL REGISTRY - Icon mappings and customization flags
+// TOOL REGISTRY - Icon mappings and granular customization flags
+// ═══════════════════════════════════════════════════════════════════════════
+// Each tool specifies which properties can be customized in the tool settings popup:
+//   - colorCustomizable: whether the color picker is shown
+//   - sizeCustomizable: whether the size slider is shown
+//   - visibilityCustomizable: whether the visibility toggle is shown
+//   - tapePresetCustomizable: whether the tape preset picker is shown (tape tool only)
+//   - contextual: if true, customization depends on which toolbox it's in
 // ═══════════════════════════════════════════════════════════════════════════
 const TOOL_REGISTRY = Object.freeze({
-  eraser: { icon: "bx-eraser", customizable: false },
-  pen: { icon: "bx-pen", customizable: true },
-  title1: { icon: "bx-capitalize", customizable: true },
-  title2: { icon: "bx-capitalize", customizable: true },
-  title3: { icon: "bx-capitalize", customizable: true },
-  highlight: { icon: "bx-highlight", customizable: true },
-  bold: { icon: "bx-bold", color: "red", customizable: false },
-  bold_custom: { icon: "bx-bold", color: "white", customizable: true },
-  delete: { icon: "bx-trash", customizable: false },
-  move: { icon: "bx-move", customizable: false },
-  mathSolver: { icon: "bx-calculator", customizable: false },
-  copy: { icon: "bx-copy", customizable: false },
-  paste: { icon: "bx-paste", customizable: false },
-  stickynote: { icon: "bx-sticker", customizable: false },
-  link: { icon: "bx-link-break", customizable: false },
-  media: { icon: "bx-file-plus", customizable: false },
-  tape: { icon: "bx-band-aid", customizable: true }
+  eraser: {
+    icon: "bx-eraser",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  pen: {
+    icon: "bx-pen",
+    colorCustomizable: true,
+    sizeCustomizable: true,
+    visibilityCustomizable: true
+  },
+  title1: {
+    icon: "bx-capitalize",
+    colorCustomizable: true,
+    sizeCustomizable: true,
+    visibilityCustomizable: true
+  },
+  title2: {
+    icon: "bx-capitalize",
+    colorCustomizable: true,
+    sizeCustomizable: true,
+    visibilityCustomizable: true
+  },
+  title3: {
+    icon: "bx-capitalize",
+    colorCustomizable: true,
+    sizeCustomizable: true,
+    visibilityCustomizable: true
+  },
+  highlight: {
+    icon: "bx-highlight",
+    colorCustomizable: true,
+    sizeCustomizable: true,  // Size only in "press" toolbox
+    visibilityCustomizable: false,
+    contextual: { press: { sizeCustomizable: true }, default: { sizeCustomizable: false } }
+  },
+  bold: {
+    icon: "bx-bold",
+    color: "red",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  bold_custom: {
+    icon: "bx-bold",
+    color: "white",
+    colorCustomizable: true,
+    sizeCustomizable: false,
+    visibilityCustomizable: true
+  },
+  delete: {
+    icon: "bx-trash",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  move: {
+    icon: "bx-move",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  mathSolver: {
+    icon: "bx-calculator",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  copy: {
+    icon: "bx-copy",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  paste: {
+    icon: "bx-paste",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  stickynote: {
+    icon: "bx-sticker",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  link: {
+    icon: "bx-link-break",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  media: {
+    icon: "bx-file-plus",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  tape: {
+    icon: "bx-band-aid",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false,
+    tapePresetCustomizable: true
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
