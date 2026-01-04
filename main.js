@@ -2627,7 +2627,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         });
 
         modifiedGroups.modifiedGroups.forEach(group => {
-            group.size = parseInt(group.size) + 2;
+            group.size = parseInt(group.size, 10) + 2;
             console.log(group.size);
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
@@ -5566,3 +5566,34 @@ function endMediaDrag() {
   dragStartBbox = null;
   canvasGroup.style.cursor = 'default';
 }
+
+//======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
+(function () {
+  const penOverlay = document.createElement("img");
+  penOverlay.src = "cursor.png"; // your 945×1396 image
+  penOverlay.alt = "pen cursor";
+  penOverlay.style.position = "fixed";
+  penOverlay.style.height = "130px"; // scaled height
+  penOverlay.style.pointerEvents = "none";
+  penOverlay.style.zIndex = "999999";
+  penOverlay.style.display = "block";
+
+  // --- Top-left anchor: no transform needed ---
+  penOverlay.style.transform = "none";
+  document.body.appendChild(penOverlay);
+
+  // --- Update position on move ---
+  const updateCursorPos = (e) => {
+    penOverlay.style.left = `${e.clientX}px`;
+    penOverlay.style.top = `${e.clientY}px`;
+  };
+  window.addEventListener("pointermove", updateCursorPos);
+
+  // --- Optional press feedback ---
+  window.addEventListener("pointerdown", () => {
+    penOverlay.style.transform = "scale(0.9)";
+  });
+  window.addEventListener("pointerup", () => {
+    penOverlay.style.transform = "scale(1)";
+  });
+})();
