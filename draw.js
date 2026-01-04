@@ -995,10 +995,24 @@ function reDrawAll(ctx) {
         }
     });
 
-    // Second pass: draw all other groups
+    // Second pass: draw highlights (so they appear behind regular strokes)
+    allGroups.forEach((group) => {
+        if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
+        const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT;
+        if (isHighlight && Array.isArray(group.stroke) && group.stroke.length > 0) {
+            drawCount++;
+            drawHighlight(group.bbox, group.color);
+        }
+    });
+
+    // Third pass: draw all other groups
     allGroups.forEach((group) => {
         if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
         if (group.type === "media") return; // Skip media, already drawn
+
+        // Skip highlights, already drawn in second pass
+        const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT;
+        if (isHighlight) return;
 
         drawCount ++;
 
@@ -1078,10 +1092,6 @@ function reDrawAll(ctx) {
             else if (group.titleStatus) {
                 const size  = group?.size ?? 3;
                 drawStroke(drawCtx, group.stroke, group.color, size);
-            } 
-            else if (group.type === STROKE_TYPE.HIGHLIGHT) {
-                console.log("highlight");
-                drawHighlight(group.bbox, group.color);
             }
             else if ((group.predictedLabel != STROKE_TYPE.NONE || group.predictedLabel != STROKE_TYPE.MOVE)) {
                 const size  = group?.size ?? 2;
@@ -1101,7 +1111,7 @@ function reDrawAll(ctx) {
         }
     });
 
-    // Third pass: draw media selection handles on top of everything
+    // Fourth pass: draw media selection handles on top of everything
     if (selectedMedia) {
         allGroups.forEach((group) => {
             if (group.type === "media" && group.id === selectedMedia.id) {
@@ -1287,9 +1297,17 @@ function selectTitle(titleColor, visibility, level=0, size) {
         const lastGroup = allGroups[allGroups.length - 1];
         if (lastGroup) lastGroup.visibility = false;
     }
-    const idToColorMap = {};
+
+    // Store original values for undo (color, size, titleStatus, titleLevel, titleGroupId)
+    const originalValues = {};
     modifiedGroups.modifiedGroups.forEach(group => {
-      idToColorMap[group.id] = group.color;
+        originalValues[group.id] = {
+            color: group.color,
+            size: group.size,
+            titleStatus: group.titleStatus,
+            titleLevel: group.titleLevel,
+            titleGroupId: group.titleGroupId
+        };
     });
 
     // Generate unique title group ID for TOC grouping
@@ -1306,12 +1324,16 @@ function selectTitle(titleColor, visibility, level=0, size) {
     });
 
     const change = {
-      change: 'color',
-      titleStatus: true,
-      modifiedGroups: idToColorMap,
+      change: 'title',
+      modifiedGroups: originalValues,
+      newColor: titleColor,
+      newSize: size,
+      newLevel: level,
+      newTitleGroupId: titleGroupId,
       groupToRemove: modifiedGroups.modifier,
     }
     pastGroups.push(change);
+    redoGroups = [];
 }
 
 function selectHighlight(highlightColor){
@@ -1346,11 +1368,14 @@ function selectHighlight(highlightColor){
     };
     //modifiedGroups.groupsToDraw.push(newgroup);
     allGroups.push(newgroup);
+
+    // Track for undo (store the actual group, not just ID)
     const change = {
       change: 'normalStroke',
-      modifiedGroups: newgroup.id,
+      modifiedGroups: newgroup,
     }
-    pastGroups.push(change)
+    pastGroups.push(change);
+    redoGroups = [];
     //highlightGroups.push(newgroup);
 }
 

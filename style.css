@@ -322,7 +322,7 @@ body {
     position: absolute;
     top: 0;
     right: 100%;
-    width: 280px;
+    max-width: 460px;
     max-height: 80vh;
     background: #3a3a3a;
     border: 1px solid #555;
@@ -413,9 +413,22 @@ body {
     object-fit: contain;
 }
 
-/* Hide scrollbar but allow horizontal scroll */
+/* Thin horizontal scrollbar for TOC items */
 .toc-item::-webkit-scrollbar {
-    height: 0;
+    height: 4px;
+}
+
+.toc-item::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.toc-item::-webkit-scrollbar-thumb {
+    background-color: rgba(150, 150, 150, 0.4);
+    border-radius: 2px;
+}
+
+.toc-item::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(150, 150, 150, 0.6);
 }
 
 .toc-item-text {
