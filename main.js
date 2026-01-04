@@ -17,6 +17,25 @@ let currentStroke = [];
 let drawing = false;
 let drawingLock = false;
 let idCount = 0; // Unique ID for each group
+
+// Helper function to generate unique IDs safely
+function getNextId() {
+    if (!Number.isFinite(idCount)) idCount = 0;
+    return idCount++;
+}
+
+// Helper function to fix and sync IDs after loading notes
+function syncGroupIds(groups) {
+    if (!Array.isArray(groups)) return;
+    let maxId = groups.reduce((max, group) => Math.max(max, Number.isFinite(group.id) ? group.id : -Infinity), 0);
+    groups.forEach(group => {
+        if (!Number.isFinite(group.id)) {
+            group.id = ++maxId;
+        }
+    });
+    idCount = maxId + 1;
+}
+
 // normalHeight is defined in config.js as CONFIG.NORMAL_HEIGHT
 let normalHeight = CONFIG.NORMAL_HEIGHT;
 let allGroups = [];
@@ -888,6 +907,11 @@ async function renderTools() {
                 toolDiv.style.background = `linear-gradient(135deg, ${presetData.color1}, ${presetData.color2})`;
             }
             else {
+                // Force white for non-colorCustomizable tools
+                const toolCustomization = getToolCustomization(tool.id, id);
+                if (!toolCustomization.colorCustomizable) {
+                    tool.color = "#ffffff";
+                }
                 toolDiv.style.backgroundColor = tool.color || "#fff";
             }
 
@@ -1052,7 +1076,10 @@ async function renderTools() {
                             toolDiv.style.backgroundColor = tool.color;
                             popup.querySelector("#colorPicker").value = tool.color;
                         } else {
+                            // Force color to white for non-colorCustomizable tools
+                            tool.color = "#ffffff";
                             toolDiv.style.backgroundColor = "#ffffff";
+                            popup.querySelector("#colorPicker").value = "#ffffff";
                         }
                     }
 
@@ -1146,6 +1173,16 @@ async function initModifiers() {
     toolboxLayout = structuredClone(saved.toolboxLayout);
   } else {
     toolboxLayout = structuredClone(DEFAULT_TOOLBOX_LAYOUT);
+  }
+
+  // Reset colors to white for non-colorCustomizable tools
+  for (const boxId in toolboxLayout) {
+    toolboxLayout[boxId].forEach(tool => {
+      const customization = getToolCustomization(tool.id, boxId);
+      if (!customization.colorCustomizable) {
+        tool.color = "#ffffff";
+      }
+    });
   }
 
   // Render UI and assign tools
@@ -1292,7 +1329,7 @@ async function classifyStroke(stroke, hold = false) {
     if (!wideenough || !isDetectionOn) {
         //group creation
         const modifier = {
-            id: idCount ++, // Unique ID for the group
+            id: getNextId(), // Unique ID for the group
             stroke: currentStroke, //strokes data
             bbox: newBox,
             color: defaultPenColor,
@@ -1418,7 +1455,7 @@ async function classifyStroke(stroke, hold = false) {
 
     //group creation
     const modifier = {
-        id: idCount ++, // Unique ID for the group
+        id: getNextId(), // Unique ID for the group
         stroke: currentStroke, //strokes data
         bbox: newBox,
         color: defaultPenColor,
@@ -1614,9 +1651,10 @@ window.onload = async () => {
                 if (note) {
                     if (note.content) {
                         allGroups = note.content;
-                        idCount = allGroups.reduce((max, group) => Math.max(max, group.id ?? -Infinity), 0) + 1;
+                        syncGroupIds(allGroups);
                     } else {
                         allGroups = [];
+                        idCount = 0;
                     }
                     reDrawAll(drawCtx);
                 }
@@ -2614,21 +2652,25 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     else if (selectedTool.includes('bold')) {
         if (toolVisibility === "false" || (selectedTool == TOOL_ID.BOLD_DEFAULT)) {
             allGroups.pop();
-            console.log('work');
         }
 
-        // Track original values for undo
-        const originalValues = {};
+        // Track original values for undo - unified styling format
+        const modifierId = modifiedGroups.modifier?.id;
+        const originalStyles = {};
         modifiedGroups.modifiedGroups.forEach(group => {
-            originalValues[group.id] = {
+            if (group.id === modifierId) return;
+            originalStyles[group.id] = {
+                color: group.color,
                 size: group.size,
-                color: group.color
+                titleStatus: group.titleStatus,
+                titleLevel: group.titleLevel,
+                titleGroupId: group.titleGroupId
             };
         });
 
         modifiedGroups.modifiedGroups.forEach(group => {
+            if (group.id === modifierId) return;
             group.size = parseInt(group.size, 10) + 2;
-            console.log(group.size);
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
             } else {
@@ -2636,10 +2678,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
             }
         });
 
-        // Track for undo
+        // Track for undo - unified styling format
         pastGroups.push({
-            change: 'bold',
-            modifiedGroups: originalValues,
+            change: 'styling',
+            originalStyles: originalStyles,
             groupToRemove: modifiedGroups.modifier
         });
         redoGroups = [];
@@ -2693,7 +2735,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         pastedGroups = clipboard.map(group => {
             const newGroup = {
                 ...group,
-                id: idCount++,
+                id: getNextId(),
                 stroke: group.stroke.map(s => ({
                     ...s,
                     path: s.path ? s.path.map(p => ({ x: p.x, y: p.y })) : undefined,
@@ -2768,7 +2810,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         // Create the sticky note group
         const stickynoteGroup = {
-            id: idCount++,
+            id: getNextId(),
             type: "stickynote",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
@@ -2796,7 +2838,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         // Create the empty link group
         const linkGroup = {
-            id: idCount++,
+            id: getNextId(),
             type: "link",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
@@ -2828,7 +2870,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         // Create the tape group
         const tapeGroup = {
-            id: idCount++,
+            id: getNextId(),
             type: "tape",
             bbox: groupBBox,
             stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
@@ -2861,93 +2903,18 @@ function undo() {
     
     action = pastGroups.pop();
 
-    if (action.change == 'color') {
-        const redo = {
-            change: 'color', 
-            modifiedGroups: action.modifiedGroups, 
-            titleStatus: action?.titleStatus,
-            color: allGroups.find(g => g.id == Object.keys(action.modifiedGroups)[0]).color,
-            groupToAdd: action.groupToRemove,
-        }
-       
-        redoGroups.push(redo);
+    // Unified styling handler - handles all modifier styling changes (box, curly, bold, title, etc.)
+    if (action.change == 'styling') {
+        // Get originalStyles (handle both new and old formats)
+        console.log(action);
+        const styles = action.originalStyles || {};
 
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            group.color = action.modifiedGroups[id];
-            if (action.titleStatus) {
-                group.titleStatus = false; 
-            }
-        }
-
-      
-        if (action.groupToRemove) {
-            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1); // Removes 1 item at index
-        }
-    } else if (action.change == 'styling') {
-        const redo = {
-            change: 'styling', 
-            modifiedGroups: action.modifiedGroups, 
-            titleStatus: action?.titleStatus,
-            color: allGroups.find(g => g.id == Object.keys(action.modifiedGroups)[0]).color,
-            groupToAdd: action.groupToRemove,
-        }
-       
-        redoGroups.push(redo);
-
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            group.color = action.modifiedGroups[id];
-            if (action.titleStatus) {
-                group.titleStatus = false; 
-            }
-        }
-
-      
-        if (action.groupToRemove) {
-            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1); // Removes 1 item at index
-        }
-    }
-    else if (action.change == 'bold') {
-        // Track current values for redo
-        const currentValues = {};
-        for (const id in action.modifiedGroups) {
+        // Save current values for redo
+        const currentStyles = {};
+        for (const id in styles) {
             const group = allGroups.find(g => g.id == id);
             if (group) {
-                currentValues[id] = {
-                    size: group.size,
-                    color: group.color
-                };
-            }
-        }
-
-        const redo = {
-            change: 'bold',
-            modifiedGroups: currentValues,
-            groupToAdd: action.groupToRemove
-        };
-        redoGroups.push(redo);
-
-        // Restore original values
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            if (group) {
-                group.size = action.modifiedGroups[id].size;
-                group.color = action.modifiedGroups[id].color;
-            }
-        }
-
-        if (action.groupToRemove) {
-            allGroups.splice(allGroups.indexOf(action.groupToRemove), 1);
-        }
-    }
-    else if (action.change == 'title') {
-        // Track current values for redo
-        const currentValues = {};
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            if (group) {
-                currentValues[id] = {
+                currentStyles[id] = {
                     color: group.color,
                     size: group.size,
                     titleStatus: group.titleStatus,
@@ -2958,25 +2925,24 @@ function undo() {
         }
 
         const redo = {
-            change: 'title',
-            modifiedGroups: currentValues,
-            newColor: action.newColor,
-            newSize: action.newSize,
-            newLevel: action.newLevel,
-            newTitleGroupId: action.newTitleGroupId,
+            change: 'styling',
+            originalStyles: currentStyles,
             groupToAdd: action.groupToRemove
         };
         redoGroups.push(redo);
 
-        // Restore original values
-        for (const id in action.modifiedGroups) {
+        // Restore original values for each group
+        for (const id in styles) {
             const group = allGroups.find(g => g.id == id);
             if (group) {
-                group.color = action.modifiedGroups[id].color;
-                group.size = action.modifiedGroups[id].size;
-                group.titleStatus = action.modifiedGroups[id].titleStatus;
-                group.titleLevel = action.modifiedGroups[id].titleLevel;
-                group.titleGroupId = action.modifiedGroups[id].titleGroupId;
+                const original = styles[id];
+                if (original) {
+                    group.color = original.color;
+                    group.size = original.size;
+                    group.titleStatus = original.titleStatus;
+                    group.titleLevel = original.titleLevel;
+                    group.titleGroupId = original.titleGroupId;
+                }
             }
         }
 
@@ -3012,15 +2978,18 @@ function undo() {
         const dx = action.dx;
         const dy = action.dy;
         action.modifiedGroups.forEach(group => {
-          if (group.predictedLabel != STROKE_TYPE.DELETE) {
+          // Move strokes back
+          if (group.stroke && Array.isArray(group.stroke)) {
             group.stroke.forEach(p => {
               p.x -= dx;
               p.y -= dy;
             });
           }
-
-          group.bbox.x += dx;
-          group.bbox.y += dy;
+          // Move bbox back (same direction as strokes)
+          if (group.bbox) {
+            group.bbox.x -= dx;
+            group.bbox.y -= dy;
+          }
         });
     }
     else if (action.change == "shape") {
@@ -3104,67 +3073,17 @@ function redo() {
     
     action = redoGroups.pop();
 
-    if (action.change == 'color') {
-        const change = {
-            change: 'color', 
-            titleStatus: action?.titleStatus,
-            modifiedGroups: action.modifiedGroups, 
-            groupToRemove: action.groupToAdd,
+    // Unified styling handler - handles all modifier styling changes (box, curly, bold, title, etc.)
+    if (action.change == 'styling') {
+        // Get originalStyles (handle both new and old formats)
+        const styles = action.originalStyles || {};
 
-        }
-        pastGroups.push(change);
-
-        if (action.groupToAdd) {
-            allGroups.push(action.groupToAdd); // Removes 1 item at index
-        }
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            group.color = action.color;
-            if (action.titleStatus) {
-                group.titleStatus = true;
-            }
-        }
-    }
-    else if (action.change == 'bold') {
-        // Track current values for undo
-        const currentValues = {};
-        for (const id in action.modifiedGroups) {
+        // Save current values for undo
+        const currentStyles = {};
+        for (const id in styles) {
             const group = allGroups.find(g => g.id == id);
             if (group) {
-                currentValues[id] = {
-                    size: group.size,
-                    color: group.color
-                };
-            }
-        }
-
-        const change = {
-            change: 'bold',
-            modifiedGroups: currentValues,
-            groupToRemove: action.groupToAdd
-        };
-        pastGroups.push(change);
-
-        // Apply bold values
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            if (group) {
-                group.size = action.modifiedGroups[id].size;
-                group.color = action.modifiedGroups[id].color;
-            }
-        }
-
-        if (action.groupToAdd) {
-            allGroups.push(action.groupToAdd);
-        }
-    }
-    else if (action.change == 'title') {
-        // Track current values for undo
-        const currentValues = {};
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            if (group) {
-                currentValues[id] = {
+                currentStyles[id] = {
                     color: group.color,
                     size: group.size,
                     titleStatus: group.titleStatus,
@@ -3175,30 +3094,30 @@ function redo() {
         }
 
         const change = {
-            change: 'title',
-            modifiedGroups: currentValues,
-            newColor: action.newColor,
-            newSize: action.newSize,
-            newLevel: action.newLevel,
-            newTitleGroupId: action.newTitleGroupId,
+            change: 'styling',
+            originalStyles: currentStyles,
             groupToRemove: action.groupToAdd
         };
         pastGroups.push(change);
 
-        // Apply title values
-        for (const id in action.modifiedGroups) {
-            const group = allGroups.find(g => g.id == id);
-            if (group) {
-                group.color = action.modifiedGroups[id].color;
-                group.size = action.modifiedGroups[id].size;
-                group.titleStatus = action.modifiedGroups[id].titleStatus;
-                group.titleLevel = action.modifiedGroups[id].titleLevel;
-                group.titleGroupId = action.modifiedGroups[id].titleGroupId;
-            }
-        }
-
+        // Add modifier back
         if (action.groupToAdd) {
             allGroups.push(action.groupToAdd);
+        }
+
+        // Apply stored values for each group
+        for (const id in styles) {
+            const group = allGroups.find(g => g.id == id);
+            if (group) {
+                const original = styles[id];
+                if (original) {
+                    group.color = original.color;
+                    group.size = original.size;
+                    group.titleStatus = original.titleStatus;
+                    group.titleLevel = original.titleLevel;
+                    group.titleGroupId = original.titleGroupId;
+                }
+            }
         }
 
         // Refresh TOC
@@ -3232,15 +3151,18 @@ function redo() {
         const dy = action.dy;
 
         action.modifiedGroups.forEach(group => {
-          if (group.predictedLabel != STROKE_TYPE.DELETE) {
+          // Move strokes forward
+          if (group.stroke && Array.isArray(group.stroke)) {
             group.stroke.forEach(p => {
               p.x += dx;
               p.y += dy;
             });
           }
-
-          group.bbox.x -= dx;
-          group.bbox.y -= dy;
+          // Move bbox forward (same direction as strokes)
+          if (group.bbox) {
+            group.bbox.x += dx;
+            group.bbox.y += dy;
+          }
         });
     }
     else if (action.change == 'paste') {
@@ -4013,7 +3935,7 @@ function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
           boxes.forEach(box => {
             const boxClone = structuredClone(box);
             boxClone.source = path;
-            boxClone.id = idCount++;
+            boxClone.id = getNextId();
             boxClone.children = [];
             groups.forEach(other => {
               if (other.id !== box.id && other.bbox && Array.isArray(other.stroke)) {
@@ -4055,14 +3977,14 @@ function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
               const titleLevel = dy > normalHeight * 0.8 ? 1 : 2;
 
               const titleGroup = {
-                id: idCount++,
+                id: getNextId(),
                 type: "title",
                 titleLevel,
                 bbox: mergedBox,
                 stroke: mergedStrokes,
                 children: [
-                  { id: idCount++, ...structuredClone(underline), visible: true, isUnderline: true },
-                  ...relatedTexts.map(t => ({ id: idCount++, ...structuredClone(t) }))
+                  { id: getNextId(), ...structuredClone(underline), visible: true, isUnderline: true },
+                  ...relatedTexts.map(t => ({ id: getNextId(), ...structuredClone(t) }))
                 ],
                 predictedLabel: 100 + titleLevel,
                 color: titleLevel === 1 ? "#ffcc33" : "#66ccff",
@@ -4455,7 +4377,7 @@ function regroupTitles() {
     if (group.strokes.length === 0) continue;
 
     const anchor = {
-      id: idCount++,
+      id: getNextId(),
       bbox: { x: group.minX, y: group.minY, w: group.maxX - group.minX, h: group.maxY - group.minY },
       isTitleAnchor: true,
       titleLevel: group.level,
@@ -4907,7 +4829,7 @@ function createMediaGroup(mediaData) {
   const centerY = viewportOffset.y + (window.innerHeight / scale) / 2;
 
   const mediaGroup = {
-    id: 'media_' + Date.now() + '_' + idCount++,
+    id: 'media_' + Date.now() + '_' + getNextId(),
     type: 'media',
     mediaType: mediaType,
     bbox: {
@@ -4977,7 +4899,7 @@ function createMediaGroupsVertical(pagesData) {
     const finalHeight = finalWidth / aspectRatio;
 
     const mediaGroup = {
-      id: 'media_' + Date.now() + '_' + idCount++,
+      id: 'media_' + Date.now() + '_' + getNextId(),
       type: 'media',
       mediaType: mediaType,
       bbox: {

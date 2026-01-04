@@ -1298,10 +1298,12 @@ function selectTitle(titleColor, visibility, level=0, size) {
         if (lastGroup) lastGroup.visibility = false;
     }
 
-    // Store original values for undo (color, size, titleStatus, titleLevel, titleGroupId)
-    const originalValues = {};
+    // Store original values for undo - unified styling format
+    const modifierId = modifiedGroups.modifier?.id;
+    const originalStyles = {};
     modifiedGroups.modifiedGroups.forEach(group => {
-        originalValues[group.id] = {
+        if (group.id === modifierId) return;
+        originalStyles[group.id] = {
             color: group.color,
             size: group.size,
             titleStatus: group.titleStatus,
@@ -1311,29 +1313,29 @@ function selectTitle(titleColor, visibility, level=0, size) {
     });
 
     // Generate unique title group ID for TOC grouping
-    // Each selectTitle call creates a distinct title group
     const titleGroupId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     modifiedGroups.modifiedGroups.forEach(group => {
+        if (group.id === modifierId) return;
         group.titleStatus = true;
         group.titleLevel = level;
         group.color = titleColor;
         group.size = size;
-        // Store unique group ID for TOC grouping
         group.titleGroupId = titleGroupId;
     });
 
+    // Track for undo - unified styling format
     const change = {
-      change: 'title',
-      modifiedGroups: originalValues,
-      newColor: titleColor,
-      newSize: size,
-      newLevel: level,
-      newTitleGroupId: titleGroupId,
+      change: 'styling',
+      originalStyles: originalStyles,
       groupToRemove: modifiedGroups.modifier,
     }
     pastGroups.push(change);
     redoGroups = [];
+
+    // Refresh TOC
+    titleAnchorsNeedRefresh = true;
+    if (typeof populateTocList === 'function') populateTocList();
 }
 
 function selectHighlight(highlightColor){
@@ -1358,7 +1360,7 @@ function selectHighlight(highlightColor){
     //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
 
     newgroup = {
-      id: idCount++, 
+      id: getNextId(),
       stroke: [...modifiedGroups.modifiedGroups[0].stroke, ...modifiedGroups.modifiedGroups[modifiedGroups.modifiedGroups.length-1].stroke],
       bbox: bbox,
       color: highlightColor,
