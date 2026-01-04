@@ -2627,7 +2627,8 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         });
 
         modifiedGroups.modifiedGroups.forEach(group => {
-            group.size = group.size + 2;
+            group.size = parseInt(group.size) + 2;
+            console.log(group.size);
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
             } else {
