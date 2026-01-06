@@ -1301,7 +1301,7 @@ function selectTitle(titleColor, visibility, level=0, size) {
     const modifierId = modifiedGroups.modifier?.id;
     const originalStyles = {};
     modifiedGroups.modifiedGroups.forEach(group => {
-        if (group.id === modifierId) return;
+        //if (group.id === modifierId) return;
         originalStyles[group.id] = {
             color: group.color,
             size: group.size,
@@ -1315,7 +1315,7 @@ function selectTitle(titleColor, visibility, level=0, size) {
     const titleGroupId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     modifiedGroups.modifiedGroups.forEach(group => {
-        if (group.id === modifierId) return;
+        //if (group.id === modifierId) return;
         group.titleStatus = true;
         group.titleLevel = level;
         group.color = titleColor;
