@@ -32,15 +32,13 @@ function renderAllNotes() {
   document.getElementById('note-list').innerHTML = '';
   document.querySelector('.folder').innerHTML = '';
   folders = listFolders(folders => {
-    // Sort folders alphabetically by name
-    folders.sort((a, b) => a.localeCompare(b));
     folders.forEach(folder => {
       renderFolderList(folder)
     })
   });
 }
 
-function saveNote(path, content, callback, options = {}) {
+function saveNote(path, content, callback, extraOptions = {}) {
   console.log("save");
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
@@ -50,25 +48,31 @@ function saveNote(path, content, callback, options = {}) {
     getReq.onsuccess = () => {
       const existing = getReq.result || {};
 
-      // For summary notes, always use new metadata (don't fallback to existing)
-      // This ensures Replace works correctly
-      const newSummaryMetadata = options.isSummaryNote
-        ? (options.summaryMetadata || null)  // For summaries: use provided or null (don't keep old)
-        : (options.summaryMetadata || existing.summaryMetadata || null);  // For regular notes: keep existing
-
-      store.put({
+      // Build the note object
+      const noteData = {
         ...existing,
         path,
         content,
-        created_at: existing.created_at || new Date().toISOString(),
-        isSummaryNote: options.isSummaryNote || existing.isSummaryNote || false,
-        summaryMetadata: newSummaryMetadata
-      });
+        created_at: existing.created_at || new Date().toISOString()
+      };
+
+      // Handle summary note specific fields
+      if (extraOptions.isSummaryNote !== undefined) {
+        noteData.isSummaryNote = extraOptions.isSummaryNote;
+      }
+      if (extraOptions.summaryMetadata !== undefined) {
+        // For summary notes, always use the new metadata (don't fallback to existing)
+        noteData.summaryMetadata = extraOptions.summaryMetadata;
+      }
+
+      store.put(noteData);
     };
 
     tx.oncomplete = () => {
       done();
-      if (typeof callback === 'function') callback();
+      if (typeof callback === 'function') {
+        callback();
+      }
     };
   });
 
@@ -216,11 +220,9 @@ function openFolder(folderName) {
 
   // Fetch notes with their creation dates
   listNotesInFolderWithDates(folderName, notes => {
-    // Sort notes by date (newest first)
-    notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     notes.forEach(note => {
       const noteName = note.path.split('/').pop();
-      createSubnoteButton(noteName, folderName, note.created_at, note.isSummaryNote);
+      createSubnoteButton(noteName, folderName, note.created_at);
     });
   });
 }
@@ -238,8 +240,7 @@ function listNotesInFolderWithDates(folder, callback) {
         if (path.startsWith(folder + "/") && path.endsWith('.json')) {
           notes.push({
             path: path,
-            created_at: cursor.value.created_at,
-            isSummaryNote: cursor.value.isSummaryNote || false
+            created_at: cursor.value.created_at
           });
         }
         cursor.continue();
@@ -498,7 +499,7 @@ function promptNewNote(folderName) {
 }
 
 
-function createSubnoteButton(noteName, folderName, createdDate = null, isSummaryNote = false) {
+function createSubnoteButton(noteName, folderName, createdDate = null) {
   // Handle both "noteName" and "noteName.json" formats
   const cleanName = noteName.replace('.json', '');
   const fullPath = folderName ? `${folderName}/${cleanName}.json` : noteName;
@@ -510,30 +511,16 @@ function createSubnoteButton(noteName, folderName, createdDate = null, isSummary
     : "—";
 
   const noteButton = document.createElement('button');
-  noteButton.className = isSummaryNote ? 'note-button summary-note' : 'note-button';
+  noteButton.className = 'note-button';
   noteButton.id = fullPath.replace('/', '_').replace('.json', '');
 
-  noteButton.innerHTML = `<span>${noteText}</span><span class="note-date">${created}</span>`;
+  noteButton.innerHTML = `
+    <span>${noteText}</span>
+    <span class="note-date">${created}</span>
+  `;
 
   noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
-
-  const noteList = document.getElementById('note-list');
-
-  // Insert summary notes at the top, others at the bottom
-  if (isSummaryNote) {
-    // Find the last summary note or insert at the beginning
-    const existingSummaries = noteList.querySelectorAll('.summary-note');
-    if (existingSummaries.length > 0) {
-      const lastSummary = existingSummaries[existingSummaries.length - 1];
-      lastSummary.after(noteButton);
-    } else if (noteList.firstChild) {
-      noteList.insertBefore(noteButton, noteList.firstChild);
-    } else {
-      noteList.appendChild(noteButton);
-    }
-  } else {
-    noteList.appendChild(noteButton);
-  }
+  document.getElementById('note-list').appendChild(noteButton);
 
   return noteButton;
 }
@@ -567,145 +554,129 @@ function loadNoteOnBtn(path, selectedButton) {
       }
       reDrawAll(drawCtx);
 
-      // Check if this is a summary note and if it's stale
+      // Check if this is a summary note and if it's outdated
       if (note.isSummaryNote && note.summaryMetadata) {
-        checkSummaryFreshness(note, path);
+        // Skip freshness check if flag is set (e.g., after regenerating summary)
+        if (window.skipNextFreshnessCheck) {
+          window.skipNextFreshnessCheck = false;
+          return;
+        }
+        checkSummaryFreshness(path, note);
       }
     }
   });
 }
 
-// Flag to prevent infinite loop when auto-opening after regeneration
-// Using window property so it can be set from other files (main.js)
-window.skipNextFreshnessCheck = false;
+// Check if a summary note is outdated by comparing item counts
+function checkSummaryFreshness(summaryPath, summaryNote) {
+  const metadata = summaryNote.summaryMetadata;
+  if (!metadata || !metadata.selectedOptions) return;
 
-// Check if a summary note is stale and prompt user to update
-function checkSummaryFreshness(note, summaryPath) {
-  // Skip if we just regenerated this summary (prevents infinite loop)
-  if (window.skipNextFreshnessCheck) {
-    window.skipNextFreshnessCheck = false;
-    return;
-  }
-
-  const metadata = note.summaryMetadata;
-  if (!metadata || !metadata.folderName || !metadata.selectedOptions) return;
-
-  const folderName = metadata.folderName;
-  const options = metadata.selectedOptions;
+  const folder = summaryPath.split('/')[0];
+  const summaryName = summaryPath.split('/').pop().replace('.json', '');
 
   // Count current important items in the folder
-  countImportantItems(folderName, options, (currentCount) => {
-    if (currentCount !== metadata.importantItemCount) {
-      const diff = currentCount - metadata.importantItemCount;
-      const message = diff > 0
-        ? `This summary may be outdated. ${diff} new important item(s) found since it was created.\n\nWould you like to update the summary?`
-        : `This summary may be outdated. Some important items appear to have been removed.\n\nWould you like to update the summary?`;
+  countImportantItems(folder, summaryName, metadata.selectedOptions, (currentCount) => {
+    const savedCount = metadata.importantItemCount || 0;
 
-      if (confirm(message)) {
-        // Extract summary name from path
-        const summaryName = summaryPath.split('/').pop().replace('.json', '');
-        // Set flag to skip freshness check after regeneration (prevents infinite loop)
+    if (currentCount !== savedCount) {
+      const update = confirm(
+        `This summary may be outdated.\n\n` +
+        `Items when generated: ${savedCount}\n` +
+        `Current items: ${currentCount}\n\n` +
+        `Would you like to update the summary?`
+      );
+
+      if (update) {
+        // Regenerate the summary with the same options
         window.skipNextFreshnessCheck = true;
-        // Regenerate summary with same options
-        summarizeNotes({
-          summaryName,
-          ...options
-        });
+        if (typeof generateSummaryFromFolder === 'function') {
+          generateSummaryFromFolder({
+            ...metadata.selectedOptions,
+            summaryName: summaryName
+          });
+        }
       }
     }
   });
 }
 
 // Count important items in a folder based on selected options
-function countImportantItems(folderName, options, callback) {
-  const {
-    includeTitle1, includeTitle2, includeTitle3,
-    includeBox, includeCurly,
-    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
-  } = options;
+function countImportantItems(folder, summaryName, options, callback) {
+  listNotesInFolder(folder, (notePaths) => {
+    const filteredPaths = notePaths.filter(p =>
+      !p.endsWith(`/${summaryName}.json`) &&
+      !p.endsWith('/total.json')
+    );
 
-  listNotesInFolderWithDates(folderName, (notesWithDates) => {
-    // Filter out summary notes
-    const filteredNotes = notesWithDates.filter(n => !n.isSummaryNote);
-
-    if (filteredNotes.length === 0) {
+    if (filteredPaths.length === 0) {
       callback(0);
       return;
     }
 
-    let totalCount = 0;
-    let pending = filteredNotes.length;
+    let count = 0;
+    let pending = filteredPaths.length;
 
-    filteredNotes.forEach(noteInfo => {
-      loadNote(noteInfo.path, (note) => {
+    filteredPaths.forEach(notePath => {
+      loadNote(notePath, (note) => {
+        if (note?.isSummaryNote) {
+          if (--pending === 0) callback(count);
+          return;
+        }
+
         if (note?.content && Array.isArray(note.content)) {
           const groups = note.content;
+          const claimedIds = new Set();
 
-          // Count titles (grouped by titleGroupId to match summary logic)
-          if (includeTitle1 || includeTitle2 || includeTitle3) {
-            const titleGroups = new Set();
-            groups.forEach(group => {
-              if (!group.titleStatus || !group.titleLevel || group.visibility === false) return;
-              const level = group.titleLevel;
-              if ((level === 1 && includeTitle1) ||
-                  (level === 2 && includeTitle2) ||
-                  (level === 3 && includeTitle3)) {
-                const groupId = group.titleGroupId || `fallback_${group.id}`;
-                titleGroups.add(groupId);
+          // Count titles
+          if (options.includeTitle1 || options.includeTitle2) {
+            const titleGroups = new Map();
+            groups.forEach(g => {
+              if (g.visibility === false) return;
+              const label = g.predictedLabel;
+              let level = null;
+              if (label === 101 || label === "title" || (typeof STROKE_TYPE !== 'undefined' && label === STROKE_TYPE.TITLE)) level = 1;
+              if (label === 102 || label === "title2" || (typeof STROKE_TYPE !== 'undefined' && label === STROKE_TYPE.TITLE2)) level = 2;
+              if (level === null) return;
+              if (level === 1 && !options.includeTitle1) return;
+              if (level === 2 && !options.includeTitle2) return;
+
+              const groupId = g.titleGroupId || `fallback_${g.id}`;
+              if (!titleGroups.has(groupId)) {
+                titleGroups.set(groupId, { ids: new Set([g.id]) });
+              } else {
+                titleGroups.get(groupId).ids.add(g.id);
               }
             });
-            totalCount += titleGroups.size;
-          }
-
-          // Count box modifiers
-          if (includeBox) {
-            groups.forEach(group => {
-              if (group.visibility === false) return;
-              if (group.predictedLabel === STROKE_TYPE.BOX || group.predictedLabel === 1) {
-                totalCount++;
-              }
-            });
-          }
-
-          // Count curly modifiers
-          if (includeCurly) {
-            groups.forEach(group => {
-              if (group.visibility === false) return;
-              if (group.predictedLabel === STROKE_TYPE.CURLY || group.predictedLabel === 2) {
-                totalCount++;
-              }
+            titleGroups.forEach(tg => {
+              count++;
+              tg.ids.forEach(id => claimedIds.add(id));
             });
           }
 
-          // Count shortcuts (these have visibility=false but should still be counted)
-          const shortcutTypes = [
-            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"] },
-            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"] },
-            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"] }
-          ];
+          // Count box/curly/shortcuts (simplified - just count modifiers with children)
+          const modifierLabels = [];
+          if (options.includeBox) modifierLabels.push(1, "box");
+          if (options.includeCurly) modifierLabels.push(2, "curly");
+          if (options.includeBoxShortcut) modifierLabels.push(4, "boxshortcut");
+          if (options.includeCurlyShortcut) modifierLabels.push(5, "curlyshortcut");
+          if (options.includeCircleShortcut) modifierLabels.push(6, "circleshortcut");
 
-          shortcutTypes.forEach(({ include, labels }) => {
-            if (!include) return;
-            groups.forEach(group => {
-              if (!group.bbox || !Array.isArray(group.stroke)) return;
-              if (labels.includes(group.predictedLabel)) {
-                // Check if shortcut has children (non-empty)
-                const shortcutBox = group.bbox;
-                const hasChildren = groups.some(other => {
-                  if (other.id === group.id || !other.bbox || other.visibility === false) return false;
-                  const otherBox = other.bbox;
-                  return otherBox.y > shortcutBox.y &&
-                         (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
-                });
-                if (hasChildren) totalCount++;
-              }
-            });
+          groups.forEach(g => {
+            if (g.visibility === false && !modifierLabels.includes(g.predictedLabel)) return;
+            if (modifierLabels.includes(g.predictedLabel)) {
+              // Count if it has potential children (simplified check)
+              const hasChildren = groups.some(other =>
+                other.id !== g.id &&
+                other.visibility !== false &&
+                !claimedIds.has(other.id)
+              );
+              if (hasChildren) count++;
+            }
           });
         }
 
-        if (--pending === 0) {
-          callback(totalCount);
-        }
+        if (--pending === 0) callback(count);
       });
     });
   });
@@ -1264,7 +1235,7 @@ function markDirty() {
   if (!autosaveTimer) {
     autosaveTimer = setTimeout(() => {
       if (!dirty || !title) {
-        console.log('[Autosave] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
+        console.log('[AutoSync] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
         return;
       }
 
@@ -1273,13 +1244,13 @@ function markDirty() {
       dirty = false;
       autosaveTimer = null;
 
-      // // Trigger Google Drive auto-sync (if signed in)
-      // if (typeof triggerAutoSync === 'function') {
-      //   console.log('[AutoSync] markDirty: calling triggerAutoSync()');
-      //   triggerAutoSync();
-      // } else {
-      //   console.log('[AutoSync] markDirty: triggerAutoSync not found!');
-      // }
+      // Trigger Google Drive auto-sync (if signed in)
+      if (typeof triggerAutoSync === 'function') {
+        console.log('[AutoSync] markDirty: calling triggerAutoSync()');
+        triggerAutoSync();
+      } else {
+        console.log('[AutoSync] markDirty: triggerAutoSync not found!');
+      }
     }, 500); // 300–1000ms sweet spot
   }
 }
