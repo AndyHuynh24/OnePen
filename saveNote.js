@@ -38,7 +38,7 @@ function renderAllNotes() {
   });
 }
 
-function saveNote(path, content) {
+function saveNote(path, content, callback, extraOptions = {}) {
   console.log("save");
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
@@ -48,17 +48,31 @@ function saveNote(path, content) {
     getReq.onsuccess = () => {
       const existing = getReq.result || {};
 
-      store.put({
+      // Build the note object
+      const noteData = {
         ...existing,
         path,
-        content,                     // ✅ chỉ update nội dung
-        created_at: existing.created_at || new Date().toISOString() 
-        // ✅ nếu note chưa có created_at (thích hợp cho file cũ) thì thêm
-      });
+        content,
+        created_at: existing.created_at || new Date().toISOString()
+      };
+
+      // Handle summary note specific fields
+      if (extraOptions.isSummaryNote !== undefined) {
+        noteData.isSummaryNote = extraOptions.isSummaryNote;
+      }
+      if (extraOptions.summaryMetadata !== undefined) {
+        // For summary notes, always use the new metadata (don't fallback to existing)
+        noteData.summaryMetadata = extraOptions.summaryMetadata;
+      }
+
+      store.put(noteData);
     };
 
     tx.oncomplete = () => {
       done();
+      if (typeof callback === 'function') {
+        callback();
+      }
     };
   });
 
@@ -539,7 +553,132 @@ function loadNoteOnBtn(path, selectedButton) {
         idCount = 0;
       }
       reDrawAll(drawCtx);
+
+      // Check if this is a summary note and if it's outdated
+      if (note.isSummaryNote && note.summaryMetadata) {
+        // Skip freshness check if flag is set (e.g., after regenerating summary)
+        if (window.skipNextFreshnessCheck) {
+          window.skipNextFreshnessCheck = false;
+          return;
+        }
+        checkSummaryFreshness(path, note);
+      }
     }
+  });
+}
+
+// Check if a summary note is outdated by comparing item counts
+function checkSummaryFreshness(summaryPath, summaryNote) {
+  const metadata = summaryNote.summaryMetadata;
+  if (!metadata || !metadata.selectedOptions) return;
+
+  const folder = summaryPath.split('/')[0];
+  const summaryName = summaryPath.split('/').pop().replace('.json', '');
+
+  // Count current important items in the folder
+  countImportantItems(folder, summaryName, metadata.selectedOptions, (currentCount) => {
+    const savedCount = metadata.importantItemCount || 0;
+
+    if (currentCount !== savedCount) {
+      const update = confirm(
+        `This summary may be outdated.\n\n` +
+        `Items when generated: ${savedCount}\n` +
+        `Current items: ${currentCount}\n\n` +
+        `Would you like to update the summary?`
+      );
+
+      if (update) {
+        // Regenerate the summary with the same options
+        window.skipNextFreshnessCheck = true;
+        if (typeof generateSummaryFromFolder === 'function') {
+          generateSummaryFromFolder({
+            ...metadata.selectedOptions,
+            summaryName: summaryName
+          });
+        }
+      }
+    }
+  });
+}
+
+// Count important items in a folder based on selected options
+function countImportantItems(folder, summaryName, options, callback) {
+  listNotesInFolder(folder, (notePaths) => {
+    const filteredPaths = notePaths.filter(p =>
+      !p.endsWith(`/${summaryName}.json`) &&
+      !p.endsWith('/total.json')
+    );
+
+    if (filteredPaths.length === 0) {
+      callback(0);
+      return;
+    }
+
+    let count = 0;
+    let pending = filteredPaths.length;
+
+    filteredPaths.forEach(notePath => {
+      loadNote(notePath, (note) => {
+        if (note?.isSummaryNote) {
+          if (--pending === 0) callback(count);
+          return;
+        }
+
+        if (note?.content && Array.isArray(note.content)) {
+          const groups = note.content;
+          const claimedIds = new Set();
+
+          // Count titles
+          if (options.includeTitle1 || options.includeTitle2) {
+            const titleGroups = new Map();
+            groups.forEach(g => {
+              if (g.visibility === false) return;
+              const label = g.predictedLabel;
+              let level = null;
+              if (label === 101 || label === "title" || (typeof STROKE_TYPE !== 'undefined' && label === STROKE_TYPE.TITLE)) level = 1;
+              if (label === 102 || label === "title2" || (typeof STROKE_TYPE !== 'undefined' && label === STROKE_TYPE.TITLE2)) level = 2;
+              if (level === null) return;
+              if (level === 1 && !options.includeTitle1) return;
+              if (level === 2 && !options.includeTitle2) return;
+
+              const groupId = g.titleGroupId || `fallback_${g.id}`;
+              if (!titleGroups.has(groupId)) {
+                titleGroups.set(groupId, { ids: new Set([g.id]) });
+              } else {
+                titleGroups.get(groupId).ids.add(g.id);
+              }
+            });
+            titleGroups.forEach(tg => {
+              count++;
+              tg.ids.forEach(id => claimedIds.add(id));
+            });
+          }
+
+          // Count box/curly/shortcuts (simplified - just count modifiers with children)
+          const modifierLabels = [];
+          if (options.includeBox) modifierLabels.push(1, "box");
+          if (options.includeCurly) modifierLabels.push(2, "curly");
+          if (options.includeBoxShortcut) modifierLabels.push(4, "boxshortcut");
+          if (options.includeCurlyShortcut) modifierLabels.push(5, "curlyshortcut");
+          if (options.includeCircleShortcut) modifierLabels.push(6, "circleshortcut");
+
+          groups.forEach(g => {
+            if (g.visibility === false && !modifierLabels.includes(g.predictedLabel)) return;
+            if (modifierLabels.includes(g.predictedLabel)) {
+              // Count if it has potential children (simplified check)
+              const hasChildren = groups.some(other =>
+                other.id !== g.id &&
+                other.visibility !== false &&
+                !claimedIds.has(other.id)
+              );
+              if (hasChildren) count++;
+            }
+          });
+        }
+
+        if (--pending === 0) callback(count);
+      });
+    });
   });
 }
 

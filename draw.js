@@ -1051,6 +1051,10 @@ function reDrawAll(ctx) {
             // Render tape (flashcard cover)
             drawTapeGroup(ctx, group);
             return;
+        } else if (group.type === "summaryNavLink") {
+            // Render summary navigation link button
+            drawSummaryNavButton(ctx, group);
+            return;
         }
 
 
@@ -1471,6 +1475,48 @@ function drawMediaHandles(ctx, group) {
   }
 }
 
+
+// =============== SUMMARY NAV BUTTON ===================
+function drawSummaryNavButton(ctx, group) {
+  if (group.type !== "summaryNavLink") return;
+
+  const { x, y, w, h } = group.bbox;
+  const noteName = group.noteName || "Note";
+  const noteDate = group.noteDate || "";
+
+  ctx.save();
+
+  // Draw button background
+  ctx.fillStyle = "rgba(0, 122, 255, 0.15)";
+  ctx.strokeStyle = "#007aff";
+  ctx.lineWidth = 1.5 / scale;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 6 / scale);
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw note icon
+  ctx.fillStyle = "#007aff";
+  ctx.font = `${14 / scale}px sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.fillText("\u{1F4DD}", x + 8 / scale, y + h / 2);
+
+  // Draw note name (left aligned)
+  ctx.fillStyle = "#007aff";
+  ctx.font = `bold ${13 / scale}px sans-serif`;
+  ctx.textAlign = "left";
+  ctx.fillText(noteName, x + 30 / scale, y + h / 2);
+
+  // Draw date (right aligned)
+  if (noteDate) {
+    ctx.fillStyle = "#666";
+    ctx.font = `${11 / scale}px sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText(noteDate, x + w - 10 / scale, y + h / 2);
+  }
+
+  ctx.restore();
+}
 
 // ---------------- Mouse Events ----------------
 

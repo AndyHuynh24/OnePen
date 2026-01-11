@@ -1718,10 +1718,10 @@ window.onload = async () => {
         const worldX = (e.offsetX / scale) + viewportOffset.x;
         const worldY = (e.offsetY / scale) + viewportOffset.y;
 
-        // One pass through allGroups for stickynote, link, and tape
+        // One pass through allGroups for stickynote, link, tape, and summaryNavLink
         const clicked = allGroups.find(
             (g) =>
-            (g?.type === "stickynote" || g?.type === "link" || g?.type === "tape") &&
+            (g?.type === "stickynote" || g?.type === "link" || g?.type === "tape" || g?.type === "summaryNavLink") &&
             g.visibility !== false &&
             g.bbox &&
             worldX >= g.bbox.x &&
@@ -1761,6 +1761,10 @@ window.onload = async () => {
                     lastTapeClickTarget = clicked.id;
                     lastTapeClickTime = now;
                 }
+            }
+            else if (clicked.type === "summaryNavLink") {
+                // Navigate to the original note
+                navigateToNote(clicked.notePath);
             }
 
             return; // Prevents other canvas actions
@@ -2606,12 +2610,22 @@ function startScrollBarCountdown() {
 
 function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, toolTapePreset = null, toolIndex = null) {
     if (selectedTool.includes("pen")) {
-        eraserMode = false; 
-        
-        if (toolVisibility == "false" || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
-            allGroups.pop();
-        } 
-    
+        eraserMode = false;
+
+        // For shortcut modifiers, set visibility to false instead of removing
+        // This preserves them for summary generation
+        if (shortcutGroup.includes(modifiedGroups.predictedLabel)) {
+            const lastGroup = allGroups[allGroups.length - 1];
+            if (lastGroup) {
+                lastGroup.visibility = false;
+            }
+        } else if (toolVisibility == "false") {
+            // Only pop for non-shortcut invisible tools
+            if (allGroups[allGroups.length - 1]?.visibility !== false) {
+                allGroups.pop();
+            }
+        }
+
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
         if (toolBox != "press") {
@@ -3877,22 +3891,55 @@ function showSummarizePopup() {
   box.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
   box.style.fontFamily = "sans-serif";
   box.style.textAlign = "left";
-  box.style.minWidth = "280px";
+  box.style.minWidth = "320px";
 
   box.innerHTML = `
-    <h3 style="margin-top:0;font-size:18px;text-align:center">🧩 Summarize Options</h3>
-    <label style="display:block;margin:8px 0;">
-      <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Title 1
-    </label>
-    <label style="display:block;margin:8px 0;">
-      <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Title 2
-    </label>
-    <label style="display:block;margin:8px 0 14px;">
-      <input id="chkBox" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Boxes
-    </label>
-    <div style="text-align:center;margin-top:10px;">
-      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Start</button>
-      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Cancel</button>
+    <h3 style="margin-top:0;font-size:18px;text-align:center">Summarize Options</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;text-align:center;">Select which modifiers to include</p>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:#aaa;margin-bottom:6px;">Titles</div>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Title 1 (large underline)
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Title 2 (small underline)
+      </label>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:#aaa;margin-bottom:6px;">Modifiers</div>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkBox" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Box
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCurly" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Curly Bracket
+      </label>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:13px;color:#aaa;margin-bottom:6px;">Shortcuts</div>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkBoxShortcut" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Box Shortcut
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCurlyShortcut" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Curly Shortcut
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCircleShortcut" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;"> Circle Shortcut
+      </label>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="display:block;margin:6px 0;">
+        <span style="font-size:13px;color:#aaa;">Summary Name:</span>
+        <input id="summaryNameInput" type="text" value="Summary" style="width:100%;margin-top:4px;padding:6px 10px;border-radius:6px;border:1px solid #444;background:#2a2a2a;color:#fff;font-size:14px;">
+      </label>
+    </div>
+
+    <div style="text-align:center;margin-top:14px;">
+      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;">Generate Summary</button>
+      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;">Cancel</button>
     </div>
   `;
 
@@ -3902,198 +3949,487 @@ function showSummarizePopup() {
   document.getElementById("cancelSummarizeBtn").onclick = () => overlay.remove();
 
   document.getElementById("startSummarizeBtn").onclick = () => {
-    const includeTitle1 = document.getElementById("chkTitle1").checked;
-    const includeTitle2 = document.getElementById("chkTitle2").checked;
-    const includeBox = document.getElementById("chkBox").checked;
+    const options = {
+      includeTitle1: document.getElementById("chkTitle1").checked,
+      includeTitle2: document.getElementById("chkTitle2").checked,
+      includeBox: document.getElementById("chkBox").checked,
+      includeCurly: document.getElementById("chkCurly").checked,
+      includeBoxShortcut: document.getElementById("chkBoxShortcut").checked,
+      includeCurlyShortcut: document.getElementById("chkCurlyShortcut").checked,
+      includeCircleShortcut: document.getElementById("chkCircleShortcut").checked,
+      summaryName: document.getElementById("summaryNameInput").value.trim() || "Summary"
+    };
     overlay.remove();
-    summarizeNotes({ includeTitle1, includeTitle2, includeBox });
+    generateSummaryFromFolder(options);
   };
 }
 
+// =============== NORMALIZE COLOR HELPER ===================
+function normalizeColor(color) {
+  if (!color) return '';
+  if (typeof color === 'string' && color.startsWith('#')) {
+    if (color.length === 4) {
+      return '#' + color[1] + color[1] + color[2] + color[2] + color[3] + color[3];
+    }
+    return color.toLowerCase();
+  }
+  if (typeof color === 'string' && color.startsWith('rgb')) {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+      const r = parseInt(match[1]).toString(16).padStart(2, '0');
+      const g = parseInt(match[2]).toString(16).padStart(2, '0');
+      const b = parseInt(match[3]).toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`.toLowerCase();
+    }
+  }
+  return String(color).toLowerCase();
+}
+
 // =============== MAIN SUMMARIZE PROCESS ===================
-function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
-  const totalPath = `${selectedFolder}/total.json`;
+function generateSummaryFromFolder(options) {
+  const {
+    includeTitle1, includeTitle2, includeBox, includeCurly,
+    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut,
+    summaryName
+  } = options;
+
+  const summaryPath = `${selectedFolder}/${summaryName}.json`;
 
   listNotesInFolder(selectedFolder, (notePaths) => {
+    // Filter out summary notes and sort by name
     const filteredPaths = notePaths
-      .filter(p => p !== totalPath)
+      .filter(p => !p.endsWith(`/${summaryName}.json`) && !p.endsWith('/total.json'))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-    if (filteredPaths.length === 0)
-      return alert("⚠️ Folder chưa có note nào.");
+    if (filteredPaths.length === 0) {
+      return alert("No notes found in this folder.");
+    }
 
-    let allBoxes = [];
-    let allTitles = [];
+    const allSummaryItems = [];
     let pending = filteredPaths.length;
 
-    filteredPaths.forEach(path => {
-      loadNote(path, (note) => {
+    // Process each note - track note index for ordering
+    filteredPaths.forEach((notePath, noteIndex) => {
+      loadNote(notePath, (note) => {
+        // Skip summary notes
+        if (note?.isSummaryNote) {
+          if (--pending === 0) finalize();
+          return;
+        }
+
         if (note?.content && Array.isArray(note.content)) {
           const groups = note.content;
+          const noteCreatedAt = note.created_at || null;
+          const noteInfo = { path: notePath, name: notePath.split('/').pop().replace('.json', '') };
 
-          // === Keep existing BOX logic untouched ===
-          const boxes = groups.filter(g => g.predictedLabel === 1 && g.bbox && Array.isArray(g.stroke));
-          boxes.forEach(box => {
-            const boxClone = structuredClone(box);
-            boxClone.source = path;
-            boxClone.id = getNextId();
-            boxClone.children = [];
-            groups.forEach(other => {
-              if (other.id !== box.id && other.bbox && Array.isArray(other.stroke)) {
-                if (isInside(other.stroke, box.stroke)) {
-                  const c = structuredClone(other);
-                  c.source = path;
-                  c.parentBox = boxClone.id;
-                  boxClone.children.push(c);
+          // Global set to track claimed stroke IDs (prevents duplicates across modifiers)
+          // Priority: Titles > Box > Curly > Shortcuts
+          const claimedStrokeIds = new Set();
+
+          // ========== COLLECT TITLES ==========
+          if (includeTitle1 || includeTitle2) {
+            // Group titles by titleGroupId (strokes drawn together as one title)
+            const titleGroupsMap = new Map();
+
+            groups.forEach((stroke) => {
+              if (stroke.visibility === false) return;
+              if (!stroke.bbox || !Array.isArray(stroke.stroke)) return;
+
+              const label = stroke.predictedLabel;
+              let level = null;
+              if (label === STROKE_TYPE.TITLE || label === 101 || label === "title") {
+                level = 1;
+              } else if (label === STROKE_TYPE.TITLE2 || label === 102 || label === "title2") {
+                level = 2;
+              }
+              if (level === null) return;
+
+              // Skip based on user selection
+              if (level === 1 && !includeTitle1) return;
+              if (level === 2 && !includeTitle2) return;
+
+              const box = stroke.bbox;
+              const groupId = stroke.titleGroupId || `fallback_${stroke.id}`;
+
+              if (!titleGroupsMap.has(groupId)) {
+                titleGroupsMap.set(groupId, {
+                  level,
+                  strokeIds: new Set([stroke.id]),
+                  minX: box.x,
+                  maxX: box.x + box.w,
+                  minY: box.y,
+                  maxY: box.y + box.h,
+                  strokes: [structuredClone(stroke)]
+                });
+              } else {
+                const group = titleGroupsMap.get(groupId);
+                group.strokeIds.add(stroke.id);
+                group.strokes.push(structuredClone(stroke));
+                group.minX = Math.min(group.minX, box.x);
+                group.maxX = Math.max(group.maxX, box.x + box.w);
+                group.minY = Math.min(group.minY, box.y);
+                group.maxY = Math.max(group.maxY, box.y + box.h);
+              }
+            });
+
+            // Convert title groups to summary items and claim their stroke IDs
+            titleGroupsMap.forEach((titleGroup) => {
+              titleGroup.strokeIds.forEach(id => claimedStrokeIds.add(id));
+
+              const combinedBbox = {
+                x: titleGroup.minX,
+                y: titleGroup.minY,
+                w: titleGroup.maxX - titleGroup.minX,
+                h: titleGroup.maxY - titleGroup.minY
+              };
+
+              allSummaryItems.push({
+                summaryType: "title",
+                summaryLevel: titleGroup.level,
+                summarySource: noteInfo.path,
+                noteCreatedAt: noteCreatedAt,
+                noteIndex: noteIndex,
+                originalY: titleGroup.minY,
+                originalBbox: { ...combinedBbox },
+                bbox: { ...combinedBbox },
+                strokes: titleGroup.strokes,
+                children: []
+              });
+            });
+          }
+
+          // ========== COLLECT BOX MODIFIERS ==========
+          if (includeBox) {
+            const boxModifierColor = modifiers?.box?.color || DEFAULT_MODIFIERS.box.color;
+
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isBox = group.predictedLabel === STROKE_TYPE.BOX ||
+                           group.predictedLabel === 1 ||
+                           group.predictedLabel === "box";
+
+              if (isBox) {
+                const boxClone = structuredClone(group);
+                const children = [];
+
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    const strokeColor = normalizeColor(other.color);
+                    const modColor = normalizeColor(boxModifierColor);
+                    const colorMatches = strokeColor === modColor;
+
+                    if (!claimedStrokeIds.has(other.id) && colorMatches && isInside(other.stroke, group.stroke)) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                if (children.length > 0) {
+                  children.forEach(c => claimedStrokeIds.add(c.id));
+
+                  allSummaryItems.push({
+                    summaryType: "box",
+                    summaryLevel: null,
+                    summarySource: noteInfo.path,
+                    noteCreatedAt: noteCreatedAt,
+                    noteIndex: noteIndex,
+                    originalY: group.bbox.y,
+                    originalBbox: { ...group.bbox },
+                    bbox: { ...group.bbox },
+                    strokes: [boxClone],
+                    children: children
+                  });
                 }
               }
             });
-            allBoxes.push(boxClone);
+          }
+
+          // ========== COLLECT CURLY MODIFIERS ==========
+          if (includeCurly) {
+            const curlyModifierColor = modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color;
+
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isCurly = group.predictedLabel === STROKE_TYPE.CURLY ||
+                             group.predictedLabel === 2 ||
+                             group.predictedLabel === "curly";
+
+              if (isCurly) {
+                const curlyClone = structuredClone(group);
+                const children = [];
+                const curlyBox = group.bbox;
+
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    const strokeColor = normalizeColor(other.color);
+                    const modColor = normalizeColor(curlyModifierColor);
+                    const colorMatches = strokeColor === modColor;
+
+                    const otherBox = other.bbox;
+                    const isWithinYBounds = otherBox.y >= curlyBox.y && (otherBox.y + otherBox.h) <= (curlyBox.y + curlyBox.h);
+                    const isToLeft = otherBox.x < curlyBox.x;
+
+                    if (!claimedStrokeIds.has(other.id) && colorMatches && isWithinYBounds && isToLeft) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                if (children.length > 0) {
+                  children.forEach(c => claimedStrokeIds.add(c.id));
+
+                  const childBboxes = children.map(c => c.bbox);
+                  const combinedBbox = {
+                    x: Math.min(...childBboxes.map(b => b.x)),
+                    y: Math.min(...childBboxes.map(b => b.y)),
+                    w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
+                    h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
+                  };
+
+                  allSummaryItems.push({
+                    summaryType: "curly",
+                    summaryLevel: null,
+                    summarySource: noteInfo.path,
+                    noteCreatedAt: noteCreatedAt,
+                    noteIndex: noteIndex,
+                    originalY: combinedBbox.y,
+                    originalBbox: { ...combinedBbox },
+                    bbox: { ...combinedBbox },
+                    strokes: children,
+                    children: []
+                  });
+                }
+              }
+            });
+          }
+
+          // ========== COLLECT SHORTCUTS (box, curly, circle) ==========
+          const potentialShortcuts = [];
+          const shortcutTypes = [
+            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"], type: "boxshortcut" },
+            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"], type: "curlyshortcut" },
+            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"], type: "circleshortcut" }
+          ];
+
+          shortcutTypes.forEach(({ include, labels, type }) => {
+            if (!include) return;
+
+            const shortcutModifierColor = modifiers?.[type]?.color || DEFAULT_MODIFIERS[type]?.color;
+
+            groups.forEach((group, groupIndex) => {
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isShortcut = labels.includes(group.predictedLabel);
+              if (group.visibility === false && !isShortcut) return;
+
+              if (isShortcut) {
+                const children = [];
+                const shortcutBox = group.bbox;
+
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    const otherBox = other.bbox;
+                    const isWithinYBounds = otherBox.y > shortcutBox.y &&
+                                           (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
+
+                    const strokeColor = normalizeColor(other.color);
+                    const modColor = normalizeColor(shortcutModifierColor);
+                    const colorMatches = strokeColor === modColor;
+
+                    if (isWithinYBounds && colorMatches) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                if (children.length > 0) {
+                  potentialShortcuts.push({
+                    groupIndex,
+                    type,
+                    children,
+                    noteInfoPath: noteInfo.path,
+                    noteCreatedAt,
+                    noteIndex
+                  });
+                }
+              }
+            });
           });
 
-          // === Keep existing TITLE logic untouched ===
-          const underlineMods = groups.filter(g => g.predictedLabel === 0);
-          underlineMods.forEach(underline => {
-            const relatedTexts = [];
-            const lineY = underline.bbox.y;
-            groups.forEach(g => {
-              if (g === underline || !g.bbox) return;
-              const box = g.bbox;
-              const overlapsX = box.x + box.w > underline.bbox.x && box.x < underline.bbox.x + underline.bbox.w;
-              const withinBand = box.y + box.h > lineY - normalHeight * 1.6;
-              const approxAboveLine = Math.abs((box.y + box.h) - lineY) < normalHeight * 1.2;
-              const above = overlapsX && withinBand && approxAboveLine;
-              if (above) relatedTexts.push(g);
+          // Deduplicate shortcuts - most recent first
+          potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
+
+          potentialShortcuts.forEach(item => {
+            const unclaimedChildren = item.children.filter(c => !claimedStrokeIds.has(c.id));
+            if (unclaimedChildren.length === 0) return;
+
+            unclaimedChildren.forEach(c => claimedStrokeIds.add(c.id));
+
+            const childBboxes = unclaimedChildren.map(c => c.bbox);
+            const combinedBbox = {
+              x: Math.min(...childBboxes.map(b => b.x)),
+              y: Math.min(...childBboxes.map(b => b.y)),
+              w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
+              h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
+            };
+
+            allSummaryItems.push({
+              summaryType: item.type,
+              summaryLevel: null,
+              summarySource: item.noteInfoPath,
+              noteCreatedAt: item.noteCreatedAt,
+              noteIndex: item.noteIndex,
+              originalY: combinedBbox.y,
+              originalBbox: { ...combinedBbox },
+              bbox: { ...combinedBbox },
+              strokes: unclaimedChildren,
+              children: []
             });
-
-            if (relatedTexts.length > 0) {
-              const allBboxes = [underline.bbox, ...relatedTexts.map(t => t.bbox)];
-              const minX = Math.min(...allBboxes.map(b => b.x));
-              const minY = Math.min(...allBboxes.map(b => b.y));
-              const maxX = Math.max(...allBboxes.map(b => b.x + b.w));
-              const maxY = Math.max(...allBboxes.map(b => b.y + b.h));
-              const mergedBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-              const mergedStrokes = [...underline.stroke, ...relatedTexts.flatMap(t => t.stroke)];
-              const dy = underline.bbox.y - Math.min(...relatedTexts.map(t => t.bbox.y + t.bbox.h));
-              const titleLevel = dy > normalHeight * 0.8 ? 1 : 2;
-
-              const titleGroup = {
-                id: getNextId(),
-                type: "title",
-                titleLevel,
-                bbox: mergedBox,
-                stroke: mergedStrokes,
-                children: [
-                  { id: getNextId(), ...structuredClone(underline), visible: true, isUnderline: true },
-                  ...relatedTexts.map(t => ({ id: getNextId(), ...structuredClone(t) }))
-                ],
-                predictedLabel: 100 + titleLevel,
-                color: titleLevel === 1 ? "#ffcc33" : "#66ccff",
-                source: path
-              };
-              allTitles.push(titleGroup);
-            }
           });
         }
+
         if (--pending === 0) finalize();
       });
     });
 
     // ===== FINALIZE (layout + save) =====
     function finalize() {
-      // Filter by user choices
-      let combined = [];
-      if (includeBox) combined.push(...allBoxes);
-      if (includeTitle1) combined.push(...allTitles.filter(t => t.titleLevel === 1));
-      if (includeTitle2) combined.push(...allTitles.filter(t => t.titleLevel === 2));
+      if (allSummaryItems.length === 0) {
+        return alert("No important content found with the selected modifiers.");
+      }
 
-      if (combined.length === 0)
-        return alert("⚠️ Không có nhóm nào để gửi (theo lựa chọn).");
-
-      combined.sort((a, b) => {
-        if (a.source !== b.source)
-          return a.source.localeCompare(b.source, undefined, { numeric: true });
-        return a.bbox.y - b.bbox.y;
+      // Sort by note index then by Y position
+      allSummaryItems.sort((a, b) => {
+        if (a.noteIndex !== b.noteIndex) return a.noteIndex - b.noteIndex;
+        return a.originalY - b.originalY;
       });
 
-      // Ensure total.json exists
-      fetch(totalPath)
-        .then(res => res.ok ? res.json() : { content: [] })
-        .then(note => saveCombined(note))
-        .catch(() => saveCombined({ content: [] }));
+      const leftMargin = 40;
+      const baseSpacing = 25;
+      const sectionSpacing = 40;
+      const navButtonHeight = 28;
+      let currentY = 80;
+      let lastNoteIndex = -1;
+      const newGroups = [];
+      let startID = Date.now();
 
-      function saveCombined(note) {
-        const base = Array.isArray(note?.content) ? note.content : [];
-        let startID = base.length > 0
-          ? Math.max(...base.map(g => g.id ?? 0)) + 1
-          : 1;
+      allSummaryItems.forEach((item) => {
+        // Add nav link when switching to new note
+        if (item.noteIndex !== lastNoteIndex) {
+          if (lastNoteIndex !== -1) currentY += sectionSpacing;
 
-        const leftMargin = 40;
-        const baseSpacing = 20;
-        const shortSpacing = 10; // tighter spacing between title2/box
-        let currentY = 100;
-        const newGroups = [];
+          // Create navigation link
+          const noteName = item.summarySource.split('/').pop().replace('.json', '');
+          const noteDate = item.noteCreatedAt ? new Date(item.noteCreatedAt).toLocaleDateString() : '';
+          const navGroup = createSummaryNavLink(startID++, noteName, item.summarySource, currentY, noteDate);
+          newGroups.push(navGroup);
+          currentY += navButtonHeight + 15;
 
-        combined.forEach((item, i) => {
-          const prev = combined[i - 1];
-          const dx = leftMargin - item.bbox.x;
-          const dy = currentY - item.bbox.y;
+          lastNoteIndex = item.noteIndex;
+        }
 
-          translateGroup(item, dx, dy);
-          item.id = startID++;
+        const dx = leftMargin - item.bbox.x;
+        const dy = currentY - item.bbox.y;
 
-          if (item.children) {
-            item.children.forEach(c => {
-              translateGroup(c, dx, dy);
-              c.id = startID++;
-            });
-            newGroups.push(item, ...item.children);
-          } else {
-            newGroups.push(item);
-          }
+        let maxBottomY = 0;
 
-            // === Dynamic spacing (ref to top-down)
-        let spacing = baseSpacing;
-
-        // Shorter gap for Title → Title2
-        if (prev && prev.type === "title" && item.type === "title" && item.titleLevel === 2)
-        spacing = shortSpacing;
-
-        // Shorter gap for Title1 → Box or Title2 → Box
-        if (
-        prev &&
-        prev.type === "title" &&
-        item.type === "box" &&
-        (prev.titleLevel === 1 || prev.titleLevel === 2)
-        )
-        spacing = shortSpacing;
-
-
-          currentY = item.bbox.y + item.bbox.h + spacing;
+        item.strokes.forEach(strokeGroup => {
+          translateGroup(strokeGroup, dx, dy);
+          strokeGroup.id = startID++;
+          newGroups.push(strokeGroup);
+          const bottom = strokeGroup.bbox.y + strokeGroup.bbox.h;
+          if (bottom > maxBottomY) maxBottomY = bottom;
         });
 
-        saveNote(totalPath, base.concat(newGroups), () => {
-          showStatus(`✅ Đã gửi ${combined.length} nhóm → total.json`);
-          try { openFolder(selectedFolder); } catch {}
+        item.children.forEach(child => {
+          translateGroup(child, dx, dy);
+          child.id = startID++;
+          newGroups.push(child);
+          const bottom = child.bbox.y + child.bbox.h;
+          if (bottom > maxBottomY) maxBottomY = bottom;
         });
 
-        // loadNote(totalPath, note => {
-        //     if (note) {
-        //     if (note.content) {
-        //         allGroups = note.content;
-        //     } else {
-        //         allGroups = [];
-        //     }
-        //     console.log('loadAllgroups', allGroups);
+        currentY = maxBottomY + baseSpacing;
+      });
 
-        //     if (note.created_at) {
-        //         console.log("date created:"+ note.created_at);
-        //     }
+      // Save summary note with metadata
+      const summaryMetadata = {
+        generatedAt: new Date().toISOString(),
+        importantItemCount: allSummaryItems.length,
+        selectedOptions: options
+      };
 
-        //     reDrawAll(drawCtx);
-        //     }
-        // });
+      window.skipNextFreshnessCheck = true;
+      saveNote(summaryPath, newGroups, () => {
+        showStatus(`Summary created with ${allSummaryItems.length} items`);
         openFolder(selectedFolder);
+      }, { isSummaryNote: true, summaryMetadata });
+    }
+  });
+}
+
+// =============== CREATE NAV LINK FOR SUMMARY ===================
+function createSummaryNavLink(id, noteName, notePath, y, noteDate) {
+  return {
+    id: id,
+    type: "summaryNavLink",
+    noteName: noteName,
+    notePath: notePath,
+    noteDate: noteDate || '',
+    bbox: { x: 40, y: y, w: 300, h: 28 },
+    stroke: [],
+    predictedLabel: "summaryNavLink",
+    visibility: true
+  };
+}
+
+// =============== NAVIGATE TO NOTE ===================
+function navigateToNote(notePath) {
+  if (!notePath) return;
+
+  // Save current note first
+  if (title) {
+    saveNote(title, allGroups);
+  }
+
+  // Extract folder from the path
+  const folder = notePath.split('/')[0];
+
+  // Open the folder first to ensure the note list is updated
+  if (folder !== selectedFolder) {
+    openFolder(folder);
+  }
+
+  // Load the note
+  loadNote(notePath, (note) => {
+    if (note) {
+      title = notePath;
+      viewportOffset.x = 0;
+      viewportOffset.y = 0;
+      screenBox.x = viewportOffset.x;
+      screenBox.y = viewportOffset.y;
+
+      if (note.content) {
+        allGroups = note.content;
+        syncGroupIds(allGroups);
+      } else {
+        allGroups = [];
+        idCount = 0;
+      }
+      reDrawAll(drawCtx);
+
+      // Update the selected button in UI
+      const noteId = notePath.replace('/', '_').replace('.json', '');
+      const noteBtn = document.getElementById(noteId);
+      if (noteBtn) {
+        if (document.querySelector('.noteSelected')) {
+          document.querySelector('.noteSelected').classList.remove('noteSelected');
+        }
+        noteBtn.classList.add('noteSelected');
       }
     }
   });
