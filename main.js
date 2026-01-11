@@ -1553,7 +1553,9 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
         showToolbox(e.offsetX, e.offsetY, "curly");
     }
     else if (shortcutGroup.includes(modifiedGroups.predictedLabel)) {
-        showToolbox(e.offsetX, e.offsetY, "bracket");
+      // Set visibility to false instead of removing, so summary feature can find shortcuts
+      allGroups[allGroups.length - 1].visibility = false;
+      showToolbox(e.offsetX, e.offsetY, "bracket");
     }
     else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE) {
         showToolbox(e.offsetX, e.offsetY, "underline");
@@ -1718,10 +1720,10 @@ window.onload = async () => {
         const worldX = (e.offsetX / scale) + viewportOffset.x;
         const worldY = (e.offsetY / scale) + viewportOffset.y;
 
-        // One pass through allGroups for stickynote, link, and tape
+        // One pass through allGroups for stickynote, link, tape, and summary_nav
         const clicked = allGroups.find(
             (g) =>
-            (g?.type === "stickynote" || g?.type === "link" || g?.type === "tape") &&
+            (g?.type === "stickynote" || g?.type === "link" || g?.type === "tape" || g?.type === "summary_nav") &&
             g.visibility !== false &&
             g.bbox &&
             worldX >= g.bbox.x &&
@@ -1761,6 +1763,10 @@ window.onload = async () => {
                     lastTapeClickTarget = clicked.id;
                     lastTapeClickTime = now;
                 }
+            }
+            else if (clicked.type === "summary_nav") {
+                // Navigate to the original note and scroll to position
+                navigateToSummarySource(clicked);
             }
 
             return; // Prevents other canvas actions
@@ -2608,10 +2614,13 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     if (selectedTool.includes("pen")) {
         eraserMode = false; 
         
-        if (toolVisibility == "false" || shortcutGroup.includes(modifiedGroups.predictedLabel)) {
-            allGroups.pop();
-        } 
-    
+        if (toolVisibility == "false") {
+            // Skip pop if last group is already hidden (shortcut marker for summary)
+            if (allGroups[allGroups.length - 1]?.visibility !== false) {
+                allGroups.pop();
+            }
+        }
+
         liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 
         if (toolBox != "press") {
@@ -2652,7 +2661,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     }  
     else if (selectedTool.includes('bold')) {
         if (toolVisibility === "false" || (selectedTool == TOOL_ID.BOLD_DEFAULT)) {
-            allGroups.pop();
+            // Skip pop if last group is already hidden (shortcut marker for summary)
+            if (allGroups[allGroups.length - 1]?.visibility !== false) {
+                allGroups.pop();
+            }
         }
 
         // Track original values for undo - unified styling format
@@ -2697,7 +2709,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         selectTitle(toolColor, toolVisibility, 3, toolSize);
     }
     else if (selectedTool == "move") {
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
         movingColor = modifiedGroups.modifiedGroups[0].color;
         // modifiedGroups.modifiedGroups.forEach(group => {
@@ -2707,7 +2722,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     }
     else if (selectedTool == "copy") {
         // Deep clone the selected strokes to clipboard
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
         clipboard = modifiedGroups.modifiedGroups.map(group => ({
             ...group,
@@ -2724,7 +2742,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         return;
     }
     else if (selectedTool == "paste") {
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
 
         if (!clipboard || clipboard.length === 0) {
@@ -2779,7 +2800,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     }
     else if (selectedTool == "mathSolver") {
         modifiedGroups.modifiedGroups.pop();
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         const canvas = extractImageDataFromStrokes(modifiedGroups.modifiedGroups);
         //downloadCanvasImage(canvas, "my_strokes.png");
         if (canvas !== -1) {
@@ -2804,7 +2828,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         }
     } else if (selectedTool == "stickynote") {
         // Remove selection highlights
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
 
         const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
@@ -2832,7 +2859,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         return;
     }
     else if (selectedTool == "link") {
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
 
         const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
@@ -2858,7 +2888,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     }
     else if (selectedTool == "tape") {
         // Remove selection highlights
-        allGroups.pop();
+        // Skip pop if last group is already hidden (shortcut marker for summary)
+        if (allGroups[allGroups.length - 1]?.visibility !== false) {
+            allGroups.pop();
+        }
         modifiedGroups.modifiedGroups.pop();
 
         const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
@@ -3877,22 +3910,67 @@ function showSummarizePopup() {
   box.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
   box.style.fontFamily = "sans-serif";
   box.style.textAlign = "left";
-  box.style.minWidth = "280px";
+  box.style.minWidth = "320px";
+  box.style.maxHeight = "80vh";
+  box.style.overflowY = "auto";
 
   box.innerHTML = `
-    <h3 style="margin-top:0;font-size:18px;text-align:center">🧩 Summarize Options</h3>
-    <label style="display:block;margin:8px 0;">
-      <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Title 1
-    </label>
-    <label style="display:block;margin:8px 0;">
-      <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Title 2
-    </label>
-    <label style="display:block;margin:8px 0 14px;">
-      <input id="chkBox" type="checkbox" checked style="transform:scale(1.3);margin-right:6px;"> Include Boxes
-    </label>
-    <div style="text-align:center;margin-top:10px;">
-      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Start</button>
-      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:14px;">Cancel</button>
+    <h3 style="margin-top:0;font-size:18px;text-align:center">Select Important Information</h3>
+    <p style="font-size:12px;color:#aaa;margin-bottom:16px;text-align:center;">Choose what modifiers to include in the summary</p>
+
+    <div style="margin-bottom:16px;">
+      <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Summary Name</p>
+      <input id="summaryNameInput" type="text" value="summary" placeholder="Enter summary name..."
+        style="width:100%;padding:8px 12px;border:1px solid #444;border-radius:6px;background:#2a2a2a;color:#fff;font-size:14px;box-sizing:border-box;">
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Titles</p>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#f4c64a;">
+        <span style="color:#f4c64a;">Title 1</span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#ff6a00;">
+        <span style="color:#ff6a00;">Title 2</span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkTitle3" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#7adb13;">
+        <span style="color:#7adb13;">Title 3</span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Modifiers</p>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkBox" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#ffb6ff;">
+        <span style="color:#ffb6ff;">Box</span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCurly" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#fa6e6e;">
+        <span style="color:#fa6e6e;">Curly Bracket</span>
+      </label>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Shortcuts</p>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkBoxShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#a3fba9;">
+        <span style="color:#a3fba9;">Box Shortcut [ ]</span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCurlyShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#74d8ff;">
+        <span style="color:#74d8ff;">Curly Shortcut { }</span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCircleShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#ffc5d3;">
+        <span style="color:#ffc5d3;">Circle Shortcut</span>
+      </label>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;">
+      <button id="startSummarizeBtn" style="background:#007aff;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;">Generate Summary</button>
+      <button id="cancelSummarizeBtn" style="margin-left:10px;background:#444;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;">Cancel</button>
     </div>
   `;
 
@@ -3902,199 +3980,541 @@ function showSummarizePopup() {
   document.getElementById("cancelSummarizeBtn").onclick = () => overlay.remove();
 
   document.getElementById("startSummarizeBtn").onclick = () => {
-    const includeTitle1 = document.getElementById("chkTitle1").checked;
-    const includeTitle2 = document.getElementById("chkTitle2").checked;
-    const includeBox = document.getElementById("chkBox").checked;
+    const summaryName = document.getElementById("summaryNameInput").value.trim() || "summary";
+    const options = {
+      summaryName: summaryName,
+      includeTitle1: document.getElementById("chkTitle1").checked,
+      includeTitle2: document.getElementById("chkTitle2").checked,
+      includeTitle3: document.getElementById("chkTitle3").checked,
+      includeBox: document.getElementById("chkBox").checked,
+      includeCurly: document.getElementById("chkCurly").checked,
+      includeBoxShortcut: document.getElementById("chkBoxShortcut").checked,
+      includeCurlyShortcut: document.getElementById("chkCurlyShortcut").checked,
+      includeCircleShortcut: document.getElementById("chkCircleShortcut").checked,
+    };
     overlay.remove();
-    summarizeNotes({ includeTitle1, includeTitle2, includeBox });
+
+    // Check if summary with this name already exists
+    const summaryPath = `${selectedFolder}/${summaryName}.json`;
+    checkSummaryExists(summaryPath, (exists) => {
+      if (exists) {
+        showSummaryExistsWarning(summaryName, options);
+      } else {
+        summarizeNotes(options);
+      }
+    });
+  };
+}
+
+// Check if a summary note already exists
+function checkSummaryExists(path, callback) {
+  loadNote(path, (note) => {
+    callback(note !== null && note !== undefined);
+  });
+}
+
+// Show warning when summary already exists
+function showSummaryExistsWarning(summaryName, options) {
+  const overlay = document.createElement("div");
+  overlay.id = "summaryWarningPopup";
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.7)";
+  overlay.style.backdropFilter = "blur(3px)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.zIndex = 1000000;
+
+  const box = document.createElement("div");
+  box.style.background = "#1f1f1f";
+  box.style.color = "#fff";
+  box.style.padding = "24px 32px";
+  box.style.borderRadius = "12px";
+  box.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4)";
+  box.style.fontFamily = "sans-serif";
+  box.style.textAlign = "center";
+  box.style.maxWidth = "340px";
+
+  box.innerHTML = `
+    <h3 style="margin:0 0 12px;font-size:16px;color:#ffaa00;">Summary Already Exists</h3>
+    <p style="font-size:13px;color:#ccc;margin-bottom:20px;">
+      A summary named "<strong>${summaryName}</strong>" already exists in this folder.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button id="replaceBtn" style="background:#ff6b6b;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:13px;cursor:pointer;">Replace</button>
+      <button id="renameBtn" style="background:#007aff;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:13px;cursor:pointer;">Rename</button>
+      <button id="cancelWarningBtn" style="background:#444;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:13px;cursor:pointer;">Cancel</button>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  document.getElementById("replaceBtn").onclick = () => {
+    overlay.remove();
+    // Skip freshness check after replacing (prevents "outdated" prompt)
+    window.skipNextFreshnessCheck = true;
+    summarizeNotes(options);
+  };
+
+  document.getElementById("renameBtn").onclick = () => {
+    overlay.remove();
+    showSummarizePopup(); // Go back to the popup to rename
+  };
+
+  document.getElementById("cancelWarningBtn").onclick = () => {
+    overlay.remove();
   };
 }
 
 // =============== MAIN SUMMARIZE PROCESS ===================
-function summarizeNotes({ includeTitle1, includeTitle2, includeBox }) {
-  const totalPath = `${selectedFolder}/total.json`;
+function summarizeNotes(options) {
+  const {
+    summaryName = "summary",
+    includeTitle1, includeTitle2, includeTitle3,
+    includeBox, includeCurly,
+    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+  } = options;
 
-  listNotesInFolder(selectedFolder, (notePaths) => {
-    const filteredPaths = notePaths
-      .filter(p => p !== totalPath)
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const summaryPath = `${selectedFolder}/${summaryName}.json`;
 
-    if (filteredPaths.length === 0)
-      return alert("⚠️ Folder chưa có note nào.");
+  // Use listNotesInFolderWithDates to get creation dates for ordering
+  listNotesInFolderWithDates(selectedFolder, (notesWithDates) => {
+    // Filter out all summary notes to avoid double counting, and sort by creation date (oldest first)
+    const filteredNotes = notesWithDates
+      .filter(n => n.path !== summaryPath && !n.isSummaryNote)
+      .sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+        const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+        return dateA - dateB;
+      });
 
-    let allBoxes = [];
-    let allTitles = [];
-    let pending = filteredPaths.length;
+    if (filteredNotes.length === 0) {
+      return alert("No notes found in this folder.");
+    }
 
-    filteredPaths.forEach(path => {
-      loadNote(path, (note) => {
+    // Collect all important content from all notes
+    let allSummaryItems = [];
+    let pending = filteredNotes.length;
+
+    filteredNotes.forEach((noteInfo, noteIndex) => {
+      loadNote(noteInfo.path, (note) => {
         if (note?.content && Array.isArray(note.content)) {
           const groups = note.content;
+          const noteCreatedAt = noteInfo.created_at || new Date(0).toISOString();
 
-          // === Keep existing BOX logic untouched ===
-          const boxes = groups.filter(g => g.predictedLabel === 1 && g.bbox && Array.isArray(g.stroke));
-          boxes.forEach(box => {
-            const boxClone = structuredClone(box);
-            boxClone.source = path;
-            boxClone.id = getNextId();
-            boxClone.children = [];
-            groups.forEach(other => {
-              if (other.id !== box.id && other.bbox && Array.isArray(other.stroke)) {
-                if (isInside(other.stroke, box.stroke)) {
-                  const c = structuredClone(other);
-                  c.source = path;
-                  c.parentBox = boxClone.id;
-                  boxClone.children.push(c);
+          // ========== GLOBAL DEDUPLICATION ==========
+          // Track claimed stroke IDs across ALL modifier types to prevent duplicates
+          // Priority order: Titles > Box > Curly > Shortcuts (most recent shortcut wins within shortcuts)
+          const claimedStrokeIds = new Set();
+
+          // ========== COLLECT TITLES (grouped by titleGroupId) ==========
+          if (includeTitle1 || includeTitle2 || includeTitle3) {
+            const titleGroupsMap = new Map(); // titleGroupId -> { level, strokes, bbox }
+
+            groups.forEach(group => {
+              if (!group.titleStatus || !group.titleLevel || group.visibility === false) return;
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              // Check if this title level is selected
+              const level = group.titleLevel;
+              if ((level === 1 && !includeTitle1) ||
+                  (level === 2 && !includeTitle2) ||
+                  (level === 3 && !includeTitle3)) return;
+
+              const groupId = group.titleGroupId || `fallback_${group.id}`;
+
+              if (!titleGroupsMap.has(groupId)) {
+                titleGroupsMap.set(groupId, {
+                  level: level,
+                  strokes: [structuredClone(group)],
+                  strokeIds: [group.id], // Track IDs for claiming
+                  minX: group.bbox.x,
+                  maxX: group.bbox.x + group.bbox.w,
+                  minY: group.bbox.y,
+                  maxY: group.bbox.y + group.bbox.h
+                });
+              } else {
+                const existing = titleGroupsMap.get(groupId);
+                existing.strokes.push(structuredClone(group));
+                existing.strokeIds.push(group.id);
+                existing.minX = Math.min(existing.minX, group.bbox.x);
+                existing.maxX = Math.max(existing.maxX, group.bbox.x + group.bbox.w);
+                existing.minY = Math.min(existing.minY, group.bbox.y);
+                existing.maxY = Math.max(existing.maxY, group.bbox.y + group.bbox.h);
+              }
+            });
+
+            // Convert title groups to summary items and claim their stroke IDs
+            titleGroupsMap.forEach((titleGroup, groupId) => {
+              // Claim all stroke IDs in this title group
+              titleGroup.strokeIds.forEach(id => claimedStrokeIds.add(id));
+
+              const combinedBbox = {
+                x: titleGroup.minX,
+                y: titleGroup.minY,
+                w: titleGroup.maxX - titleGroup.minX,
+                h: titleGroup.maxY - titleGroup.minY
+              };
+
+              allSummaryItems.push({
+                summaryType: "title",
+                summaryLevel: titleGroup.level,
+                summarySource: noteInfo.path,
+                noteCreatedAt: noteCreatedAt,
+                noteIndex: noteIndex,
+                originalY: titleGroup.minY,
+                originalBbox: { ...combinedBbox },
+                bbox: { ...combinedBbox },
+                strokes: titleGroup.strokes, // Array of stroke groups
+                children: []
+              });
+            });
+          }
+
+          // ========== COLLECT BOX MODIFIERS ==========
+          if (includeBox) {
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isBox = group.predictedLabel === STROKE_TYPE.BOX ||
+                           group.predictedLabel === 1 ||
+                           group.predictedLabel === "box";
+
+              if (isBox) {
+                const boxClone = structuredClone(group);
+                const children = [];
+
+                // Collect strokes inside the box (only unclaimed ones)
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    if (!claimedStrokeIds.has(other.id) && isInside(other.stroke, group.stroke)) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                // Only add if there are unclaimed children
+                if (children.length > 0) {
+                  // Claim these stroke IDs
+                  children.forEach(c => claimedStrokeIds.add(c.id));
+
+                  allSummaryItems.push({
+                    summaryType: "box",
+                    summaryLevel: null,
+                    summarySource: noteInfo.path,
+                    noteCreatedAt: noteCreatedAt,
+                    noteIndex: noteIndex,
+                    originalY: group.bbox.y,
+                    originalBbox: { ...group.bbox },
+                    bbox: { ...group.bbox },
+                    strokes: [boxClone], // The box modifier itself
+                    children: children
+                  });
                 }
               }
             });
-            allBoxes.push(boxClone);
+          }
+
+          // ========== COLLECT CURLY MODIFIERS ==========
+          if (includeCurly) {
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isCurly = group.predictedLabel === STROKE_TYPE.CURLY ||
+                             group.predictedLabel === 2 ||
+                             group.predictedLabel === "curly";
+
+              if (isCurly) {
+                const curlyClone = structuredClone(group);
+                const children = [];
+
+                // Collect strokes inside the curly (only unclaimed ones)
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    if (!claimedStrokeIds.has(other.id) && isInside(other.stroke, group.stroke)) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                // Only add if there are unclaimed children
+                if (children.length > 0) {
+                  // Claim these stroke IDs
+                  children.forEach(c => claimedStrokeIds.add(c.id));
+
+                  allSummaryItems.push({
+                    summaryType: "curly",
+                    summaryLevel: null,
+                    summarySource: noteInfo.path,
+                    noteCreatedAt: noteCreatedAt,
+                    noteIndex: noteIndex,
+                    originalY: group.bbox.y,
+                    originalBbox: { ...group.bbox },
+                    bbox: { ...group.bbox },
+                    strokes: [curlyClone],
+                    children: children
+                  });
+                }
+              }
+            });
+          }
+
+          // ========== COLLECT SHORTCUTS (box, curly, circle) ==========
+          // First pass: collect all potential shortcuts with their children
+          const potentialShortcuts = [];
+          const shortcutTypes = [
+            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"], type: "boxshortcut" },
+            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"], type: "curlyshortcut" },
+            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"], type: "circleshortcut" }
+          ];
+
+          shortcutTypes.forEach(({ include, labels, type }) => {
+            if (!include) return;
+
+            groups.forEach((group, groupIndex) => {
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+              const isShortcut = labels.includes(group.predictedLabel);
+              // Skip visibility=false unless it's a shortcut we're looking for
+              // (shortcuts have visibility=false but should still be collected)
+              if (group.visibility === false && !isShortcut) return;
+
+              if (isShortcut) {
+                const children = [];
+                const shortcutBox = group.bbox;
+
+                // Collect strokes within Y bounds (how shortcuts select - see classifyStroke)
+                // Exclude the shortcut modifier itself - only collect content strokes
+                groups.forEach(other => {
+                  if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                    const otherBox = other.bbox;
+                    // Match classifyStroke logic: bbox.y > newBox.y && (bbox.y + bbox.h) < (newBox.y + newBox.h)
+                    const isWithinYBounds = otherBox.y > shortcutBox.y &&
+                                           (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
+                    if (isWithinYBounds) {
+                      children.push(structuredClone(other));
+                    }
+                  }
+                });
+
+                // Store potential shortcut with its groupIndex for sorting
+                if (children.length > 0) {
+                  potentialShortcuts.push({
+                    groupIndex,
+                    type,
+                    children,
+                    noteInfoPath: noteInfo.path,
+                    noteCreatedAt,
+                    noteIndex
+                  });
+                }
+              }
+            });
           });
 
-          // === Keep existing TITLE logic untouched ===
-          const underlineMods = groups.filter(g => g.predictedLabel === 0);
-          underlineMods.forEach(underline => {
-            const relatedTexts = [];
-            const lineY = underline.bbox.y;
-            groups.forEach(g => {
-              if (g === underline || !g.bbox) return;
-              const box = g.bbox;
-              const overlapsX = box.x + box.w > underline.bbox.x && box.x < underline.bbox.x + underline.bbox.w;
-              const withinBand = box.y + box.h > lineY - normalHeight * 1.6;
-              const approxAboveLine = Math.abs((box.y + box.h) - lineY) < normalHeight * 1.2;
-              const above = overlapsX && withinBand && approxAboveLine;
-              if (above) relatedTexts.push(g);
+          // Second pass: deduplicate by processing most recent shortcuts first
+          // This ensures if user draws a wrong shortcut then corrects it,
+          // only the most recent (correct) shortcut claims the strokes
+          // Note: uses the shared claimedStrokeIds set from above (titles, box, curly already claimed their strokes)
+
+          // Sort by groupIndex descending (most recent shortcut first)
+          potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
+
+          potentialShortcuts.forEach(item => {
+            // Filter children to only those not claimed by a more recent shortcut
+            const unclaimedChildren = item.children.filter(c => !claimedStrokeIds.has(c.id));
+
+            if (unclaimedChildren.length === 0) return; // Skip - all children already claimed
+
+            // Claim these stroke IDs
+            unclaimedChildren.forEach(c => claimedStrokeIds.add(c.id));
+
+            // Calculate bounding box from unclaimed children only
+            const childBboxes = unclaimedChildren.map(c => c.bbox);
+            const combinedBbox = {
+              x: Math.min(...childBboxes.map(b => b.x)),
+              y: Math.min(...childBboxes.map(b => b.y)),
+              w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
+              h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
+            };
+
+            allSummaryItems.push({
+              summaryType: item.type,
+              summaryLevel: null,
+              summarySource: item.noteInfoPath,
+              noteCreatedAt: item.noteCreatedAt,
+              noteIndex: item.noteIndex,
+              originalY: combinedBbox.y,
+              originalBbox: { ...combinedBbox },
+              bbox: { ...combinedBbox },
+              strokes: unclaimedChildren,  // Only unclaimed content strokes
+              children: []
             });
-
-            if (relatedTexts.length > 0) {
-              const allBboxes = [underline.bbox, ...relatedTexts.map(t => t.bbox)];
-              const minX = Math.min(...allBboxes.map(b => b.x));
-              const minY = Math.min(...allBboxes.map(b => b.y));
-              const maxX = Math.max(...allBboxes.map(b => b.x + b.w));
-              const maxY = Math.max(...allBboxes.map(b => b.y + b.h));
-              const mergedBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-              const mergedStrokes = [...underline.stroke, ...relatedTexts.flatMap(t => t.stroke)];
-              const dy = underline.bbox.y - Math.min(...relatedTexts.map(t => t.bbox.y + t.bbox.h));
-              const titleLevel = dy > normalHeight * 0.8 ? 1 : 2;
-
-              const titleGroup = {
-                id: getNextId(),
-                type: "title",
-                titleLevel,
-                bbox: mergedBox,
-                stroke: mergedStrokes,
-                children: [
-                  { id: getNextId(), ...structuredClone(underline), visible: true, isUnderline: true },
-                  ...relatedTexts.map(t => ({ id: getNextId(), ...structuredClone(t) }))
-                ],
-                predictedLabel: 100 + titleLevel,
-                color: titleLevel === 1 ? "#ffcc33" : "#66ccff",
-                source: path
-              };
-              allTitles.push(titleGroup);
-            }
           });
         }
+
         if (--pending === 0) finalize();
       });
     });
 
     // ===== FINALIZE (layout + save) =====
     function finalize() {
-      // Filter by user choices
-      let combined = [];
-      if (includeBox) combined.push(...allBoxes);
-      if (includeTitle1) combined.push(...allTitles.filter(t => t.titleLevel === 1));
-      if (includeTitle2) combined.push(...allTitles.filter(t => t.titleLevel === 2));
+      if (allSummaryItems.length === 0) {
+        return alert("No important content found with the selected modifiers.");
+      }
 
-      if (combined.length === 0)
-        return alert("⚠️ Không có nhóm nào để gửi (theo lựa chọn).");
-
-      combined.sort((a, b) => {
-        if (a.source !== b.source)
-          return a.source.localeCompare(b.source, undefined, { numeric: true });
-        return a.bbox.y - b.bbox.y;
+      // Sort: first by note creation date (noteIndex), then by Y position within each note
+      allSummaryItems.sort((a, b) => {
+        if (a.noteIndex !== b.noteIndex) {
+          return a.noteIndex - b.noteIndex;
+        }
+        return a.originalY - b.originalY;
       });
 
-      // Ensure total.json exists
-      fetch(totalPath)
-        .then(res => res.ok ? res.json() : { content: [] })
-        .then(note => saveCombined(note))
-        .catch(() => saveCombined({ content: [] }));
+      // Layout parameters
+      const leftMargin = 40;
+      const baseSpacing = 25;
+      const sectionSpacing = 40;
+      const navButtonHeight = 28;
+      let currentY = 80;
+      let lastNoteIndex = -1;
+      const newGroups = [];
+      let startID = Date.now();
 
-      function saveCombined(note) {
-        const base = Array.isArray(note?.content) ? note.content : [];
-        let startID = base.length > 0
-          ? Math.max(...base.map(g => g.id ?? 0)) + 1
-          : 1;
+      allSummaryItems.forEach((item) => {
+        // Add extra spacing when switching to a new note
+        if (lastNoteIndex !== -1 && item.noteIndex !== lastNoteIndex) {
+          currentY += sectionSpacing;
+        }
+        lastNoteIndex = item.noteIndex;
 
-        const leftMargin = 40;
-        const baseSpacing = 20;
-        const shortSpacing = 10; // tighter spacing between title2/box
-        let currentY = 100;
-        const newGroups = [];
+        // Calculate translation based on the item's combined bbox
+        const dx = leftMargin - item.bbox.x;
+        const dy = currentY - item.bbox.y;
 
-        combined.forEach((item, i) => {
-          const prev = combined[i - 1];
-          const dx = leftMargin - item.bbox.x;
-          const dy = currentY - item.bbox.y;
+        // Track the bottom-most Y position (start at 0, only use translated positions)
+        let maxBottomY = 0;
 
-          translateGroup(item, dx, dy);
-          item.id = startID++;
+        // Translate and add all strokes in this summary item
+        item.strokes.forEach(strokeGroup => {
+          translateGroup(strokeGroup, dx, dy);
+          strokeGroup.id = startID++;
+          newGroups.push(strokeGroup);
 
-          if (item.children) {
-            item.children.forEach(c => {
-              translateGroup(c, dx, dy);
-              c.id = startID++;
-            });
-            newGroups.push(item, ...item.children);
-          } else {
-            newGroups.push(item);
-          }
-
-            // === Dynamic spacing (ref to top-down)
-        let spacing = baseSpacing;
-
-        // Shorter gap for Title → Title2
-        if (prev && prev.type === "title" && item.type === "title" && item.titleLevel === 2)
-        spacing = shortSpacing;
-
-        // Shorter gap for Title1 → Box or Title2 → Box
-        if (
-        prev &&
-        prev.type === "title" &&
-        item.type === "box" &&
-        (prev.titleLevel === 1 || prev.titleLevel === 2)
-        )
-        spacing = shortSpacing;
-
-
-          currentY = item.bbox.y + item.bbox.h + spacing;
+          // Track bottom after translation
+          const bottom = strokeGroup.bbox.y + strokeGroup.bbox.h;
+          if (bottom > maxBottomY) maxBottomY = bottom;
         });
 
-        saveNote(totalPath, base.concat(newGroups), () => {
-          showStatus(`✅ Đã gửi ${combined.length} nhóm → total.json`);
-          try { openFolder(selectedFolder); } catch {}
+        // Translate and add children
+        item.children.forEach(child => {
+          translateGroup(child, dx, dy);
+          child.id = startID++;
+          newGroups.push(child);
+
+          // Track bottom after translation
+          const bottom = child.bbox.y + child.bbox.h;
+          if (bottom > maxBottomY) maxBottomY = bottom;
         });
 
-        // loadNote(totalPath, note => {
-        //     if (note) {
-        //     if (note.content) {
-        //         allGroups = note.content;
-        //     } else {
-        //         allGroups = [];
-        //     }
-        //     console.log('loadAllgroups', allGroups);
+        // Update item bbox after translation
+        item.bbox.x += dx;
+        item.bbox.y += dy;
 
-        //     if (note.created_at) {
-        //         console.log("date created:"+ note.created_at);
-        //     }
+        // Create navigation link right below the strokes' bounding box (no margin)
+        const navLinkGroup = createSummaryNavLink(
+          item.summarySource,
+          item.originalBbox,
+          item.bbox.x,
+          maxBottomY,
+          startID++,
+          item.noteCreatedAt
+        );
+        newGroups.push(navLinkGroup);
 
-        //     reDrawAll(drawCtx);
-        //     }
-        // });
+        // Update currentY for next item
+        currentY = maxBottomY + navButtonHeight + baseSpacing;
+      });
+
+      // Store metadata for freshness tracking
+      const summaryMetadata = {
+        generatedAt: new Date().toISOString(),
+        importantItemCount: allSummaryItems.length,
+        folderName: selectedFolder,
+        selectedOptions: {
+          includeTitle1, includeTitle2, includeTitle3,
+          includeBox, includeCurly,
+          includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+        }
+      };
+
+      // Save as summary note and auto-open it
+      saveNote(summaryPath, newGroups, () => {
+        showStatus(`Summary "${summaryName}" created with ${allSummaryItems.length} items`);
+        // Refresh folder to show the new summary note
         openFolder(selectedFolder);
-      }
+        // Auto-open the summary note after a short delay to ensure list is updated
+        setTimeout(() => {
+          autoOpenSummaryNote(summaryPath);
+        }, 100);
+      }, { isSummaryNote: true, summaryMetadata });
+    }
+  });
+}
+
+/// Helper: Create a navigation link group for summary items
+function createSummaryNavLink(sourcePath, originalBbox, x, y, id, noteDate) {
+  const noteName = sourcePath.split('/').pop().replace('.json', '');
+
+  // Format date for display
+  const formattedDate = noteDate
+    ? new Date(noteDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : '';
+
+  return {
+    id: id,
+    type: "summary_nav",
+    bbox: { x: x, y: y, w: 160, h: 20 }, // Wider to fit date
+    stroke: [],
+    color: "#4a9eff",
+    visibility: true,
+    summaryNavTarget: sourcePath,
+    summaryNavScrollY: originalBbox.y,
+    summaryNavLabel: noteName,
+    summaryNavDate: formattedDate,
+    size: 1
+  };
+}
+
+// Helper: Auto-open the summary note after generation
+function autoOpenSummaryNote(summaryPath) {
+  // Find the summary button in the note list and click it
+  const noteList = document.getElementById('note-list');
+  if (!noteList) return;
+
+  const buttons = noteList.querySelectorAll('.note-button');
+  for (const btn of buttons) {
+    // Check if this button is for the summary note
+    const btnId = btn.id;
+    const expectedId = summaryPath.replace('/', '_').replace('.json', '');
+    if (btnId === expectedId) {
+      btn.click();
+      return;
+    }
+  }
+
+  // Fallback: directly load the note if button not found
+  loadNote(summaryPath, (note) => {
+    if (note) {
+      title = summaryPath;
+      allGroups = note.content || [];
+      syncGroupIds(allGroups);
+      reDrawAll(drawCtx);
+      drawGrid(backgroundCtx);
     }
   });
 }
@@ -4238,6 +4658,62 @@ function scrollToAnchor(anchor) {
 
   // Close panel after navigation
   tocPanel.classList.remove("open");
+}
+
+// Navigate to source note from summary navigation button
+function navigateToSummarySource(navGroup) {
+  const targetPath = navGroup.summaryNavTarget;
+  const scrollY = navGroup.summaryNavScrollY || 0;
+
+  if (!targetPath) {
+    console.error("No target path for summary navigation");
+    return;
+  }
+
+  // Load the target note
+  loadNote(targetPath, (note) => {
+    if (!note) {
+      showStatus("Could not load the original note");
+      return;
+    }
+
+    // Update current note state
+    title = targetPath;
+    if (note.content) {
+      allGroups = note.content;
+    } else {
+      allGroups = [];
+    }
+
+    // Update viewport offset to scroll to the original position
+    viewportOffset.y = Math.max(0, scrollY - 80); // 80px margin from top
+    viewportOffset.x = 0;
+    screenBox.y = viewportOffset.y;
+    screenBox.x = viewportOffset.x;
+
+    // Refresh display
+    syncGroupIds();
+    reDrawAll(drawCtx);
+    drawGrid(backgroundCtx);
+    updateScrollbar?.();
+
+    // Refresh TOC
+    titleAnchorsNeedRefresh = true;
+    if (typeof populateTocList === 'function') populateTocList();
+
+    // Update UI to show note name
+    const noteName = targetPath.split('/').pop().replace('.json', '');
+    showStatus(`Opened: ${noteName}`);
+
+    // Update selected note in sidebar if visible
+    const noteButtons = document.querySelectorAll('.note-button');
+    noteButtons.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.dataset?.path === targetPath) {
+        btn.classList.add('active');
+      }
+    });
+  });
 }
 
 // Initialize TOC tab click
@@ -4506,6 +4982,7 @@ function handleMediaInsert() {
     try {
       const mediaData = await processMediaFile(file);
       if (mediaData) {
+        
         // Check if it's an array (multi-page PDF) or single item
         if (Array.isArray(mediaData)) {
           createMediaGroupsVertical(mediaData);

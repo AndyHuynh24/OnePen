@@ -32,13 +32,15 @@ function renderAllNotes() {
   document.getElementById('note-list').innerHTML = '';
   document.querySelector('.folder').innerHTML = '';
   folders = listFolders(folders => {
+    // Sort folders alphabetically by name
+    folders.sort((a, b) => a.localeCompare(b));
     folders.forEach(folder => {
       renderFolderList(folder)
     })
   });
 }
 
-function saveNote(path, content) {
+function saveNote(path, content, callback, options = {}) {
   console.log("save");
   openNoteDB((db, done) => {
     const tx = db.transaction("notes", "readwrite");
@@ -48,17 +50,25 @@ function saveNote(path, content) {
     getReq.onsuccess = () => {
       const existing = getReq.result || {};
 
+      // For summary notes, always use new metadata (don't fallback to existing)
+      // This ensures Replace works correctly
+      const newSummaryMetadata = options.isSummaryNote
+        ? (options.summaryMetadata || null)  // For summaries: use provided or null (don't keep old)
+        : (options.summaryMetadata || existing.summaryMetadata || null);  // For regular notes: keep existing
+
       store.put({
         ...existing,
         path,
-        content,                     // ✅ chỉ update nội dung
-        created_at: existing.created_at || new Date().toISOString() 
-        // ✅ nếu note chưa có created_at (thích hợp cho file cũ) thì thêm
+        content,
+        created_at: existing.created_at || new Date().toISOString(),
+        isSummaryNote: options.isSummaryNote || existing.isSummaryNote || false,
+        summaryMetadata: newSummaryMetadata
       });
     };
 
     tx.oncomplete = () => {
       done();
+      if (typeof callback === 'function') callback();
     };
   });
 
@@ -206,9 +216,11 @@ function openFolder(folderName) {
 
   // Fetch notes with their creation dates
   listNotesInFolderWithDates(folderName, notes => {
+    // Sort notes by date (newest first)
+    notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     notes.forEach(note => {
       const noteName = note.path.split('/').pop();
-      createSubnoteButton(noteName, folderName, note.created_at);
+      createSubnoteButton(noteName, folderName, note.created_at, note.isSummaryNote);
     });
   });
 }
@@ -226,7 +238,8 @@ function listNotesInFolderWithDates(folder, callback) {
         if (path.startsWith(folder + "/") && path.endsWith('.json')) {
           notes.push({
             path: path,
-            created_at: cursor.value.created_at
+            created_at: cursor.value.created_at,
+            isSummaryNote: cursor.value.isSummaryNote || false
           });
         }
         cursor.continue();
@@ -485,7 +498,7 @@ function promptNewNote(folderName) {
 }
 
 
-function createSubnoteButton(noteName, folderName, createdDate = null) {
+function createSubnoteButton(noteName, folderName, createdDate = null, isSummaryNote = false) {
   // Handle both "noteName" and "noteName.json" formats
   const cleanName = noteName.replace('.json', '');
   const fullPath = folderName ? `${folderName}/${cleanName}.json` : noteName;
@@ -497,16 +510,30 @@ function createSubnoteButton(noteName, folderName, createdDate = null) {
     : "—";
 
   const noteButton = document.createElement('button');
-  noteButton.className = 'note-button';
+  noteButton.className = isSummaryNote ? 'note-button summary-note' : 'note-button';
   noteButton.id = fullPath.replace('/', '_').replace('.json', '');
 
-  noteButton.innerHTML = `
-    <span>${noteText}</span>
-    <span class="note-date">${created}</span>
-  `;
+  noteButton.innerHTML = `<span>${noteText}</span><span class="note-date">${created}</span>`;
 
   noteButton.onclick = () => loadNoteOnBtn(fullPath, noteButton);
-  document.getElementById('note-list').appendChild(noteButton);
+
+  const noteList = document.getElementById('note-list');
+
+  // Insert summary notes at the top, others at the bottom
+  if (isSummaryNote) {
+    // Find the last summary note or insert at the beginning
+    const existingSummaries = noteList.querySelectorAll('.summary-note');
+    if (existingSummaries.length > 0) {
+      const lastSummary = existingSummaries[existingSummaries.length - 1];
+      lastSummary.after(noteButton);
+    } else if (noteList.firstChild) {
+      noteList.insertBefore(noteButton, noteList.firstChild);
+    } else {
+      noteList.appendChild(noteButton);
+    }
+  } else {
+    noteList.appendChild(noteButton);
+  }
 
   return noteButton;
 }
@@ -539,7 +566,148 @@ function loadNoteOnBtn(path, selectedButton) {
         idCount = 0;
       }
       reDrawAll(drawCtx);
+
+      // Check if this is a summary note and if it's stale
+      if (note.isSummaryNote && note.summaryMetadata) {
+        checkSummaryFreshness(note, path);
+      }
     }
+  });
+}
+
+// Flag to prevent infinite loop when auto-opening after regeneration
+// Using window property so it can be set from other files (main.js)
+window.skipNextFreshnessCheck = false;
+
+// Check if a summary note is stale and prompt user to update
+function checkSummaryFreshness(note, summaryPath) {
+  // Skip if we just regenerated this summary (prevents infinite loop)
+  if (window.skipNextFreshnessCheck) {
+    window.skipNextFreshnessCheck = false;
+    return;
+  }
+
+  const metadata = note.summaryMetadata;
+  if (!metadata || !metadata.folderName || !metadata.selectedOptions) return;
+
+  const folderName = metadata.folderName;
+  const options = metadata.selectedOptions;
+
+  // Count current important items in the folder
+  countImportantItems(folderName, options, (currentCount) => {
+    if (currentCount !== metadata.importantItemCount) {
+      const diff = currentCount - metadata.importantItemCount;
+      const message = diff > 0
+        ? `This summary may be outdated. ${diff} new important item(s) found since it was created.\n\nWould you like to update the summary?`
+        : `This summary may be outdated. Some important items appear to have been removed.\n\nWould you like to update the summary?`;
+
+      if (confirm(message)) {
+        // Extract summary name from path
+        const summaryName = summaryPath.split('/').pop().replace('.json', '');
+        // Set flag to skip freshness check after regeneration (prevents infinite loop)
+        window.skipNextFreshnessCheck = true;
+        // Regenerate summary with same options
+        summarizeNotes({
+          summaryName,
+          ...options
+        });
+      }
+    }
+  });
+}
+
+// Count important items in a folder based on selected options
+function countImportantItems(folderName, options, callback) {
+  const {
+    includeTitle1, includeTitle2, includeTitle3,
+    includeBox, includeCurly,
+    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+  } = options;
+
+  listNotesInFolderWithDates(folderName, (notesWithDates) => {
+    // Filter out summary notes
+    const filteredNotes = notesWithDates.filter(n => !n.isSummaryNote);
+
+    if (filteredNotes.length === 0) {
+      callback(0);
+      return;
+    }
+
+    let totalCount = 0;
+    let pending = filteredNotes.length;
+
+    filteredNotes.forEach(noteInfo => {
+      loadNote(noteInfo.path, (note) => {
+        if (note?.content && Array.isArray(note.content)) {
+          const groups = note.content;
+
+          // Count titles (grouped by titleGroupId to match summary logic)
+          if (includeTitle1 || includeTitle2 || includeTitle3) {
+            const titleGroups = new Set();
+            groups.forEach(group => {
+              if (!group.titleStatus || !group.titleLevel || group.visibility === false) return;
+              const level = group.titleLevel;
+              if ((level === 1 && includeTitle1) ||
+                  (level === 2 && includeTitle2) ||
+                  (level === 3 && includeTitle3)) {
+                const groupId = group.titleGroupId || `fallback_${group.id}`;
+                titleGroups.add(groupId);
+              }
+            });
+            totalCount += titleGroups.size;
+          }
+
+          // Count box modifiers
+          if (includeBox) {
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (group.predictedLabel === STROKE_TYPE.BOX || group.predictedLabel === 1) {
+                totalCount++;
+              }
+            });
+          }
+
+          // Count curly modifiers
+          if (includeCurly) {
+            groups.forEach(group => {
+              if (group.visibility === false) return;
+              if (group.predictedLabel === STROKE_TYPE.CURLY || group.predictedLabel === 2) {
+                totalCount++;
+              }
+            });
+          }
+
+          // Count shortcuts (these have visibility=false but should still be counted)
+          const shortcutTypes = [
+            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"] },
+            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"] },
+            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"] }
+          ];
+
+          shortcutTypes.forEach(({ include, labels }) => {
+            if (!include) return;
+            groups.forEach(group => {
+              if (!group.bbox || !Array.isArray(group.stroke)) return;
+              if (labels.includes(group.predictedLabel)) {
+                // Check if shortcut has children (non-empty)
+                const shortcutBox = group.bbox;
+                const hasChildren = groups.some(other => {
+                  if (other.id === group.id || !other.bbox || other.visibility === false) return false;
+                  const otherBox = other.bbox;
+                  return otherBox.y > shortcutBox.y &&
+                         (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
+                });
+                if (hasChildren) totalCount++;
+              }
+            });
+          });
+        }
+
+        if (--pending === 0) {
+          callback(totalCount);
+        }
+      });
+    });
   });
 }
 
@@ -1096,7 +1264,7 @@ function markDirty() {
   if (!autosaveTimer) {
     autosaveTimer = setTimeout(() => {
       if (!dirty || !title) {
-        console.log('[AutoSync] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
+        console.log('[Autosave] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
         return;
       }
 
@@ -1105,13 +1273,13 @@ function markDirty() {
       dirty = false;
       autosaveTimer = null;
 
-      // Trigger Google Drive auto-sync (if signed in)
-      if (typeof triggerAutoSync === 'function') {
-        console.log('[AutoSync] markDirty: calling triggerAutoSync()');
-        triggerAutoSync();
-      } else {
-        console.log('[AutoSync] markDirty: triggerAutoSync not found!');
-      }
+      // // Trigger Google Drive auto-sync (if signed in)
+      // if (typeof triggerAutoSync === 'function') {
+      //   console.log('[AutoSync] markDirty: calling triggerAutoSync()');
+      //   triggerAutoSync();
+      // } else {
+      //   console.log('[AutoSync] markDirty: triggerAutoSync not found!');
+      // }
     }, 500); // 300–1000ms sweet spot
   }
 }
