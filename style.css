@@ -941,42 +941,6 @@ body {
   font-size: 12px;
 }
 
-/* Summary note special styling - standout monotone theme */
-.note-button.summary-note {
-  background: linear-gradient(135deg, #e3eaf3 0%, #d4dfe9 100%);
-  border: 2px solid #8ba3bd;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(100, 120, 150, 0.15);
-  position: relative;
-}
-
-.note-button.summary-note::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(180deg, #6b8cae 0%, #4a6d8c 100%);
-  border-radius: 6px 0 0 6px;
-}
-
-.note-button.summary-note span:first-child {
-  padding-left: 6px;
-}
-
-.note-button.summary-note:hover {
-  background: linear-gradient(135deg, #d6e1ed 0%, #c5d4e3 100%);
-  border-color: #7a94b0;
-  box-shadow: 0 3px 6px rgba(100, 120, 150, 0.2);
-}
-
-.note-button.summary-note.noteSelected {
-  background: linear-gradient(135deg, #c8d8e8 0%, #b5c9dc 100%);
-  border: 2px solid #5c7a9a;
-  box-shadow: 0 2px 8px rgba(80, 100, 130, 0.25);
-}
-
 .subnote-container {
     width: 100%;
     display: flex;
