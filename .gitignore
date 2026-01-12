@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environment (DO NOT COMMIT!)
+.env
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ML artifacts (use DVC to track these)
+outputs/
+mlruns/
+logs/
+*.keras
+*.h5
+*.tflite
+
+# Processed data (use DVC to track)
+data/processed/*.npz
+data/processed/*.json
+data/augmented/
+
+# TensorFlow.js exports
+models/tfjs/
+models/keras/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

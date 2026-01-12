@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Onepen</title>
+  <link rel="stylesheet" href="style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href='https://cdn.boxicons.com/fonts/basic/boxicons.min.css' rel='stylesheet'>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Mali:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400;1,500;1,600;1,700&display=swap"
+        rel="stylesheet">
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script> -->
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+</head>
+<body>
+    <div id="toolbar">
+        <button onclick="undo()"><i class='bx bx-undo'></i></button>
+        <button onclick="redo()"><i class='bx bx-redo'></i></button>
+        <span class="break"></span>
+         <label class="aiToggle">
+          <input type="checkbox" id="aiToggleInput" onchange="toggleDetection()" checked>
+          <span class="aiSlider"></span>
+          <span class="aiText">AI ON</span>
+        </label>
+        <span class="break"></span>
+        <button onclick="handleMediaInsert()" title="Insert Image/PDF"><i class='bx bx-file-plus' style="font-size: 18px;"></i></button>
+        <span class="break"></span>
+        <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
+    </div>
+
+    <!-- Hidden file input for media insertion -->
+    <input type="file" id="mediaFileInput" accept="image/*,.pdf" style="display:none">
+
+    <div class="canvasGroup" id="canvasGroup">
+        <nav class="penTools" id="penTools">
+            <div class="nav-content">
+                <div class="toggle-btn"><i class='bx bx-plus'></i></div>
+            </div>
+        </nav>
+        <canvas id="liveCanvas" class="canvas"></canvas>
+        <canvas id="drawCanvas" class="canvas"></canvas>
+        <canvas id="backgroundCanvas" class="canvas"></canvas>
+    </div>
+
+    <canvas id="viewer" width="136" height="136" class="show"
+        style="position: fixed; z-index: 1000000000000000; bottom: 10px; left: 10px; border: 2px solid black; background: white;">
+    </canvas>
+
+    <!-- Floating Zoom Indicator -->
+    <div id="zoomIndicator" class="zoom-indicator">
+        <i class='bx bx-zoom-in'></i>
+        <span id="zoomPercent">100%</span>
+    </div>
+
+    <!-- Table of Contents Panel (Top Right) -->
+    <div id="tocPanel" class="toc-panel">
+        <div class="toc-tab" id="tocTab">
+            <div class="toc-tab-icon">
+                <span class="toc-line"></span>
+                <span class="toc-line short"></span>
+                <span class="toc-line"></span>
+            </div>
+            <span class="toc-tab-label">TOC</span>
+        </div>
+        <div class="toc-content">
+            <div class="toc-header">
+                <i class='bx bx-list-ul'></i>
+                <span>Contents</span>
+            </div>
+            <div id="tocList" class="toc-list">
+                <div class="toc-empty">No headings yet</div>
+            </div>
+        </div>
+    </div>
+
+    <button id="openNavBtn" onclick="toggleNav()">☰ Notes</button>
+    <div id="notenavbar">
+        <div class="buttonGroup">
+            <button onclick="showExportSharePopup()" title="Export & Share"> 
+              Help
+            </button>
+            <button onclick="showExportSharePopup()" title="Export & Share"> 
+              Share
+            </button>
+            <button onclick="importSharedNotesFromFile()" > 
+              Import shared notebook
+            </button>
+            <button onclick="promptNewFolder()" class="navBtn">
+              New notebook 
+            </button>
+        </div>
+        <div class="shelf">
+            <div class="notes">
+                <p id="starter">Please select a notebook</p>
+                <div id="menubar" style="display: none">
+                   <button id="sendToTotalBtn">Summarize</button>
+                   <span class="break"></span>
+                    <button id="renameBtn">Rename</button>
+                    <span class="break"></span>
+                    <button id="deleteBtn"><i class="bx bx-trash"></i></button>
+                    <span class="break"></span>
+                    <button onclick="promptNewNote(selectedFolder)">New Note</i></button>
+                </div>
+                <div id="note-list"></div>
+            </div>
+            <div class="folder"></div>
+        </div>
+    
+        <div class="twoButton"></div>
+    </div>
+    
+    <div class="settings-wrapper" id="settings-wrapper">
+    <div class="grid-section">
+      <!-- Google Sign-in Card (shown when logged out) -->
+      <div id="signin-card" class="cloud-card">
+        <div class="cloud-card-row">
+          <div class="cloud-info">
+            <i class="bx bx-cloud"></i>
+            <span>Cloud Sync</span>
+          </div>
+          <button id="signin-btn" class="cloud-btn">
+            <i class="bx bxl-google"></i>
+            <span>Sign in</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- User Profile Card (shown when logged in) -->
+      <div id="user-card" class="cloud-card" style="display: none;">
+        <div class="cloud-card-row">
+          <div class="cloud-user">
+            <img id="user-avatar" class="cloud-avatar" src="" alt="">
+            <div class="cloud-user-info">
+              <span id="user-name" class="cloud-name">User</span>
+              <span id="user-email-display" class="cloud-email"></span>
+            </div>
+          </div>
+          <button id="signout-btn" class="cloud-btn-icon" title="Sign out">
+            <i class="bx bx-log-out"></i>
+          </button>
+        </div>
+        <div class="cloud-actions">
+          <div id="sync-status" class="cloud-status">
+            <i class="bx bx-cloud"></i>
+            <span></span>
+          </div>
+          <div class="cloud-btns">
+            <button id="sync-to-drive-btn" class="cloud-btn" title="Sync to Drive">
+              <i class="bx bx-upload"></i>
+              <span>Sync</span>
+            </button>
+            <button id="restore-from-drive-btn" class="cloud-btn" title="Restore from Drive">
+              <i class="bx bx-download"></i>
+              <span>Restore</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+      <h2>Background:</h2>
+      <label>Background color:</label>
+      <input type="color" id="backgroundColorPicker">
+      <label>Grid line color:</label>
+      <input type="color" id="gridLineColorPicker">
+
+      <label>Grid style:</label>
+      <div class="grid-style-options">
+        <button id="gridStyleLine" class="grid-style-btn" data-style="line">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="2" y1="6" x2="22" y2="6"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/>
+          </svg>
+          <span>Lines</span>
+        </button>
+        <button id="gridStyleSquare" class="grid-style-btn active" data-style="square">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="2" y1="6" x2="22" y2="6"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/>
+            <line x1="6" y1="2" x2="6" y2="22"/>
+            <line x1="12" y1="2" x2="12" y2="22"/>
+            <line x1="18" y1="2" x2="18" y2="22"/>
+          </svg>
+          <span>Square</span>
+        </button>
+      </div>
+
+      <label>Grid width:</label>
+      <div class="range-row grid-range">
+        <input
+          type="range"
+          id="gridWidth"
+          min="15"
+          max="100"
+          step="1"
+          value="58"
+        />
+
+        <input
+          type="number"
+          id="gridWidthValue"
+          min="15"
+          max="100"
+          step="1"
+          value="58"
+        />
+    </div>
+
+      <div class="settings-divider"></div>
+      <h2>Eraser:</h2>
+      <label>Eraser size:</label>
+      <div class="range-row">
+        <input
+          type="range"
+          id="eraserSizeSlider"
+          min="5"
+          max="80"
+          step="1"
+          value="20"
+        />
+        <input
+          type="number"
+          id="eraserSizeValue"
+          min="5"
+          max="80"
+          step="1"
+          value="20"
+        />
+      </div>
+
+    <div class="modifier-section">
+      <h2>Modifier styles</h2>
+      <div class="modifier-grid" id="modifierGrid"></div>
+    </div>
+
+    <div class="modifier-section">
+      <h2>Toolbox styles</h2>
+      <p>Click on each tool of each tool box to modify</p>
+     <div id="toolboxes"></div>
+    </div>
+
+
+  <div id="scrollbar">
+    <div id="thumb"></div>
+  </div>
+
+
+  <script src="tf.min.js"></script>
+  <script src="config.js"></script>
+  <script src="math.js"></script>
+  <script src="predict.js"></script>
+  <script src="draw.js"></script>
+  <script src="main.js"></script>
+  <script src="saveNote.js"></script>
+  <script src="signin.js"></script>
+</body>
+</html>
