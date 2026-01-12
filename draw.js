@@ -188,6 +188,82 @@ function drawTapeGroup(ctx, group) {
   ctx.restore();
 }
 
+// Draw summary navigation button (link back to original note)
+function drawSummaryNavButton(ctx, group) {
+  const { x, y, w, h } = group.bbox;
+  const label = group.summaryNavLabel || "Go to note";
+  const dateLabel = group.summaryNavDate || "";
+
+  ctx.save();
+
+  // Helper for rounded rectangle (fallback for older browsers)
+  function roundedRect(ctx, x, y, w, h, r) {
+    if (ctx.roundRect) {
+      ctx.roundRect(x, y, w, h, r);
+    } else {
+      // Fallback for browsers without roundRect
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+  }
+
+  // Draw button background with rounded corners
+  const radius = 4;
+  ctx.fillStyle = "rgba(74, 158, 255, 0.15)";
+  ctx.beginPath();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.fill();
+
+  // Draw button border
+  ctx.strokeStyle = "#4a9eff";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 2]);
+  ctx.beginPath();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw arrow icon and text
+  ctx.fillStyle = "#4a9eff";
+  ctx.font = "11px sans-serif";
+  ctx.textBaseline = "middle";
+
+  // Arrow icon
+  const arrowX = x + 6;
+  const textY = y + h / 2;
+  ctx.fillText("↗", arrowX, textY);
+
+  // Calculate space for label and date
+  const dateWidth = dateLabel ? ctx.measureText(dateLabel).width + 10 : 0;
+  const maxLabelWidth = w - 24 - dateWidth;
+
+  // Label text (truncate if too long)
+  let displayLabel = label;
+  ctx.font = "10px sans-serif";
+  while (ctx.measureText(displayLabel).width > maxLabelWidth && displayLabel.length > 3) {
+    displayLabel = displayLabel.slice(0, -4) + "...";
+  }
+  ctx.fillText(displayLabel, arrowX + 14, textY);
+
+  // Draw date to the right
+  if (dateLabel) {
+    ctx.fillStyle = "#7ab8ff"; // Lighter blue for date
+    ctx.font = "9px sans-serif";
+    const dateX = x + w - ctx.measureText(dateLabel).width - 8;
+    ctx.fillText(dateLabel, dateX, textY);
+  }
+
+  ctx.restore();
+}
+
 function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
     drawctx.save();
     //liveCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1051,8 +1127,8 @@ function reDrawAll(ctx) {
             // Render tape (flashcard cover)
             drawTapeGroup(ctx, group);
             return;
-        } else if (group.type === "summaryNavLink") {
-            // Render summary navigation link button
+        } else if (group.type === "summary_nav") {
+            // Render summary navigation button
             drawSummaryNavButton(ctx, group);
             return;
         }
@@ -1305,7 +1381,7 @@ function selectTitle(titleColor, visibility, level=0, size) {
     const modifierId = modifiedGroups.modifier?.id;
     const originalStyles = {};
     modifiedGroups.modifiedGroups.forEach(group => {
-        if (group.id === modifierId) return;
+        //if (group.id === modifierId) return;
         originalStyles[group.id] = {
             color: group.color,
             size: group.size,
@@ -1319,7 +1395,7 @@ function selectTitle(titleColor, visibility, level=0, size) {
     const titleGroupId = `title_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     modifiedGroups.modifiedGroups.forEach(group => {
-        if (group.id === modifierId) return;
+        //if (group.id === modifierId) return;
         group.titleStatus = true;
         group.titleLevel = level;
         group.color = titleColor;
@@ -1475,48 +1551,6 @@ function drawMediaHandles(ctx, group) {
   }
 }
 
-
-// =============== SUMMARY NAV BUTTON ===================
-function drawSummaryNavButton(ctx, group) {
-  if (group.type !== "summaryNavLink") return;
-
-  const { x, y, w, h } = group.bbox;
-  const noteName = group.noteName || "Note";
-  const noteDate = group.noteDate || "";
-
-  ctx.save();
-
-  // Draw button background
-  ctx.fillStyle = "rgba(0, 122, 255, 0.15)";
-  ctx.strokeStyle = "#007aff";
-  ctx.lineWidth = 1.5 / scale;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 6 / scale);
-  ctx.fill();
-  ctx.stroke();
-
-  // Draw note icon
-  ctx.fillStyle = "#007aff";
-  ctx.font = `${14 / scale}px sans-serif`;
-  ctx.textBaseline = "middle";
-  ctx.fillText("\u{1F4DD}", x + 8 / scale, y + h / 2);
-
-  // Draw note name (left aligned)
-  ctx.fillStyle = "#007aff";
-  ctx.font = `bold ${13 / scale}px sans-serif`;
-  ctx.textAlign = "left";
-  ctx.fillText(noteName, x + 30 / scale, y + h / 2);
-
-  // Draw date (right aligned)
-  if (noteDate) {
-    ctx.fillStyle = "#666";
-    ctx.font = `${11 / scale}px sans-serif`;
-    ctx.textAlign = "right";
-    ctx.fillText(noteDate, x + w - 10 / scale, y + h / 2);
-  }
-
-  ctx.restore();
-}
 
 // ---------------- Mouse Events ----------------
 
