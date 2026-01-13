@@ -27,8 +27,6 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from modifiers.data.loader import StrokeDataLoader
-from modifiers.data.augmenter import StrokeAugmenter
 from modifiers.models.architecture import build_hybrid_model
 from modifiers.models.trainer import StrokeModelTrainer
 from modifiers.utils.config import load_config
@@ -368,11 +366,6 @@ def parse_args() -> argparse.Namespace:
         help="Output directory for models and logs",
     )
     parser.add_argument(
-        "--no-mlflow",
-        action="store_true",
-        help="Disable MLflow tracking",
-    )
-    parser.add_argument(
         "--epochs",
         type=int,
         default=None,
@@ -471,7 +464,7 @@ def main() -> int:
         logger.info(f"Building hybrid model with backbone: {backbone_name}")
 
         model = build_hybrid_model(
-            input_shape=config.model.input_shape,
+            input_shape= [config.features.image_size, config.features.image_size, 3],
             num_classes=config.num_classes,
             feature_dim=features.shape[1],
             learning_rate=config.training.learning_rate,
@@ -482,26 +475,25 @@ def main() -> int:
         )
 
     # ========== Setup MLflow ==========
-    if not args.no_mlflow:
-        mlflow.set_tracking_uri(config.mlflow.tracking_uri)
-        mlflow.set_experiment(config.mlflow.experiment_name)
-        mlflow.start_run(run_name=f"train_{timestamp}")
+    mlflow.set_tracking_uri(config.mlflow.tracking_uri)
+    mlflow.set_experiment(config.mlflow.experiment_name)
+    mlflow.start_run(run_name=f"train_{timestamp}")
 
-        mlflow.log_params({
-            "model_name": config.model.name,
-            "backbone": backbone_name,
-            "resumed_from": str(args.resume) if args.resume else "none",
-            "num_classes": config.num_classes,
-            "feature_dim": features.shape[1],
-            "image_size": config.features.image_size,
-            "learning_rate": config.training.learning_rate,
-            "batch_size": config.training.batch_size,
-            "epochs": args.epochs or config.training.epochs,
-            "total_samples": len(labels),
-            "train_samples": len(splits["y_train"]),
-            "val_samples": len(splits["y_val"]),
-            "test_samples": len(splits["y_test"]),
-        })
+    mlflow.log_params({
+        "model_name": config.model.name,
+        "backbone": backbone_name,
+        "resumed_from": str(args.resume) if args.resume else "none",
+        "num_classes": config.num_classes,
+        "feature_dim": features.shape[1],
+        "image_size": config.features.image_size,
+        "learning_rate": config.training.learning_rate,
+        "batch_size": config.training.batch_size,
+        "epochs": args.epochs or config.training.epochs,
+        "total_samples": len(labels),
+        "train_samples": len(splits["y_train"]),
+        "val_samples": len(splits["y_val"]),
+        "test_samples": len(splits["y_test"]),
+    })
 
     # ========== Create tf.data.Dataset ==========
     logger.info("Creating tf.data.Dataset pipelines...")
@@ -591,39 +583,34 @@ def main() -> int:
     )
     logger.info(f"Classification report saved to: {output_dir / 'classification_report.json'}")
 
-    # ========== Log Metrics ==========
-    if not args.no_mlflow:
-        best_metrics = trainer.get_best_metrics()
-        mlflow.log_metrics({
-            "best_val_accuracy": best_metrics["best_val_accuracy"],
-            "best_val_loss": best_metrics["best_val_loss"],
-            "test_accuracy": test_metrics["test_accuracy"],
-            "test_loss": test_metrics["test_loss"],
-            "epochs_trained": best_metrics["epochs_trained"],
-        })
-        
-        # Log per-class metrics
-        for class_name in config.classes:
-            if class_name in class_report:
-                mlflow.log_metrics({
-                    f"{class_name}_precision": class_report[class_name]["precision"],
-                    f"{class_name}_recall": class_report[class_name]["recall"],
-                    f"{class_name}_f1": class_report[class_name]["f1-score"],
-                })
-        
-        # Log visualizations as artifacts
-        mlflow.log_artifact(str(curves_path))
-        mlflow.log_artifact(str(cm_path))
-        mlflow.log_artifact(str(output_dir / "classification_report.json"))
-        mlflow.log_artifact(str(output_dir / "classification_report.png"))
+    # ========== Log Metrics to MLflow ==========
+    best_metrics = trainer.get_best_metrics()
+    mlflow.log_metrics({
+        "best_val_accuracy": best_metrics["best_val_accuracy"],
+        "best_val_loss": best_metrics["best_val_loss"],
+        "test_accuracy": test_metrics["test_accuracy"],
+        "test_loss": test_metrics["test_loss"],
+        "epochs_trained": best_metrics["epochs_trained"],
+    })
+    
+    # Log overall F1 scores (no per-class breakdown)
+    if "macro avg" in class_report:
+        mlflow.log_metric("macro_f1", class_report["macro avg"]["f1-score"])
+    if "weighted avg" in class_report:
+        mlflow.log_metric("weighted_f1", class_report["weighted avg"]["f1-score"])
+    
+    # Log visualizations as artifacts
+    mlflow.log_artifact(str(curves_path))
+    mlflow.log_artifact(str(cm_path))
+    mlflow.log_artifact(str(output_dir / "confusion_matrix.png"))
+    mlflow.log_artifact(str(output_dir / "training_curves.png"))
 
     # ========== Save Model ==========
     model_path = trainer.save_model()
     logger.info(f"Model saved to {model_path}")
 
-    if not args.no_mlflow:
-        mlflow.log_artifact(str(model_path))
-        mlflow.end_run()
+    mlflow.log_artifact(str(model_path))
+    mlflow.end_run()
 
     # ========== Summary ==========
     logger.info("=" * 60)

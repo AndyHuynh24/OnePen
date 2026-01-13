@@ -34,66 +34,6 @@ from modifiers.utils.logging import setup_logging, get_logger
 logger = get_logger("onepen.dataset")
 
 
-def split_data(
-    images: np.ndarray,
-    labels: np.ndarray,
-    features: np.ndarray,
-    test_size: float = 0.10,
-    val_size: float = 0.16,
-    random_state: int = 42,
-) -> dict[str, np.ndarray]:
-    """Split data into train/val/test sets.
-
-    Args:
-        images: Image array.
-        labels: Label array.
-        features: Feature array.
-        test_size: Fraction for test set.
-        val_size: Fraction for validation set (from remaining after test).
-        random_state: Random seed for reproducibility.
-
-    Returns:
-        Dictionary with train/val/test splits for each array.
-    """
-    # First split: train+val vs test
-    (
-        X_trainval_img, X_test_img,
-        X_trainval_feat, X_test_feat,
-        y_trainval, y_test
-    ) = train_test_split(
-        images, features, labels,
-        test_size=test_size,
-        stratify=labels,
-        random_state=random_state,
-    )
-
-    # Second split: train vs val
-    (
-        X_train_img, X_val_img,
-        X_train_feat, X_val_feat,
-        y_train, y_val
-    ) = train_test_split(
-        X_trainval_img, X_trainval_feat, y_trainval,
-        test_size=val_size,
-        stratify=y_trainval,
-        random_state=random_state,
-    )
-
-    logger.info(f"Data split: train={len(y_train)}, val={len(y_val)}, test={len(y_test)}")
-
-    return {
-        "X_train_img": X_train_img,
-        "X_train_feat": X_train_feat,
-        "y_train": y_train,
-        "X_val_img": X_val_img,
-        "X_val_feat": X_val_feat,
-        "y_val": y_val,
-        "X_test_img": X_test_img,
-        "X_test_feat": X_test_feat,
-        "y_test": y_test,
-    }
-
-
 def compute_class_weights_dict(labels: np.ndarray) -> dict[int, float]:
     """Compute balanced class weights.
 
@@ -113,61 +53,6 @@ def compute_class_weights_dict(labels: np.ndarray) -> dict[int, float]:
 
     logger.info(f"Class weights: {weight_dict}")
     return weight_dict
-
-
-def create_tf_dataset(
-    images: np.ndarray,
-    features: np.ndarray | None,
-    labels: np.ndarray,
-    batch_size: int = 32,
-    shuffle: bool = True,
-    shuffle_buffer: int | None = None,
-):
-    """Create TensorFlow dataset that streams data in batches.
-
-    This is memory-efficient because:
-    - Data is loaded in batches, not all at once
-    - prefetch() loads next batch while GPU trains on current
-    - Only batch_size samples in memory at a time
-
-    Args:
-        images: Image array.
-        features: Feature array (None for image-only models).
-        labels: Label array.
-        batch_size: Number of samples per batch.
-        shuffle: Whether to shuffle data each epoch.
-        shuffle_buffer: Buffer size for shuffling (default: min(10000, len(labels))).
-
-    Returns:
-        tf.data.Dataset that yields (inputs, labels) batches.
-    """
-    import tensorflow as tf
-
-    # Determine buffer size (smaller buffer = less RAM)
-    if shuffle_buffer is None:
-        shuffle_buffer = min(10000, len(labels))
-
-    # Create dataset based on whether we have features
-    if features is not None:
-        dataset = tf.data.Dataset.from_tensor_slices((
-            {"img_input": images, "feature_input": features},
-            labels,
-        ))
-    else:
-        dataset = tf.data.Dataset.from_tensor_slices((images, labels))
-
-    # Shuffle if requested (uses buffer, not full dataset)
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=shuffle_buffer)
-
-    # Batch the data
-    dataset = dataset.batch(batch_size)
-
-    # Prefetch: load next batch while GPU trains on current batch
-    # This hides the data loading latency
-    dataset = dataset.prefetch(tf.data.AUTOTUNE)
-
-    return dataset
 
 
 def prepare_and_export_data(
@@ -212,13 +97,18 @@ def prepare_and_export_data(
         valid_classes=config.classes,
     )
 
-    preprocessor = StrokePreprocessor(smooth=False, normalize=True)
+    preprocessor = StrokePreprocessor(normalize=True)
 
     renderer = StrokeRenderer(
         img_size=config.features.image_size,
+        line_width=config.features.line_width,
+        antialiasing=config.features.antialiasing,
         to_rgb=True,
         normalize_pixels=True,
+        scale_factor=4,
+        smooth=True,
     )
+    logger.info(f"Renderer config: {renderer}")
 
     feature_extractor = GeometricFeatureExtractor(
         height_threshold=config.features.height_threshold,
@@ -232,6 +122,45 @@ def prepare_and_export_data(
     # Preprocess (clean + normalize)
     _, processed_data = preprocessor.process_dataset(raw_data, config.class_to_idx)
     logger.info(f"Preprocessed {len(processed_data)} samples")
+
+    # Debug: Export Sample Images
+    debug_dir = output_dir / "debug_samples"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Exporting debug samples to: {debug_dir}")
+    
+    seen_labels = set()
+
+    import PIL.Image as Image
+    
+    for item in processed_data:
+        label = item["type"]
+        if label not in seen_labels:
+            # Render single image
+            img_array = renderer.render(item["stroke"])
+            
+            # Convert back to uint8 [0,255] for saving
+            if img_array.max() <= 1.0:
+                img_array = (img_array * 255).astype(np.uint8)
+            else:
+                img_array = img_array.astype(np.uint8)
+                
+            # If 3 channels, save as RGB. If 1 channel, squeeze.
+            if img_array.shape[-1] == 1:
+                img_array = img_array.squeeze(-1)
+                mode = "L"
+            else:
+                mode = "RGB"
+                
+            # Save image            
+            img_pil = Image.fromarray(img_array, mode=mode)
+            img_pil.save(debug_dir / f"{label}.png")
+            
+            seen_labels.add(label)
+            
+            if len(seen_labels) >= len(config.classes):
+                break
+    
+    logger.info(f"Saved debug sample images.")
 
     # Augment if enabled
     if config.augmentation.enabled:
@@ -247,6 +176,7 @@ def prepare_and_export_data(
             rotation_exclude_types=config.augmentation.rotation_exclude_types,
             random_seed=config.data.random_state,
         )
+        logger.info(f"Augmenter config: {augmenter}")
         data = augmenter.augment_dataset(processed_data)
         logger.info(f"Augmented to {len(data)} samples")
     else:
@@ -269,9 +199,8 @@ def prepare_and_export_data(
     )
     logger.info(f"Labels shape: {labels.shape}")
 
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = output_dir / f"processed_data_{timestamp}.npz"
+    # Save to fixed filename (overwrite)
+    output_file = output_dir / "processed_data.npz"
 
     # Save to .npz
     np.savez_compressed(
@@ -300,16 +229,6 @@ def prepare_and_export_data(
 
     logger.info(f"Saved processed data to: {output_file}")
     logger.info(f"Saved metadata to: {metadata_file}")
-
-    # Also create a "latest" symlink/copy for convenience
-    latest_file = output_dir / "latest.npz"
-    latest_meta = output_dir / "latest.json"
-
-    # On Windows, copy instead of symlink
-    import shutil
-    shutil.copy2(output_file, latest_file)
-    shutil.copy2(metadata_file, latest_meta)
-    logger.info(f"Created latest.npz link")
 
     return output_file
 
@@ -346,9 +265,10 @@ def main() -> int:
     args = parse_args()
 
     # Setup logging
-    setup_logging(level="INFO")
+    log_file = Path("logs/dataset.log")
+    setup_logging(level="INFO", log_file=str(log_file))
 
-    logger.info("=" * 60)
+    logger.info("=" * 100)
     logger.info("OnePen Dataset Preparation")
     logger.info(f"Config: {args.config}")
     logger.info("=" * 60)
@@ -369,10 +289,9 @@ def main() -> int:
     logger.info("Dataset Preparation Complete!")
     logger.info(f"Output: {output_file}")
     logger.info("")
-    logger.info("Next steps:")
-    logger.info("  1. (Optional) dvc add data/processed/")
-    logger.info("  2. python scripts/train.py --config config/config.yaml")
-    logger.info("=" * 60)
+    logger.info("Quick next steps:")
+    logger.info("python scripts/train.py")
+    logger.info("=" * 100)
 
     return 0
 

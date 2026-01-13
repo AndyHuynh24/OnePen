@@ -50,7 +50,8 @@ class FeatureConfig(BaseModel):
     """Feature engineering configuration."""
     image_size: int = 136
     line_width: int = 3
-    num_features: int = 10
+    num_features: int = 12
+    antialiasing: bool = True
     height_threshold: float = 45
     cap_value: float = 100
     selected_indices: list[int] = [2, 3, 5, 8, 9, 11]

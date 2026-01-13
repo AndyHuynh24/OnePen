@@ -1,7 +1,7 @@
 """Data loading and processing modules."""
 
 from modifiers.data.loader import StrokeDataLoader, load_contributor_data, load_all_data
-from modifiers.data.preprocessor import StrokePreprocessor, normalize_stroke, smooth_stroke
+from modifiers.data.preprocessor import StrokePreprocessor, normalize_stroke
 
 __all__ = [
     "StrokeDataLoader",
@@ -9,5 +9,4 @@ __all__ = [
     "load_all_data",
     "StrokePreprocessor",
     "normalize_stroke",
-    "smooth_stroke",
 ]

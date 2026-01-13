@@ -9,7 +9,7 @@ def compute_geometric_features(
     height_threshold: float = 45,
     cap_value: float = 100,
 ) -> np.ndarray:
-    """Compute 10D geometric feature vector from stroke data.
+    """Compute 12D geometric feature vector from stroke data.
 
     Args:
         raw_stroke: Original stroke coordinates.
@@ -17,11 +17,11 @@ def compute_geometric_features(
         cap_value: Cap value for height feature.
 
     Returns:
-        10D numpy array of features.
+        12D numpy array of features.
     """
     # Handle edge cases
     if len(raw_stroke) < 2:
-        return np.zeros(10, dtype=np.float32)
+        return np.zeros(12, dtype=np.float32)
 
     # Extract coordinates
     pts_raw = np.array([[p["x"], p["y"]] for p in raw_stroke])
@@ -77,6 +77,16 @@ def compute_geometric_features(
     # Feature 9: Perimeter to diagonal ratio
     perim_diag_ratio = (2 * (w + h)) / (diag + 1e-6)
 
+    # Feature 10: Spine verticality
+    # how vertical is start-to-end direction (0=horizontal, 1=vertical)
+    dx_spine = x[-1] - x[0]
+    dy_spine = y[-1] - y[0]
+    spine_angle = abs(np.arctan2(dy_spine, dx_spine))
+    spine_verticality = 1 - abs(spine_angle - np.pi / 2) / (np.pi / 2)
+
+    # Feature 11: Vertical variance (std of y)
+    vert_var = np.std(y)
+
     return np.array([
         closure_ratio,      # 0
         compactness,        # 1
@@ -88,6 +98,8 @@ def compute_geometric_features(
         horiz_var,          # 7
         total_len,          # 8
         perim_diag_ratio,   # 9
+        spine_verticality,  # 10
+        vert_var,           # 11
     ], dtype=np.float32)
 
 
@@ -111,7 +123,7 @@ class GeometricFeatureExtractor:
         self.cap_value = cap_value
         self.selected_indices = selected_indices
 
-        # Feature names for reference (top 10 from EDA analysis)
+        # Feature names for reference
         self.feature_names = [
             "closure_ratio",
             "compactness",
@@ -123,6 +135,8 @@ class GeometricFeatureExtractor:
             "horiz_var",
             "total_len",
             "perim_diag_ratio",
+            "spine_verticality",
+            "vert_var",
         ]
 
     def extract(self, raw_stroke: list[dict]) -> np.ndarray:
@@ -155,7 +169,7 @@ class GeometricFeatureExtractor:
         """Get number of output features."""
         if self.selected_indices:
             return len(self.selected_indices)
-        return 10
+        return 12
 
     def get_selected_names(self) -> list[str]:
         """Get names of selected features."""

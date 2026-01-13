@@ -129,7 +129,7 @@ def build_hybrid_model(
 
     x = _build_backbone(img_input, backbone, backbone_trainable)
 
-    # Optional: Squeeze-and-Excitation attention
+    #Squeeze-and-Excitation attention
     if use_se_attention:
         channels = x.shape[-1]
         se = GlobalAveragePooling2D()(x)

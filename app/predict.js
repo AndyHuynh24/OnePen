@@ -13,7 +13,7 @@ async function preloadModel(model) {
     const featInput = inputs.find(inp => inp.shape.length === 2);
 
     const imgSize = imgInput ? imgInput.shape[1] || 136 : 136;
-    const featDim = featInput ? featInput.shape[1] || 10 : 0;
+    const featDim = featInput ? featInput.shape[1] || 12 : 0;
 
     // --- Create blank image tensor ---
     const tempCanvas = document.createElement("canvas");
@@ -75,7 +75,7 @@ function computeFastStrokeFeatures(
   capValue = 100
 ) {
   if (!rawStroke || rawStroke.length < 2) {
-    return new Array(10).fill(0);
+    return new Array(12).fill(0);
   }
 
   // Filter out points with invalid (non-finite) x or y values
@@ -91,7 +91,7 @@ function computeFastStrokeFeatures(
   // Need at least 2 valid points to compute features
   if (validStroke.length < 2) {
     console.warn("Not enough valid points in stroke after filtering");
-    return new Array(10).fill(0);
+    return new Array(12).fill(0);
   }
 
   // Use the filtered valid stroke for all computations
@@ -200,31 +200,53 @@ function computeFastStrokeFeatures(
   // === Feature 9: Perimeter to diagonal ratio ===
   const perimDiagRatio = (2 * (w + h)) / (diag + 1e-6);
 
-  // === Return final 10D feature vector ===
+  // === Feature 10: Spine verticality ===
+  const dxSpine = x[n - 1] - x[0];
+  const dySpine = y[n - 1] - y[0];
+  const spineAngle = Math.abs(Math.atan2(dySpine, dxSpine));
+  const spineVerticality = 1 - Math.abs(spineAngle - Math.PI / 2) / (Math.PI / 2);
+
+  // === Feature 11: Vertical variance ===
+  let ySum = 0;
+  for (let i = 0; i < n; i++) ySum += y[i];
+  const yMean = ySum / n;
+
+  let yVarSum = 0;
+  for (let i = 0; i < n; i++) {
+    const d = y[i] - yMean;
+    yVarSum += d * d;
+  }
+  const vertVar = Math.sqrt(yVarSum / n);
+
+  // === Return final 12D feature vector ===
   console.log([
-    closureRatio,   // 0
-    compactness,    // 1
-    spreadRatio,    // 2
-    aspectRatio,    // 3
-    edgeFrac,       // 4
-    numPoints,      // 5
-    heightDiff,     // 6
-    horizVar,       // 7
-    totalLen,       // 8
-    perimDiagRatio  // 9
+    closureRatio,     // 0
+    compactness,      // 1
+    spreadRatio,      // 2
+    aspectRatio,      // 3
+    edgeFrac,         // 4
+    numPoints,        // 5
+    heightDiff,       // 6
+    horizVar,         // 7
+    totalLen,         // 8
+    perimDiagRatio,   // 9
+    spineVerticality, // 10
+    vertVar           // 11
   ]);
 
   return [
-    closureRatio,   // 0
-    compactness,    // 1
-    spreadRatio,    // 2
-    aspectRatio,    // 3
-    edgeFrac,       // 4
-    numPoints,      // 5
-    heightDiff,     // 6
-    horizVar,       // 7
-    totalLen,       // 8
-    perimDiagRatio  // 9
+    closureRatio,     // 0
+    compactness,      // 1
+    spreadRatio,      // 2
+    aspectRatio,      // 3
+    edgeFrac,         // 4
+    numPoints,        // 5
+    heightDiff,       // 6
+    horizVar,         // 7
+    totalLen,         // 8
+    perimDiagRatio,   // 9
+    spineVerticality, // 10
+    vertVar           // 11
   ];
 }
 
