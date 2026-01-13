@@ -18,6 +18,12 @@ classes:
 
 # Data configuration
 data:
+  raw_data_paths:
+    - "../data/raw/ContributorQuang"
+    - "../data/raw/ContributorLinh"
+    - "../data/raw/ContributorSang"
+    - "../data/raw/ContributorEsh"
+  processed_path: "../data/processed"
   # Train/val/test split
   test_size: 0.10
   val_size: 0.16

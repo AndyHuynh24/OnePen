@@ -16,9 +16,9 @@ class ProjectConfig(BaseModel):
 
 class DataConfig(BaseModel):
     """Data paths and split configuration."""
-    raw_data_paths: list[str]
-    processed_path: str
-    augmented_path: str
+    # raw_data_paths: list[str]
+    # processed_path: str
+    # augmented_path: str
     test_size: float = Field(ge=0, le=1)
     val_size: float = Field(ge=0, le=1)
     random_state: int = 42
