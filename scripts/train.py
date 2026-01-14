@@ -306,11 +306,11 @@ def load_processed_data(processed_dir: Path) -> tuple[np.ndarray, np.ndarray, np
         Tuple of (images, features, labels, metadata).
     """
     # Try to load latest.npz first, fall back to most recent file
-    latest_file = processed_dir / "latest.npz"
+    latest_file = processed_dir / "processed_data.npz"
     
     if latest_file.exists():
         npz_file = latest_file
-        meta_file = processed_dir / "latest.json"
+        meta_file = processed_dir / "processed_data.json"
     else:
         # Find most recent .npz file
         npz_files = sorted(

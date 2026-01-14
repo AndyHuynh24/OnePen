@@ -65,7 +65,7 @@ async function loadModel() {
     alert("Failed to load model: " + err.message);
   } finally {
     preloadModel(model);
-    preloadModel(autoShapeModel);
+    //preloadModel(autoShapeModel);
   }
   return {model, autoShapeModel};
 }
