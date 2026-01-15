@@ -1305,13 +1305,13 @@ function showToolbox(x, y, toolBox) {
 
     pointerDownForToolbox = true;
 }
-function extractImageData(inputStroke, imgSize = 136) {
+function extractImageData(inputStroke, imgSize = 96) {
   if (!inputStroke || inputStroke.length <= 0) {
     return -1;
   }
 
-  const lineWidth = 3;
-  const margin = lineWidth; // ✅ same as Python version
+  const lineWidth = 3; // ✅ Match training (config.yaml: line_width=3)
+  const margin = lineWidth;
 
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = imgSize;
@@ -1329,25 +1329,48 @@ function extractImageData(inputStroke, imgSize = 136) {
   tempCtx.lineJoin = 'round';
 
   // --- Bounding box ---
-  const xs = inputStroke.map(p => p.x);
-  const ys = inputStroke.map(p => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < inputStroke.length; i++) {
+    const px = inputStroke[i].x;
+    const py = inputStroke[i].y;
+    if (px < minX) minX = px;
+    if (px > maxX) maxX = px;
+    if (py < minY) minY = py;
+    if (py > maxY) maxY = py;
+  }
 
-  // --- Scale using the same formula, just applying margin ---
+  // --- Scale to fit in image with margin ---
   const scaleX = (imgSize - margin * 2) / (maxX - minX + 1e-5);
   const scaleY = (imgSize - margin * 2) / (maxY - minY + 1e-5);
 
-  // --- Draw stroke ---
+  // Scale points
+  const scaledPts = inputStroke.map(p => ({
+    x: (p.x - minX) * scaleX + margin,
+    y: (p.y - minY) * scaleY + margin
+  }));
+
+  // --- Draw stroke with Quadratic Bezier smoothing (matches renderer.py) ---
   tempCtx.beginPath();
-  inputStroke.forEach((p, idx) => {
-    const x = (p.x - minX) * scaleX + margin;
-    const y = (p.y - minY) * scaleY + margin;
-    if (idx === 0) tempCtx.moveTo(x, y);
-    else tempCtx.lineTo(x, y);
-  });
+  if (scaledPts.length < 3) {
+    // Not enough points for curves, use straight lines
+    scaledPts.forEach((p, idx) => {
+      if (idx === 0) tempCtx.moveTo(p.x, p.y);
+      else tempCtx.lineTo(p.x, p.y);
+    });
+  } else {
+    // Move to first point
+    tempCtx.moveTo(scaledPts[0].x, scaledPts[0].y);
+
+    // Draw quadratic curves using midpoints as anchors
+    for (let i = 1; i < scaledPts.length - 1; i++) {
+      const xc = (scaledPts[i].x + scaledPts[i + 1].x) / 2;
+      const yc = (scaledPts[i].y + scaledPts[i + 1].y) / 2;
+      tempCtx.quadraticCurveTo(scaledPts[i].x, scaledPts[i].y, xc, yc);
+    }
+
+    // Connect to the last point
+    tempCtx.lineTo(scaledPts[scaledPts.length - 1].x, scaledPts[scaledPts.length - 1].y);
+  }
   tempCtx.stroke();
 
   return tempCanvas;

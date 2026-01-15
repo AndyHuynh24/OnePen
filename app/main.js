@@ -1416,7 +1416,7 @@ async function classifyStroke(stroke, hold = false) {
     }
 
     if (modifiedGroups.length >= 3 || intersectPointsCount >= 4)  {
-        imgData = extractImageData(stroke, 136);
+        imgData = extractImageData(stroke, 96);
         // Preview
         const viewerCanvas = document.getElementById('viewer');
         const viewerCtx = viewerCanvas.getContext('2d');

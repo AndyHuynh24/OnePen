@@ -289,7 +289,7 @@ async function predictImageFromCanvas(stroke, canvas, model) {
     imgTensor = tf.tidy(() =>
       tf.browser
         .fromPixels(canvas)
-        .resizeBilinear([136, 136])
+        .resizeBilinear([96, 96])
         .toFloat()
         .div(255)
         .expandDims(0)

@@ -116,9 +116,9 @@ class StrokeModelTrainer:
     ) -> dict[str, list]:
         """Train the model using tf.data.Dataset or numpy arrays.
 
-        You can either pass:
-        - train_dataset + val_dataset (tf.data.Dataset) - RECOMMENDED, memory efficient
-        - X_train_img + y_train + X_val_img + y_val (numpy arrays) - legacy support
+        can either pass:
+        - train_dataset + val_dataset (tf.data.Dataset)
+        - X_train_img + y_train + X_val_img + y_val (numpy arrays)
 
         Args:
             train_dataset: tf.data.Dataset for training (recommended).

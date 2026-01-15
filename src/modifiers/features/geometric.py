@@ -88,18 +88,18 @@ def compute_geometric_features(
     vert_var = np.std(y)
 
     return np.array([
-        closure_ratio,      # 0
-        compactness,        # 1
-        spread_ratio,       # 2
-        aspect_ratio,       # 3
-        edge_frac,          # 4
-        num_points_feat,    # 5
-        height_diff,        # 6
-        horiz_var,          # 7
-        total_len,          # 8
-        perim_diag_ratio,   # 9
-        spine_verticality,  # 10
-        vert_var,           # 11
+        closure_ratio,      
+        compactness,         
+        spread_ratio,       
+        aspect_ratio,      
+        edge_frac,          
+        num_points_feat,    
+        height_diff,       
+        horiz_var,          
+        total_len,          
+        perim_diag_ratio,   
+        spine_verticality,  
+        vert_var,           
     ], dtype=np.float32)
 
 

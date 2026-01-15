@@ -22,32 +22,7 @@ from modifiers.utils.logging import get_logger
 
 logger = get_logger("onepen.models")
 
-SUPPORTED_BACKBONES = ["mobilenetv3_large", "mobilenetv3_small", "efficientnetv2", "custom_cnn"]
-
-
-def _build_custom_cnn(input_tensor: tf.Tensor, trainable: bool = True) -> tf.Tensor:
-    """Build a lightweight custom CNN backbone.
-
-    This is optimized for small gesture images (136x136) and produces
-    a smaller, faster model than pretrained backbones.
-    """
-    x = Conv2D(32, 3, activation="relu", padding="same")(input_tensor)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D(2)(x)
-
-    x = Conv2D(64, 3, activation="relu", padding="same")(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D(2)(x)
-
-    x = Conv2D(128, 3, activation="relu", padding="same")(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D(2)(x)
-
-    x = Conv2D(256, 3, activation="relu", padding="same")(x)
-    x = BatchNormalization()(x)
-
-    return x
-
+SUPPORTED_BACKBONES = ["mobilenetv3_large", "mobilenetv3_small", "efficientnetv2"]
 
 def _build_backbone(
     input_tensor: tf.Tensor,
@@ -84,9 +59,6 @@ def _build_backbone(
         )
         base.trainable = trainable
         return base.output
-
-    elif backbone == "custom_cnn":
-        return _build_custom_cnn(input_tensor, trainable=trainable)
 
     else:
         raise ValueError(f"Unknown backbone: {backbone}. Supported: {SUPPORTED_BACKBONES}")

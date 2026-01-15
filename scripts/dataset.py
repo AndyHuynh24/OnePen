@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 """Dataset preparation and export for training.
-
-This script processes raw stroke data, applies augmentation, and exports
-processed data to data/processed/ for use with train.py.
-
-Usage:
-    python scripts/dataset.py --config config/config.yaml
 """
 
 import argparse
@@ -61,19 +55,11 @@ def prepare_and_export_data(
 ) -> Path:
     """Process raw data and export to processed directory.
 
-    This function:
-    1. Loads raw stroke data from all contributors
-    2. Preprocesses (normalizes) strokes
-    3. Applies data augmentation
-    4. Renders strokes to images
-    5. Extracts geometric features
-    6. Saves everything to output_dir as .npz files
-
     Args:
         config_path: Path to config.yaml file.
         output_dir: Directory to save processed data.
         data_dir: Override data directory (uses config if None).
-~~~
+
     Returns:
         Path to the saved .npz file.
     """
@@ -118,11 +104,11 @@ def prepare_and_export_data(
     raw_data = loader.load()
     logger.info(f"Loaded {len(raw_data)} raw samples")
 
-    # Preprocess (clean + normalize)
-    _, processed_data = preprocessor.process_dataset(raw_data, config.class_to_idx)
-    logger.info(f"Preprocessed {len(processed_data)} samples")
+    # Preprocess
+    raw_data_cleaned, processed_data = preprocessor.process_dataset(raw_data, config.class_to_idx)
+    logger.info(f"Preprocessed {len(raw_data_cleaned)} samples (cleaned)")
 
-    # Debug: Export Sample Images
+    # Debug: Export Sample Images 
     debug_dir = output_dir / "debug_samples"
     debug_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Exporting debug samples to: {debug_dir}")
@@ -161,7 +147,7 @@ def prepare_and_export_data(
     
     logger.info(f"Saved debug sample images.")
 
-    # Augment if enabled
+    # Augment aw data
     if config.augmentation.enabled:
         augmenter = StrokeAugmenter(
             num_augmentations=config.augmentation.num_augmentations,
@@ -176,29 +162,36 @@ def prepare_and_export_data(
             random_seed=config.data.random_state,
         )
         logger.info(f"Augmenter config: {augmenter}")
-        data = augmenter.augment_dataset(processed_data)
-        logger.info(f"Augmented to {len(data)} samples")
+        data_raw = augmenter.augment_dataset(raw_data_cleaned)  
+        logger.info(f"Augmented to {len(data_raw)} samples")
     else:
-        data = processed_data
+        data_raw = raw_data_cleaned
 
-    # Render images
-    logger.info("Rendering stroke images...")
-    images = renderer.render_dataset(data)
-    logger.info(f"Images shape: {images.shape}")
-
-    # Extract features
-    logger.info("Extracting geometric features...")
-    features = feature_extractor.extract_dataset(data)
+    # Extract features from raw strokes
+    logger.info("Extracting geometric features from RAW strokes...")
+    features = feature_extractor.extract_dataset(data_raw)
     logger.info(f"Features shape: {features.shape}")
 
-    # Collect labels
+    # Normalize strokes for rendering 
+    from modifiers.data.preprocessor import normalize_stroke
+    logger.info("Normalizing strokes for rendering...")
+    data_normalized = [
+        {**item, "stroke": normalize_stroke(item["stroke"])}
+        for item in data_raw
+    ]
+
+    # Render images from normalized strokes
+    logger.info("Rendering stroke images...")
+    images = renderer.render_dataset(data_normalized)
+    logger.info(f"Images shape: {images.shape}")
+
+    # Collect labels from the augmented data
     labels = np.array(
-        [config.class_to_idx[item["type"]] for item in data],
+        [config.class_to_idx[item["type"]] for item in data_raw],
         dtype=np.int32
     )
     logger.info(f"Labels shape: {labels.shape}")
 
-    # Save to fixed filename (overwrite)
     output_file = output_dir / "processed_data.npz"
 
     # Save to .npz

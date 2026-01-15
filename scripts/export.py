@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 """Export trained Keras model to TensorFlow.js format.
-
-Usage:
-    python scripts/export.py --model outputs/run_xxx/checkpoints/best_model.keras
-
-This exports the model for browser-based inference.
 """
 
 import argparse
@@ -45,9 +40,6 @@ def parse_args() -> argparse.Namespace:
 
 def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -> bool:
     """Convert Keras model to TensorFlow.js GraphModel format.
-    
-    Uses the tensorflowjs Python API directly with a compatibility shim
-    for tensorflow_hub + TensorFlow 2.x issues.
     """
     import os
     import stat
@@ -58,8 +50,6 @@ def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -
     from unittest.mock import MagicMock
     
     # === Compatibility shim for tensorflow_hub + TF 2.x ===
-    # tensorflow_hub crashes on import because it uses removed tf.compat.v1 APIs.
-    # We mock it completely since we are converting a local model and don't need Hub features.
     if 'tensorflow_hub' not in sys.modules:
         mock_hub = MagicMock()
         sys.modules['tensorflow_hub'] = mock_hub
@@ -77,7 +67,7 @@ def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -
         func(path)
 
     try:
-        # Step 1: Load and export to SavedModel
+        # Load and export to SavedModel
         logger.info(f"Loading model from {keras_path}")
         model = tf.keras.models.load_model(str(keras_path))
         logger.info(f"Model loaded: {model.name}")
@@ -92,7 +82,7 @@ def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -
         logger.info("Exporting to SavedModel format...")
         model.export(str(saved_model_path))
 
-        # Step 2: Convert using Python API (avoids tensorflow_hub import issue)
+        # Convert using Python API (avoids tensorflow_hub import issue)
         tfjs_path.mkdir(parents=True, exist_ok=True)
         
         logger.info("Converting SavedModel to TensorFlow.js format...")
@@ -102,7 +92,7 @@ def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -
             quantization_dtype_map={"uint8": "*"} if quantize else None,
         )
 
-        # Step 3: Cleanup (Windows-safe)
+        # SCleanup 
         logger.info("Cleaning up temporary SavedModel...")
         time.sleep(1.5)  # 🔑 allow Windows to release file locks
 
@@ -138,7 +128,7 @@ def main() -> int:
 
     # Setup output paths
     if args.output is None:
-        output_dir = Path(__file__).parent.parent.parent / "models" / "tfjs"
+        output_dir = Path(__file__).parent.parent / "models" / "tfjs"
     else:
         output_dir = args.output
 

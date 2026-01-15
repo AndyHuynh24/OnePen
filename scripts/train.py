@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
 """Main training script for OnePen stroke classifier.
-
-Usage:
-    python scripts/train.py --config config/config.yaml
-
-This script:
-1. Loads preprocessed data from data/processed/
-2. Builds the hybrid CNN model
-3. Trains with MLflow experiment tracking
-4. Evaluates on test set
-5. Saves the best model
 """
 
 import argparse
@@ -49,7 +39,7 @@ def split_data(
 ) -> dict[str, np.ndarray]:
     """Split data into train/val/test sets using index-based splitting.
     
-    This is memory-efficient because we split indices first, then index
+    This is memory-efficient because split indices first, then index
     into the arrays only when needed, avoiding large intermediate copies.
     """
     n_samples = len(labels)
@@ -305,11 +295,10 @@ def load_processed_data(processed_dir: Path) -> tuple[np.ndarray, np.ndarray, np
     Returns:
         Tuple of (images, features, labels, metadata).
     """
-    # Try to load latest.npz first, fall back to most recent file
-    latest_file = processed_dir / "processed_data.npz"
+    processed_file = processed_dir / "processed_data.npz"
     
-    if latest_file.exists():
-        npz_file = latest_file
+    if processed_file.exists():
+        npz_file = processed_file
         meta_file = processed_dir / "processed_data.json"
     else:
         # Find most recent .npz file
@@ -354,18 +343,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to configuration file",
     )
     parser.add_argument(
-        "--processed-dir",
-        type=Path,
-        default=None,
-        help="Directory with processed data (default: data/processed)",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("outputs"),
-        help="Output directory for models and logs",
-    )
-    parser.add_argument(
         "--epochs",
         type=int,
         default=None,
@@ -381,7 +358,7 @@ def parse_args() -> argparse.Namespace:
         "--backbone",
         type=str,
         default=None,
-        choices=["mobilenetv3_large", "mobilenetv3_small", "efficientnetv2", "custom_cnn"],
+        choices=["mobilenetv3_large", "mobilenetv3_small", "efficientnetv2"],
         help="Override backbone from config",
     )
     return parser.parse_args()
@@ -407,9 +384,7 @@ def main() -> int:
     logger.info("=" * 60)
 
     # Determine processed data directory
-    processed_dir = args.processed_dir
-    if processed_dir is None:
-        processed_dir = Path(__file__).parent.parent / "data" / "processed"
+    processed_dir = Path(__file__).parent.parent / "data" / "processed"
 
     logger.info(f"Loading processed data from: {processed_dir}")
 
@@ -424,11 +399,11 @@ def main() -> int:
 
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = args.output_dir / f"run_{timestamp}"
+    output_dir = f"run_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
-    # ========== Split Data ==========
+    #Split Data
     logger.info("Splitting data...")
     splits = split_data(
         images=images,
@@ -443,13 +418,13 @@ def main() -> int:
     logger.info(f"Val samples: {len(splits['y_val'])}")
     logger.info(f"Test samples: {len(splits['y_test'])}")
 
-    # ========== Compute Class Weights ==========
+    #Compute Class Weights
     class_weights = None
     if config.training.use_class_weights:
         class_weights = compute_class_weights_dict(splits["y_train"])
         logger.info(f"Class weights: {class_weights}")
 
-    # ========== Build or Resume Model ==========
+    #Build or Resume Model
     if args.resume:
         logger.info(f"Resuming from checkpoint: {args.resume}")
         model = tf.keras.models.load_model(str(args.resume))
@@ -474,7 +449,7 @@ def main() -> int:
             backbone=backbone_name,
         )
 
-    # ========== Setup MLflow ==========
+    #Setup MLflow
     mlflow.set_tracking_uri(config.mlflow.tracking_uri)
     mlflow.set_experiment(config.mlflow.experiment_name)
     mlflow.start_run(run_name=f"train_{timestamp}")
@@ -495,7 +470,7 @@ def main() -> int:
         "test_samples": len(splits["y_test"]),
     })
 
-    # ========== Create tf.data.Dataset ==========
+    #Create tf.data.Dataset
     logger.info("Creating tf.data.Dataset pipelines...")
 
     train_dataset = create_tf_dataset(
@@ -517,7 +492,7 @@ def main() -> int:
     logger.info(f"Train batches: {len(splits['y_train']) // config.training.batch_size}")
     logger.info(f"Val batches: {len(splits['y_val']) // config.training.batch_size}")
 
-    # ========== Train ==========
+    #Train
     logger.info("Starting training...")
     trainer = StrokeModelTrainer(
         model=model,
@@ -535,7 +510,7 @@ def main() -> int:
         reduce_lr_patience=config.training.reduce_lr.patience,
     )
 
-    # ========== Evaluate ==========
+    #Evaluate
     logger.info("Evaluating on test set...")
     test_dataset = create_tf_dataset(
         images=splits["X_test_img"],
@@ -546,13 +521,13 @@ def main() -> int:
     )
     test_metrics = trainer.evaluate(test_dataset=test_dataset)
 
-    # ========== Generate Predictions for Visualizations ==========
+    #Generate Predictions for Visualizations
     logger.info("Generating predictions for visualizations...")
     y_pred_probs = model.predict(test_dataset, verbose=0)
     y_pred = np.argmax(y_pred_probs, axis=1)
     y_true = splits["y_test"].astype(int)
 
-    # ========== Save Visualizations ==========
+    #Save Visualizations
     logger.info("Saving visualizations...")
     
     # Training curves
@@ -583,7 +558,7 @@ def main() -> int:
     )
     logger.info(f"Classification report saved to: {output_dir / 'classification_report.json'}")
 
-    # ========== Log Metrics to MLflow ==========
+    #Log Metrics to MLflow
     best_metrics = trainer.get_best_metrics()
     mlflow.log_metrics({
         "best_val_accuracy": best_metrics["best_val_accuracy"],
@@ -605,14 +580,14 @@ def main() -> int:
     mlflow.log_artifact(str(output_dir / "confusion_matrix.png"))
     mlflow.log_artifact(str(output_dir / "training_curves.png"))
 
-    # ========== Save Model ==========
+    #Save Model
     model_path = trainer.save_model()
     logger.info(f"Model saved to {model_path}")
 
     mlflow.log_artifact(str(model_path))
     mlflow.end_run()
 
-    # ========== Summary ==========
+    #Summary
     logger.info("=" * 60)
     logger.info("Training Complete!")
     logger.info(f"Best val accuracy: {trainer.get_best_metrics()['best_val_accuracy']:.4f}")

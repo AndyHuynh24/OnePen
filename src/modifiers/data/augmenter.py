@@ -181,13 +181,7 @@ class StrokeAugmenter:
         data: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Augment entire dataset with multiple variations.
-
-        Creates num_augmentations copies of each sample with random
-        transformations, optionally with horizontal flips and rotate.
-        Reason: For future scalability -doing left and right brackets;
-        rotating some modifiers may cause it to look like other modifiers
-        (e.g. delete -> boxshortcut)
-
+        
         Args:
             data: List of stroke dictionaries.
 
