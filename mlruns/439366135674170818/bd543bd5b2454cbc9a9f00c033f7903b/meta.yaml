@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/huybh/OneDrive/Documents/OnePen/mlruns/439366135674170818/bd543bd5b2454cbc9a9f00c033f7903b/artifacts
+end_time: 1768308714434
+entry_point_name: ''
+experiment_id: '439366135674170818'
+lifecycle_stage: active
+run_id: bd543bd5b2454cbc9a9f00c033f7903b
+run_name: train_20260113_165952
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1768298401865
+status: 3
+tags: []
+user_id: huybh

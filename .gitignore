@@ -28,7 +28,6 @@ wheels/
 venv/
 ENV/
 env/
-macbookvenv/
 # IDE
 .vscode/
 .idea/
@@ -40,8 +39,6 @@ macbookvenv/
 .ipynb_checkpoints/
 
 # ML artifacts (use DVC to track these)
-outputs/
-mlruns/
 logs/
 *.keras
 *.h5
@@ -51,10 +48,6 @@ logs/
 data/processed/*.npz
 data/processed/*.json
 data/augmented/
-
-# TensorFlow.js exports
-models/tfjs/
-models/keras/
 
 # OS files
 .DS_Store
