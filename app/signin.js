@@ -1,115 +1,131 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// GOOGLE DRIVE AUTHENTICATION & AUTO-SYNC
+// FIREBASE AUTHENTICATION & GOOGLE DRIVE AUTO-SYNC
 // ═══════════════════════════════════════════════════════════════════════════
-
-const GOOGLE_CLIENT_ID = '144566328850-70jc9qcm2vloij6rvft61g8adhla67kj.apps.googleusercontent.com';
-const GOOGLE_SCOPES = [
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/drive.file'
-].join(' ');
 
 const BACKUP_FILENAME = 'onepen_backup.json';
 
+// Google Drive scope for file access
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
 // ═══════════════════════════════════════════════════════════════════════════
-// SESSION MANAGEMENT - Persistent login
+// SESSION MANAGEMENT - Using Firebase + localStorage for Drive token
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getStoredSession() {
-    const accessToken = localStorage.getItem('accessToken');
-    const tokenExpiry = localStorage.getItem('tokenExpiry');
-    const userName = localStorage.getItem('userName');
-    const userEmail = localStorage.getItem('userEmail');
-    const userPicture = localStorage.getItem('userPicture');
+    const user = firebase.auth().currentUser;
+    const accessToken = localStorage.getItem('driveAccessToken');
+    const tokenExpiry = localStorage.getItem('driveTokenExpiry');
 
-    if (!accessToken || !tokenExpiry) return null;
+    if (!user || !accessToken || !tokenExpiry) return null;
 
-    // Check if token is still valid (with 5 min buffer)
+    // Check if Drive token is still valid (with 5 min buffer)
     const expiryTime = parseInt(tokenExpiry, 10);
     const now = Date.now();
     const bufferMs = 5 * 60 * 1000; // 5 minutes
 
     if (now >= expiryTime - bufferMs) {
-        // Token expired or about to expire
-        clearSession();
+        // Token expired - clear Drive token (Firebase auth may still be valid)
+        clearDriveToken();
         return null;
     }
 
-    return { accessToken, userName, userEmail, userPicture, expiryTime };
+    return {
+        accessToken,
+        userName: user.displayName || '',
+        userEmail: user.email || '',
+        userPicture: user.photoURL || '',
+        expiryTime
+    };
 }
 
-function saveSession(accessToken, expiresIn, userInfo) {
+function saveDriveToken(accessToken, expiresIn) {
     const expiryTime = Date.now() + (expiresIn * 1000);
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('tokenExpiry', expiryTime.toString());
-    localStorage.setItem('userName', userInfo.name || '');
-    localStorage.setItem('userEmail', userInfo.email || '');
-    localStorage.setItem('userPicture', userInfo.picture || '');
+    localStorage.setItem('driveAccessToken', accessToken);
+    localStorage.setItem('driveTokenExpiry', expiryTime.toString());
+}
+
+function clearDriveToken() {
+    localStorage.removeItem('driveAccessToken');
+    localStorage.removeItem('driveTokenExpiry');
 }
 
 function clearSession() {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('tokenExpiry');
-    localStorage.removeItem('idToken');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userPicture');
+    clearDriveToken();
+    localStorage.removeItem('lastSyncTime');
 }
 
-function parseJwt(token) {
+// ═══════════════════════════════════════════════════════════════════════════
+// FIREBASE GOOGLE SIGN IN
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function initiateGoogleSignIn() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    // Add Google Drive scope for backup functionality
+    provider.addScope(GOOGLE_DRIVE_SCOPE);
+
+    // Force account selection
+    provider.setCustomParameters({
+        prompt: 'select_account'
+    });
+
     try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
-            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
-        );
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        return null;
+        const result = await firebase.auth().signInWithPopup(provider);
+
+        // Get the OAuth access token for Google Drive API
+        const credential = result.credential;
+        if (credential && credential.accessToken) {
+            // Google OAuth tokens expire in 1 hour (3600 seconds)
+            saveDriveToken(credential.accessToken, 3600);
+        }
+
+        console.log('[Auth] Signed in as:', result.user.email);
+        updateAuthUI();
+        showSyncStatus('idle');
+
+        // Check for cloud updates after sign in
+        setTimeout(() => checkAndSyncOnLoad(), 1000);
+
+    } catch (error) {
+        console.error('[Auth] Sign in error:', error);
+        if (error.code !== 'auth/popup-closed-by-user') {
+            alert('Sign in failed: ' + error.message);
+        }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SIGN IN / SIGN OUT
-// ═══════════════════════════════════════════════════════════════════════════
-
-function initiateGoogleSignIn() {
-    const redirectUri = window.location.origin + window.location.pathname;
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${GOOGLE_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&response_type=token id_token` +
-        `&scope=${encodeURIComponent(GOOGLE_SCOPES)}` +
-        `&nonce=${Date.now()}` +
-        `&prompt=select_account`;
-
-    window.location.href = oauthUrl;
-}
-
-function extractTokensFromUrl() {
-    const hash = window.location.hash;
-    if (!hash.includes('access_token')) return false;
-
-    const params = new URLSearchParams(hash.slice(1));
-    const accessToken = params.get('access_token');
-    const idToken = params.get('id_token');
-    const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
-
-    if (accessToken && idToken) {
-        const userInfo = parseJwt(idToken) || {};
-        saveSession(accessToken, expiresIn, userInfo);
-
-        // Clear URL hash and reload cleanly
-        history.replaceState(null, '', window.location.pathname);
-        return true;
+async function signOut() {
+    try {
+        await firebase.auth().signOut();
+        clearSession();
+        updateAuthUI();
+        showSyncStatus('signed-out');
+        console.log('[Auth] Signed out');
+    } catch (error) {
+        console.error('[Auth] Sign out error:', error);
     }
-    return false;
 }
 
-function signOut() {
-    clearSession();
-    updateAuthUI();
-    showSyncStatus('signed-out');
+// Re-authenticate to get fresh Drive token (when token expires)
+async function refreshDriveToken() {
+    const user = firebase.auth().currentUser;
+    if (!user) return null;
+
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope(GOOGLE_DRIVE_SCOPE);
+
+    try {
+        const result = await user.reauthenticateWithPopup(provider);
+        if (result.credential && result.credential.accessToken) {
+            saveDriveToken(result.credential.accessToken, 3600);
+            return result.credential.accessToken;
+        }
+    } catch (error) {
+        console.error('[Auth] Token refresh error:', error);
+        // If re-auth fails, sign out completely
+        await signOut();
+    }
+    return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -117,7 +133,7 @@ function signOut() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function updateAuthUI() {
-    const session = getStoredSession();
+    const user = firebase.auth().currentUser;
     const signinCard = document.getElementById('signin-card');
     const userCard = document.getElementById('user-card');
     const userNameEl = document.getElementById('user-name');
@@ -125,20 +141,20 @@ function updateAuthUI() {
     const userAvatar = document.getElementById('user-avatar');
     const driveGroup = document.getElementById('driveGroup');
 
-    if (!signinCard || !userCard) return; // Elements not ready
+    if (!signinCard || !userCard) return;
 
-    if (session) {
+    if (user) {
         // Logged in
         signinCard.style.display = 'none';
         userCard.style.display = 'block';
         if (driveGroup) driveGroup.style.display = 'flex';
 
-        if (userNameEl) userNameEl.textContent = session.userName || 'User';
-        if (userEmail) userEmail.textContent = session.userEmail || '';
+        if (userNameEl) userNameEl.textContent = user.displayName || 'User';
+        if (userEmail) userEmail.textContent = user.email || '';
 
         if (userAvatar) {
-            if (session.userPicture) {
-                userAvatar.src = session.userPicture;
+            if (user.photoURL) {
+                userAvatar.src = user.photoURL;
                 userAvatar.style.display = 'block';
             } else {
                 userAvatar.style.display = 'none';
@@ -193,7 +209,7 @@ function scheduleAutoSync() {
 
     const session = getStoredSession();
     if (!session) {
-        console.log('[AutoSync] No session found - user not logged in');
+        console.log('[AutoSync] No session found - user not logged in or token expired');
         return;
     }
     console.log('[AutoSync] Session found for:', session.userEmail);
@@ -223,10 +239,16 @@ function scheduleAutoSync() {
 async function performAutoSync() {
     console.log('[AutoSync] performAutoSync() started');
 
-    const session = getStoredSession();
+    let session = getStoredSession();
     if (!session) {
-        console.log('[AutoSync] No session - aborting');
-        return;
+        // Try to refresh the Drive token
+        console.log('[AutoSync] No valid session, attempting token refresh...');
+        const newToken = await refreshDriveToken();
+        if (!newToken) {
+            console.log('[AutoSync] Token refresh failed - aborting');
+            return;
+        }
+        session = getStoredSession();
     }
 
     // Check if online
@@ -243,16 +265,27 @@ async function performAutoSync() {
 
     try {
         await silentBackupToDrive(session.accessToken);
-        console.log('[AutoSync] ✅ Upload successful!');
+        console.log('[AutoSync] Upload successful!');
         showSyncStatus('synced', 'Synced');
     } catch (err) {
-        console.error('[AutoSync] ❌ Upload failed:', err);
+        console.error('[AutoSync] Upload failed:', err);
         if (err.message.includes('401') || err.message.includes('403')) {
-            // Token expired
-            console.log('[AutoSync] Token expired - clearing session');
-            clearSession();
-            updateAuthUI();
-            showSyncStatus('error', 'Session expired');
+            // Token expired - try to refresh
+            console.log('[AutoSync] Token expired - attempting refresh');
+            const newToken = await refreshDriveToken();
+            if (newToken) {
+                // Retry with new token
+                try {
+                    await silentBackupToDrive(newToken);
+                    console.log('[AutoSync] Retry successful!');
+                    showSyncStatus('synced', 'Synced');
+                } catch (retryErr) {
+                    console.error('[AutoSync] Retry failed:', retryErr);
+                    showSyncStatus('error', 'Sync failed');
+                }
+            } else {
+                showSyncStatus('error', 'Please sign in again');
+            }
         } else {
             showSyncStatus('error', 'Sync failed');
         }
@@ -361,37 +394,62 @@ function buildBackupPayload() {
 }
 
 // Manual sync buttons (keep existing functionality)
-function manualSyncToDrive() {
+async function manualSyncToDrive() {
     console.log('[Sync] Manual sync button clicked');
-    const session = getStoredSession();
+    let session = getStoredSession();
+
     if (!session) {
-        console.log('[Sync] No session - please sign in');
-        alert('Please sign in first');
-        return;
+        // Try to refresh token
+        const newToken = await refreshDriveToken();
+        if (!newToken) {
+            alert('Please sign in again to sync');
+            return;
+        }
+        session = getStoredSession();
     }
 
     console.log('[Sync] Starting manual sync...');
     showSyncStatus('syncing');
-    silentBackupToDrive(session.accessToken)
-        .then(() => {
-            lastSyncTime = Date.now();
-            localStorage.setItem('lastSyncTime', lastSyncTime.toString());
-            console.log('[Sync] ✅ Manual sync complete');
-            showSyncStatus('synced', 'Synced');
-        })
-        .catch(err => {
-            console.error('[Sync] ❌ Manual sync failed:', err);
+
+    try {
+        await silentBackupToDrive(session.accessToken);
+        lastSyncTime = Date.now();
+        localStorage.setItem('lastSyncTime', lastSyncTime.toString());
+        console.log('[Sync] Manual sync complete');
+        showSyncStatus('synced', 'Synced');
+    } catch (err) {
+        console.error('[Sync] Manual sync failed:', err);
+        if (err.message.includes('401') || err.message.includes('403')) {
+            const newToken = await refreshDriveToken();
+            if (newToken) {
+                try {
+                    await silentBackupToDrive(newToken);
+                    lastSyncTime = Date.now();
+                    localStorage.setItem('lastSyncTime', lastSyncTime.toString());
+                    showSyncStatus('synced', 'Synced');
+                } catch (retryErr) {
+                    showSyncStatus('error', retryErr.message);
+                }
+            } else {
+                showSyncStatus('error', 'Please sign in again');
+            }
+        } else {
             showSyncStatus('error', err.message);
-        });
+        }
+    }
 }
 
-function manualRestoreFromDrive() {
+async function manualRestoreFromDrive() {
     console.log('[Sync] Manual restore button clicked');
-    const session = getStoredSession();
+    let session = getStoredSession();
+
     if (!session) {
-        console.log('[Sync] No session - please sign in');
-        alert('Please sign in first');
-        return;
+        const newToken = await refreshDriveToken();
+        if (!newToken) {
+            alert('Please sign in again to restore');
+            return;
+        }
+        session = getStoredSession();
     }
 
     if (!confirm('This will replace all local notes with the cloud backup. Continue?')) {
@@ -400,17 +458,31 @@ function manualRestoreFromDrive() {
 
     console.log('[Sync] Starting restore from Drive...');
     showSyncStatus('syncing');
-    restoreFromDrive(session.accessToken)
-        .then(() => {
-            console.log('[Sync] ✅ Restore complete, reloading UI...');
-            showSyncStatus('synced', 'Restored');
-            // Reload the app to reflect changes
-            window.location.reload();
-        })
-        .catch(err => {
-            console.error('[Sync] ❌ Restore failed:', err);
+
+    try {
+        await restoreFromDrive(session.accessToken);
+        console.log('[Sync] Restore complete, reloading UI...');
+        showSyncStatus('synced', 'Restored');
+        window.location.reload();
+    } catch (err) {
+        console.error('[Sync] Restore failed:', err);
+        if (err.message.includes('401') || err.message.includes('403')) {
+            const newToken = await refreshDriveToken();
+            if (newToken) {
+                try {
+                    await restoreFromDrive(newToken);
+                    showSyncStatus('synced', 'Restored');
+                    window.location.reload();
+                } catch (retryErr) {
+                    showSyncStatus('error', retryErr.message);
+                }
+            } else {
+                showSyncStatus('error', 'Please sign in again');
+            }
+        } else {
             showSyncStatus('error', err.message);
-        });
+        }
+    }
 }
 
 async function restoreFromDrive(accessToken) {
@@ -506,7 +578,7 @@ async function checkAndSyncOnLoad() {
             console.log('[Sync] Cloud is newer - auto-restoring...');
             await restoreFromDrive(session.accessToken);
             localStorage.setItem('lastSyncTime', Date.now().toString());
-            console.log('[Sync] ✅ Auto-restored from cloud');
+            console.log('[Sync] Auto-restored from cloud');
             showSyncStatus('synced', 'Synced');
 
             // Reload to show updated data
@@ -522,15 +594,23 @@ async function checkAndSyncOnLoad() {
 }
 
 function initGoogleAuth() {
-    // Check for OAuth redirect
-    if (extractTokensFromUrl()) {
-        // Just logged in, reload to clean state
-        window.location.reload();
-        return;
-    }
+    // Listen for Firebase auth state changes
+    firebase.auth().onAuthStateChanged((user) => {
+        console.log('[Auth] Auth state changed:', user ? user.email : 'signed out');
+        updateAuthUI();
 
-    // Update UI based on session
-    updateAuthUI();
+        if (user) {
+            showSyncStatus('idle');
+            // Load last sync time
+            lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0', 10);
+
+            // Check for cloud updates after a short delay
+            const session = getStoredSession();
+            if (session) {
+                setTimeout(() => checkAndSyncOnLoad(), 1500);
+            }
+        }
+    });
 
     // Set up event listeners
     const signinBtn = document.getElementById('signin-btn');
@@ -542,14 +622,6 @@ function initGoogleAuth() {
     if (signoutBtn) signoutBtn.onclick = signOut;
     if (syncBtn) syncBtn.onclick = manualSyncToDrive;
     if (restoreBtn) restoreBtn.onclick = manualRestoreFromDrive;
-
-    // Check session status and auto-sync on load
-    const session = getStoredSession();
-    if (session) {
-        showSyncStatus('idle');
-        // Auto-check for cloud updates after a short delay (let app load first)
-        setTimeout(() => checkAndSyncOnLoad(), 1500);
-    }
 }
 
 // Hook into note saving for auto-sync

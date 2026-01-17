@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4a90d9" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="OnePen" />
   <title>Onepen</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="style.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -250,8 +256,19 @@
     <div id="thumb"></div>
   </div>
 
+  <!-- Offline Indicator -->
+  <div id="offlineIndicator" class="offline-indicator">
+    <i class='bx bx-wifi-off'></i>
+    <span>You're offline - changes saved locally</span>
+  </div>
 
   <script src="tf.min.js"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
   <script src="config.js"></script>
   <script src="math.js"></script>
   <script src="predict.js"></script>
@@ -259,5 +276,48 @@
   <script src="main.js"></script>
   <script src="saveNote.js"></script>
   <script src="signin.js"></script>
+  <script>
+    // Register Service Worker for offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            console.log('SW registered:', registration.scope);
+            // Check for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New version available
+                  console.log('New version available! Refresh to update.');
+                }
+              });
+            });
+          })
+          .catch((error) => {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
+
+    // Offline/Online indicator
+    const offlineIndicator = document.getElementById('offlineIndicator');
+
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        offlineIndicator.classList.remove('visible');
+      } else {
+        offlineIndicator.classList.add('visible');
+      }
+    }
+
+    // Check on load
+    updateOnlineStatus();
+
+    // Listen for online/offline events
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+  </script>
+  
 </body>
 </html>

@@ -100,38 +100,22 @@ class StrokeModelTrainer:
 
     def train(
         self,
-        train_dataset: Any = None,
-        val_dataset: Any = None,
-        X_train_img: Any = None,
-        y_train: Any = None,
-        X_val_img: Any = None,
-        y_val: Any = None,
-        X_train_feat: Any = None,
-        X_val_feat: Any = None,
-        epochs: int = 200,
+        train_data: Any,
+        val_data: Any = None,
+        epochs: int = 100,
         batch_size: int = 32,
         class_weights: dict[int, float] | None = None,
         early_stopping_patience: int = 35,
         reduce_lr_patience: int = 5,
     ) -> dict[str, list]:
-        """Train the model using tf.data.Dataset or numpy arrays.
-
-        can either pass:
-        - train_dataset + val_dataset (tf.data.Dataset)
-        - X_train_img + y_train + X_val_img + y_val (numpy arrays)
+        """Train the model.
 
         Args:
-            train_dataset: tf.data.Dataset for training (recommended).
-            val_dataset: tf.data.Dataset for validation (recommended).
-            X_train_img: Training images (legacy, use train_dataset instead).
-            y_train: Training labels (legacy).
-            X_val_img: Validation images (legacy).
-            y_val: Validation labels (legacy).
-            X_train_feat: Training features (legacy, for hybrid models).
-            X_val_feat: Validation features (legacy, for hybrid models).
+            train_data: Keras Sequence, tf.data.Dataset, or numpy arrays.
+            val_data: Validation data (Sequence, Dataset, or tuple).
             epochs: Maximum number of epochs.
-            batch_size: Batch size (only used for legacy numpy mode).
-            class_weights: Optional class weights for imbalanced data.
+            batch_size: Batch size (if using numpy arrays).
+            class_weights: Optional class weights.
             early_stopping_patience: Patience for early stopping.
             reduce_lr_patience: Patience for LR reduction.
 
@@ -143,48 +127,18 @@ class StrokeModelTrainer:
             reduce_lr_patience=reduce_lr_patience,
         )
 
-        # Use tf.data.Dataset if provided (recommended - memory efficient)
-        if train_dataset is not None:
-            logger.info(f"Starting training for {epochs} epochs")
-            logger.info("  Using tf.data.Dataset (memory-efficient streaming)")
-
-            history = self.model.fit(
-                train_dataset,
-                validation_data=val_dataset,
-                epochs=epochs,
-                class_weight=class_weights,
-                callbacks=callbacks,
-                verbose=1,
-            )
-        else:
-            # Legacy: use numpy arrays directly
-            logger.info(f"Starting training for {epochs} epochs")
-            logger.info(f"  Train samples: {len(y_train)}")
-            logger.info(f"  Val samples: {len(y_val)}")
-            logger.info(f"  Batch size: {batch_size}")
-
-            # Determine if model uses features (hybrid) or image-only
-            use_features = X_train_feat is not None and len(self.model.inputs) > 1
-
-            if use_features:
-                logger.info("  Mode: hybrid (image + features)")
-                train_data = {"img_input": X_train_img, "feature_input": X_train_feat}
-                val_data = ({"img_input": X_val_img, "feature_input": X_val_feat}, y_val)
-            else:
-                logger.info("  Mode: image-only")
-                train_data = X_train_img
-                val_data = (X_val_img, y_val)
-
-            history = self.model.fit(
-                train_data,
-                y_train,
-                validation_data=val_data,
-                epochs=epochs,
-                batch_size=batch_size,
-                class_weight=class_weights,
-                callbacks=callbacks,
-                verbose=1,
-            )
+        logger.info(f"Starting training for {epochs} epochs")
+        
+        # Keras .fit() handles specific logic for Sequence vs Numpy vs Dataset
+        history = self.model.fit(
+            train_data,
+            validation_data=val_data,
+            epochs=epochs,
+            batch_size=batch_size if not isinstance(train_data, (tf.keras.utils.Sequence, tf.data.Dataset)) else None,
+            class_weight=class_weights,
+            callbacks=callbacks,
+            verbose=1,
+        )
 
         self.history = history.history
         logger.info("Training complete")
@@ -193,37 +147,25 @@ class StrokeModelTrainer:
 
     def evaluate(
         self,
-        test_dataset: Any = None,
-        X_test_img: Any = None,
-        y_test: Any = None,
-        X_test_feat: Any = None,
+        test_data: Any,
+        batch_size: int = 32,
     ) -> dict[str, float]:
         """Evaluate model on test data.
 
         Args:
-            test_dataset: tf.data.Dataset for testing (recommended).
-            X_test_img: Test images (legacy).
-            y_test: Test labels (legacy).
-            X_test_feat: Test features (legacy, for hybrid models).
+            test_data: Sequence, Dataset, or (x, y) tuple.
+            batch_size: Batch size (for numpy arrays).
 
         Returns:
             Dictionary with loss and accuracy.
         """
-        if test_dataset is not None:
-            logger.info("Evaluating on test dataset...")
-            results = self.model.evaluate(test_dataset, verbose=1)
-        else:
-            logger.info(f"Evaluating on {len(y_test)} test samples")
-
-            # Determine if model uses features (hybrid) or image-only
-            use_features = X_test_feat is not None and len(self.model.inputs) > 1
-
-            if use_features:
-                test_data = {"img_input": X_test_img, "feature_input": X_test_feat}
-            else:
-                test_data = X_test_img
-
-            results = self.model.evaluate(test_data, y_test, verbose=1)
+        logger.info("Evaluating/Predicting on test data...")
+        
+        results = self.model.evaluate(
+            test_data, 
+            batch_size=batch_size if not isinstance(test_data, (tf.keras.utils.Sequence, tf.data.Dataset)) else None,
+            verbose=1
+        )
 
         metrics = {
             "test_loss": results[0],
@@ -269,3 +211,4 @@ class StrokeModelTrainer:
             "final_train_accuracy": self.history.get("accuracy", [0])[-1],
             "epochs_trained": len(self.history.get("accuracy", [])),
         }
+

@@ -66,16 +66,14 @@ const CONFIG = Object.freeze({
 
   // Confidence thresholds for stroke classification
   CLASS_THRESHOLDS: Object.freeze({
-    underline: 0.65,
+    underline: 0.8,
     box: 0.8,
-    curly: 0.65,
-    delete: 0.50,
-    boxshortcut: 0.65,
-    curlyshortcut: 0.65,
-    circleshortcut: 0.65,
-    nonedot: 0.6,
-    nonedaulon: 0.6,
-    nonenhon: 0.6,
+    curly: 0.8,
+    delete: 0.65,
+    boxshortcut: 0.8,
+    curlyshortcut: 0.8,
+    circleshortcut: 0.8,
+    none: 0.8,
   }),
 
   // ─────────────────────────────────────────────────────────────────────────

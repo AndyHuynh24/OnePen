@@ -1,6 +1,67 @@
 let model = null;
 let autoShapeModel = null;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INFERENCE TIMING TRACKER
+// ═══════════════════════════════════════════════════════════════════════════
+const inferenceTimer = {
+  times: [],
+  maxSamples: 100,
+
+  record(ms) {
+    this.times.push(ms);
+    if (this.times.length > this.maxSamples) {
+      this.times.shift();
+    }
+  },
+
+  getStats() {
+    if (this.times.length === 0) return null;
+    const sorted = [...this.times].sort((a, b) => a - b);
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    return {
+      avg: sum / sorted.length,
+      min: sorted[0],
+      max: sorted[sorted.length - 1],
+      median: sorted[Math.floor(sorted.length / 2)],
+      samples: sorted.length
+    };
+  },
+
+  log() {
+    const stats = this.getStats();
+    if (!stats) return;
+    console.log(
+      `[Inference] Avg: ${stats.avg.toFixed(2)}ms | ` +
+      `Median: ${stats.median.toFixed(2)}ms | ` +
+      `Min: ${stats.min.toFixed(2)}ms | ` +
+      `Max: ${stats.max.toFixed(2)}ms | ` +
+      `(${stats.samples} samples)`
+    );
+  }
+};
+
+// Log stats every 10 predictions
+let predictionCount = 0;
+
+// Expose globally for console access
+window.getInferenceStats = () => {
+  const stats = inferenceTimer.getStats();
+  if (!stats) {
+    console.log('[Inference] No data yet. Draw some gestures first!');
+    return null;
+  }
+  console.log('═══════════════════════════════════════════');
+  console.log('        INFERENCE TIME STATISTICS          ');
+  console.log('═══════════════════════════════════════════');
+  console.log(`  Average:  ${stats.avg.toFixed(2)} ms`);
+  console.log(`  Median:   ${stats.median.toFixed(2)} ms`);
+  console.log(`  Min:      ${stats.min.toFixed(2)} ms`);
+  console.log(`  Max:      ${stats.max.toFixed(2)} ms`);
+  console.log(`  Samples:  ${stats.samples}`);
+  console.log('═══════════════════════════════════════════');
+  return stats;
+};
 
 async function preloadModel(model) {
   try {
@@ -58,7 +119,7 @@ async function preloadModel(model) {
 async function loadModel() {
   //welcome.innerHTML = 'Welcome ' + userName; 
   try {
-    model = await tf.loadGraphModel('../models/tfjs/model.json');
+    model = await tf.loadGraphModel('tfjs/model.json');
     console.log("✅ Model loaded successfully!");
   } catch (err) {
     console.error("❌ Error loading model:", err);
@@ -278,6 +339,7 @@ function normalizeStroke(stroke) {
 
 async function predictImageFromCanvas(stroke, canvas, model) {
   let imgTensor, featureTensor;
+  const t0 = performance.now();
 
   try {
     /* ---------- 1️⃣ Feature tensor ---------- */
@@ -302,6 +364,16 @@ async function predictImageFromCanvas(stroke, canvas, model) {
     });
 
     const probs = (await prediction.array())[0];
+
+    /* ---------- ⏱️ Record inference time ---------- */
+    const inferenceTime = performance.now() - t0;
+    inferenceTimer.record(inferenceTime);
+    predictionCount++;
+
+    // Log stats every 10 predictions
+    if (predictionCount % 10 === 0) {
+      inferenceTimer.log();
+    }
 
     /* ---------- 4️⃣ Rank predictions ---------- */
     const ranked = probs

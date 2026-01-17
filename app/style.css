@@ -171,7 +171,7 @@ body {
 }
 
 #viewer.show {
-    display: block; 
+    display: none; 
 }
 
 .canvasGroup {
@@ -1946,4 +1946,42 @@ input[type="range"] {
 /* Hide driveGroup by default - controlled by JS */
 #driveGroup {
   display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OFFLINE INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+.offline-indicator {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 24px;
+  color: #fff;
+  font-family: 'Mali', sans-serif;
+  font-size: 13px;
+  z-index: 100000;
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.offline-indicator.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.offline-indicator i {
+  font-size: 16px;
+  color: #f5a623;
+}
+
+.offline-indicator span {
+  color: #ccc;
 }
