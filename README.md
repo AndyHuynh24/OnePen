@@ -24,7 +24,12 @@ By recognizing handwritten gestures in real time, it reduces hand movement and c
 
 I designed and deployed a **fully in-browser ML system** that recognizes gestures like underline, box, delete, and brackets using a **hybrid vision + geometry model**, achieving **99.89% accuracy** with **~20 ms latency** on-device.
 
-This project won the **“Most Novel Use of AI”** award at HackUmass XIII.
+---
+
+🚀 **NOT A DEMO · NOT A PROTOTYPE**  
+⭐ **OnePen is a published app, used by real users, that measurably improves how people write.**
+
+🏆 **Winner — “Most Novel Use of AI”**, HackUMASS XII
 
 ---
 
@@ -33,11 +38,6 @@ This project won the **“Most Novel Use of AI”** award at HackUmass XIII.
 - Keeps users in a continuous writing flow → **less fatigue, faster note-taking**  
 - ML directly controls the UI, turning handwriting into beautiful styles flawlessly
 - Works **offline**, instantly, and privately (no server, no cloud)
-
----
-
-🚀 **NOT A DEMO · NOT A PROTOTYPE**  
-**OnePen is a published app, used by real users, that measurably improves how people write.**
 
 ---
 
