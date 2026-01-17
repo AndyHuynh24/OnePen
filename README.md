@@ -60,6 +60,11 @@ I designed and deployed a **fully in-browser ML system** that recognizes gesture
 ### Stack
 **TensorFlow / Keras · TensorFlow.js · Python · MLflow · Canvas API · PWA**
 
+---
+
+#🔍 Deep Dive
+
+---
 
 
 ## 🚨 The Problem
