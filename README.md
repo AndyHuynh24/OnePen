@@ -32,9 +32,10 @@ I designed and deployed a **fully in-browser ML system** that recognizes gesture
 - ML directly controls the UI, turning handwriting into beautiful styles flawlessly
 - Works **offline**, instantly, and privately (no server, no cloud)
 
-> **This isn’t a demo or prototype**  
-> **OnePen is a published app, already used by real users, that measurably improves how people write.**
+---
 
+> 🚀 **NOT A DEMO · NOT A PROTOTYPE**  
+> **OnePen is a published app, used by real users, that measurably improves how people write.**
 
 ---
 
