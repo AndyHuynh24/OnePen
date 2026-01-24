@@ -83,8 +83,7 @@ async function initiateGoogleSignIn() {
         updateAuthUI();
         showSyncStatus('idle');
 
-        // Check for cloud updates after sign in
-        setTimeout(() => checkAndSyncOnLoad(), 1000);
+        // Auto-sync removed - user must manually sync
 
     } catch (error) {
         console.error('[Auth] Sign in error:', error);
@@ -603,12 +602,7 @@ function initGoogleAuth() {
             showSyncStatus('idle');
             // Load last sync time
             lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0', 10);
-
-            // Check for cloud updates after a short delay
-            const session = getStoredSession();
-            if (session) {
-                setTimeout(() => checkAndSyncOnLoad(), 1500);
-            }
+            // Auto-sync removed - user must manually sync
         }
     });
 

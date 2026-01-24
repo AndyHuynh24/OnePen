@@ -65,7 +65,7 @@ model:
   # - mobilenetv3_small: Lighter, ~2.5MB, ImageNet pretrained
   # - efficientnetv2: Modern efficient architecture, ~7MB
   # - custom_cnn: Lightweight custom CNN, ~1MB, no pretrained weights
-  backbone: "mobilenetv3_large" 
+  backbone: "mobilenetv3_small" 
 
   backbone_trainable: false        # freeze backbone for stable training
   #input_shape: [136, 136, 3] #specify using image size from features instead  

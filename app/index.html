@@ -38,6 +38,48 @@
         <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
     </div>
 
+    <!-- Reminder Button (Right of Toolbar) -->
+    <div id="reminderBtn" class="reminder-btn">
+        <button class="reminder-fold-btn" onclick="event.stopPropagation(); toggleReminderBtnFold();" title="Fold/Unfold">
+            <i class='bx bx-chevron-right'></i>
+        </button>
+        <div class="reminder-btn-main" onclick="toggleReminderPanel()">
+            <i class='bx bx-bell'></i>
+            <span id="reminderCount">0 reminders</span>
+        </div>
+    </div>
+
+    <!-- Reminder Date/Time Picker Modal -->
+    <div id="reminderPickerOverlay" class="reminder-picker-overlay">
+        <div class="reminder-picker">
+            <h3>Set Reminder</h3>
+            <div class="reminder-picker-content">
+                <label>Date:</label>
+                <input type="date" id="reminderDate">
+                <label>Time:</label>
+                <input type="time" id="reminderTime">
+            </div>
+            <div class="reminder-picker-actions">
+                <button id="reminderCancel" class="reminder-btn-cancel">Cancel</button>
+                <button id="reminderConfirm" class="reminder-btn-confirm">Set Reminder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reminder Panel (Similar to TOC, for all reminders across notebooks) -->
+    <div id="reminderPanel" class="reminder-panel">
+        <div class="reminder-panel-header">
+            <i class='bx bx-bell'></i>
+            <span>All Reminders</span>
+            <button class="reminder-close-btn" onclick="toggleReminderPanel()">
+                <i class='bx bx-x'></i>
+            </button>
+        </div>
+        <div id="reminderList" class="reminder-list">
+            <div class="reminder-empty">No reminders yet</div>
+        </div>
+    </div>
+
     <!-- Hidden file input for media insertion -->
     <input type="file" id="mediaFileInput" accept="image/*,.pdf" style="display:none">
 
@@ -111,6 +153,11 @@
                     <span class="break"></span>
                     <button onclick="promptNewNote(selectedFolder)">New Note</i></button>
                 </div>
+                <!-- Flashcard Button (shown when tapes are detected) -->
+                <button id="flashcardBtn" class="flashcard-btn" style="display: none;" onclick="openFlashcardReview()">
+                    <i class='bx bx-card'></i>
+                    <span id="flashcardBtnText">0 Flashcards Ready</span>
+                </button>
                 <div id="note-list"></div>
             </div>
             <div class="folder"></div>
@@ -242,18 +289,33 @@
 
     <div class="modifier-section">
       <h2>Modifier styles</h2>
+      <div class="sync-stroke-toggle">
+        <label class="toggle-switch">
+          <input type="checkbox" id="syncStrokeSize">
+          <span class="slider"></span>
+        </label>
+        <span class="sync-label">Sync all modifier stroke sizes to Default Pen</span>
+      </div>
       <div class="modifier-grid" id="modifierGrid"></div>
     </div>
 
     <div class="modifier-section">
       <h2>Toolbox styles</h2>
+      <div class="sync-stroke-toggle" id="syncBracketToggle">
+        <label class="toggle-switch">
+          <input type="checkbox" id="syncBracketToolboxes">
+          <span class="slider"></span>
+        </label>
+        <span class="sync-label">Sync all bracket toolboxes to Square Bracket</span>
+      </div>
       <p>Click on each tool of each tool box to modify</p>
      <div id="toolboxes"></div>
     </div>
 
-
   <div id="scrollbar">
     <div id="thumb"></div>
+  </div>
+  </div>
   </div>
 
   <!-- Offline Indicator -->
@@ -277,47 +339,89 @@
   <script src="saveNote.js"></script>
   <script src="signin.js"></script>
   <script>
-    // Register Service Worker for offline support
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((registration) => {
-            console.log('SW registered:', registration.scope);
-            // Check for updates
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New version available
-                  console.log('New version available! Refresh to update.');
-                }
-              });
-            });
-          })
-          .catch((error) => {
-            console.log('SW registration failed:', error);
-          });
-      });
+  const offlineIndicator = document.getElementById('offlineIndicator');
+  let offlineTimeout = null;
+
+  function showOfflineIndicator() {
+    offlineIndicator.classList.add('visible');
+
+    // Clear any existing timer
+    if (offlineTimeout) {
+      clearTimeout(offlineTimeout);
     }
 
-    // Offline/Online indicator
-    const offlineIndicator = document.getElementById('offlineIndicator');
+    // Auto-hide after 3 seconds
+    offlineTimeout = setTimeout(() => {
+      offlineIndicator.classList.remove('visible');
+      offlineTimeout = null;
+    }, 3000);
+  }
 
-    function updateOnlineStatus() {
-      if (navigator.onLine) {
-        offlineIndicator.classList.remove('visible');
-      } else {
-        offlineIndicator.classList.add('visible');
-      }
+  function hideOfflineIndicator() {
+    offlineIndicator.classList.remove('visible');
+    if (offlineTimeout) {
+      clearTimeout(offlineTimeout);
+      offlineTimeout = null;
     }
+  }
 
-    // Check on load
-    updateOnlineStatus();
+  function updateOnlineStatus() {
+    if (navigator.onLine) {
+      hideOfflineIndicator();
+    } else {
+      showOfflineIndicator();
+    }
+  }
 
-    // Listen for online/offline events
-    window.addEventListener('online', updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-  </script>
-  
+  // Initial check
+  updateOnlineStatus();
+
+  window.addEventListener('offline', showOfflineIndicator);
+  window.addEventListener('online', hideOfflineIndicator);
+</script>
+
+
+  <!-- Flashcard Review Modal - Standalone, direct child of body -->
+  <div id="flashcardModal" class="flashcard-modal">
+    <div class="flashcard-modal-content">
+      <div class="flashcard-header">
+        <h2><i class='bx bx-card'></i> Flashcard Review</h2>
+        <button class="flashcard-close-btn" onclick="closeFlashcardReview()">
+          <i class='bx bx-x'></i>
+        </button>
+      </div>
+      <div class="flashcard-progress">
+        <span id="flashcardProgress">1 / 10</span>
+        <div class="flashcard-progress-bar">
+          <div id="flashcardProgressFill" class="flashcard-progress-fill"></div>
+        </div>
+      </div>
+      <div class="flashcard-container">
+        <div id="flashcard" class="flashcard" onclick="flipFlashcard()">
+          <div class="flashcard-face flashcard-front">
+            <div class="flashcard-source" id="flashcardSourceFront"></div>
+            <canvas id="flashcardFrontCanvas" class="flashcard-canvas"></canvas>
+            <div class="flashcard-hint">Click to reveal answer</div>
+          </div>
+          <div class="flashcard-face flashcard-back">
+            <div class="flashcard-source" id="flashcardSourceBack"></div>
+            <canvas id="flashcardBackCanvas" class="flashcard-canvas"></canvas>
+            <div class="flashcard-hint">Click to see question</div>
+          </div>
+        </div>
+      </div>
+      <div class="flashcard-actions">
+        <button id="flashcardPrevBtn" class="flashcard-nav-btn" onclick="prevFlashcard()">
+          <i class='bx bx-chevron-left'></i> Previous
+        </button>
+        <button class="flashcard-source-btn" onclick="goToFlashcardSource()">
+          <i class='bx bx-link-external'></i> Open Note
+        </button>
+        <button id="flashcardNextBtn" class="flashcard-nav-btn" onclick="nextFlashcard()">
+          Next <i class='bx bx-chevron-right'></i>
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

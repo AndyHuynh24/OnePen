@@ -1,5 +1,8 @@
 // FIREBASE CONFIGURATION
 
+//firebase deploy --only hosting
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyAd9WCl0U7xlLOf3Zn6L2CeKK8Ypr-Qy-Y",
   authDomain: "onepen-notes.firebaseapp.com",

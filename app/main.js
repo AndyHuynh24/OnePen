@@ -42,6 +42,7 @@ let allGroups = [];
 let pastGroups = [];
 let redoGroups = [];
 let title = null;
+let currentNoteIsSummary = false; // Track if current note is a summary note
 
 //parameters for viewport offset
 let viewportOffset = { x: 0, y: 0 }; // default viewport offset
@@ -279,7 +280,7 @@ function finalizePaste() {
 
   liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
   reDrawAll(drawCtx);
-  if (title) saveNote(title, allGroups);
+  if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
 }
 
 function cancelPaste() {
@@ -332,7 +333,7 @@ function toggleTapeReveal(tape) {
         flashTape(tape);
       }
       // Save after toggle
-      if (title) saveNote(title, allGroups);
+      if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
     }
   }
 
@@ -351,7 +352,7 @@ function removeTape(tape) {
 
     allGroups.splice(index, 1);
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   }
 }
 
@@ -471,76 +472,88 @@ const tapePatternCache = new Map();
 // TOOL_ID, TOOL_REGISTRY, PEN_TYPES are defined in config.js
 
 const DEFAULT_MODIFIERS = { 
-    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 3, visibility: true},
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2, visibility: true }, 
-    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
-    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 3, visibility: false},
-    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2, visibility: false},
-    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"}
+    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true }, 
+    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
+    syncBracketToolboxes: true, 
+    syncStrokeSize: false,
 }; 
 
 const DEFAULT_TOOLBOX_LAYOUT = {
   press: [
     { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
     { id: TOOL_ID.PEN, color: "#ffffff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffffff", size: 4 },
-    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#000dff", size: 30 }, 
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 30},
+    { id: TOOL_ID.PEN, color: "#a3fba9", size: 3 },
+    { id: TOOL_ID.PEN, color: "#ff9a52", size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#9095fe", size: 30 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#fefe58", size: 30},
     { id: TOOL_ID.MEDIA, color: "#ffffff", size: 2},
     { id: TOOL_ID.PASTE, color: "#ffffff", size: 2 },
   ],
-  bracket: [
-    { id: TOOL_ID.PEN, color: "#ffffff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
-    { id: TOOL_ID.PEN, color: "#a3fba9", size: 2 },
-    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2 },
-    { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2 }, 
-    { id: TOOL_ID.TITLE1, color: "#f4c64a", size: 2},
-    { id: TOOL_ID.TITLE2, color: "#ff6a00", size: 2},
-    { id: TOOL_ID.TITLE3, color: "#7adb13", size: 2 },
-  ],
-  bracket: [
-    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffffff, size: 2"},
-    { id: TOOL_ID.PEN, color: "#f4c64a", size: 2 },
-    { id: TOOL_ID.PEN, color: "#ff6a00", size: 2 },
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 }, 
-    { id: TOOL_ID.PEN, color: "#ffb6ff", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2},
-    { id: TOOL_ID.PEN, color: "#ffff00", size: 2 },
-  ],
   underline: [
-    { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 2},
-    { id: TOOL_ID.TITLE2, color: "#ff6a00", visibility: false, size: 2 },
-    { id: TOOL_ID.TITLE3, color: "#7adb13", visibility: true, size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#000dff", size: 2 },
+    { id: TOOL_ID.TITLE1, color: "#f4c64a", visibility: true , size: 3},
+    { id: TOOL_ID.TITLE2, color: "#ff9a52", visibility: true, size: 3 },
+    { id: TOOL_ID.TITLE3, color: "#ffbb8a", visibility: false, size: 2.8 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#fefe58", size: 2 },
+    { id: TOOL_ID.HIGHLIGHT, color: "#9095fe", size: 2 },
     { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
     { id: TOOL_ID.BOLD_CUSTOM, color: "#fa6e6e", visibility: true, size: 2 },
-    { id: TOOL_ID.PEN, color: "#ff52a0ff", size: 2 }
+    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2 }
   ],
   box: [
     { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
     { id: TOOL_ID.MOVE, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#ffff00", size: 2},
     { id: TOOL_ID.STICKY, color: "#ffffff", size: 2 },
     { id: TOOL_ID.LINK, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.REMINDER, color: "#ff6b6b", size: 2 },
     { id: TOOL_ID.TAPE, color: "#ff69b4", size: 2, tapePreset: "polkadot" },
     { id: TOOL_ID.COPY, color: "#ffffff" , size: 2},
     { id: TOOL_ID.PASTE, color: "#ffffff" , size: 2},
   ],
    curly: [
     { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
-    { id: TOOL_ID.BOLD_CUSTOM, color: "#55ffd7ff", size: 2 },
-    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "polkadot" },
+    { id: TOOL_ID.BOLD_CUSTOM, color: "#55ffd7ff", size: 4 },
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.5, visibility: false},
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stripes" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stars" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "hearts" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "confetti" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "zigzag" },
-  ]
+  ],
+  squareBracket: [
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 3.5},
+    { id: TOOL_ID.PEN, color: "#a3fba9", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2.5 },
+    { id: TOOL_ID.TITLE1, color: "#f4c64a", size: 3},
+    { id: TOOL_ID.COPY, color: "#ffffff", size: 2},
+    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
+  ],
+  wavyBracket: [
+    { id: TOOL_ID.PEN, color: "#ff0000", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#ff7700", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#fff700", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#00ff4c", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#000dff", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#6200ff", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#bf00ff", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#ff3a51", size: 2.5 },
+  ],
+  circleBracket: [
+    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#ffa0a0", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#ffcd8b", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#ffe190", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#92ffa6", size: 2.5 },
+    { id: TOOL_ID.TITLE3, color: "#91f6ff", size: 2.5},
+    { id: TOOL_ID.COPY, color: "#ffb1de", size: 2.5},
+    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2.5 },
+  ],
 };
 // -------------------- GLOBAL STATE --------------------
 let modifiers = {};
@@ -549,34 +562,62 @@ let colorTools = [];
 let underlineTools = [];
 let boxTools = [];
 
+// -------------------- STROKE SIZE PRESETS --------------------
+const STROKE_SIZE_PRESETS = [
+    { label: "Hair", size: 0.5 },
+    { label: "Fine", size: 1 },
+    { label: "Thin", size: 1.5 },
+    { label: "Regular", size: 2.5 },
+    { label: "Medium", size: 4 },
+    { label: "Thick", size: 6 },
+    { label: "Bold", size: 10 }
+];
+
+let syncStrokeSizeEnabled = false;
+let syncBracketToolboxesEnabled = false;
+
 // -------------------- CREATE MODIFIER CARD --------------------
 function createModifierCard(id, mod) {
   const card = document.createElement("div");
   card.className = "modifier-card";
   card.dataset.modifier = id;
 
+  const isDefaultPen = mod.label === "Default Pen";
+  const showStrokeDropdown = isDefaultPen || !syncStrokeSizeEnabled;
+
+  // Find matching preset or use custom
+  const currentSize = mod.size || 2.5;
+  const matchingPreset = STROKE_SIZE_PRESETS.find(p => p.size === currentSize);
+  const isCustomSize = !matchingPreset;
+
   card.innerHTML = `
     <div class="modifier-title">${mod.label}</div>
     <label>Color:</label>
-    <input type="color" class="modifier-color" value="${mod.color}" ${mod.label == "Default Pen" ? "id = 'defaultPen'" : ""}>
-    <label>Stroke size:</label>
-    <div class="range-row grid-range">
-        <input
-          type="range"
-          id="penSize"
-          min="0.4"
-          max="30"
-          step="0.2"
-          value="2"
-        />
-        <input
-          type="number"
-          id="penSizeValue"
-          min="0.4"
-          max="30"
-          step="0.2"
-          value="2"
-        />
+    <input type="color" class="modifier-color" value="${mod.color}" ${isDefaultPen ? "id='defaultPen'" : ""}>
+    <div class="stroke-size-section" ${!showStrokeDropdown ? 'style="display:none;"' : ''}>
+      <label>Stroke size:</label>
+      <div class="stroke-dropdown-container">
+        <button class="stroke-dropdown-btn" type="button">
+          <span class="stroke-preview-line" style="height: ${currentSize}px;"></span>
+          <span class="stroke-label">${matchingPreset ? matchingPreset.label : 'Custom'} (${currentSize})</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="stroke-dropdown-menu">
+          ${STROKE_SIZE_PRESETS.map(p => `
+            <div class="stroke-option ${p.size === currentSize ? 'selected' : ''}" data-size="${p.size}">
+              <span class="stroke-preview-line" style="height: ${p.size}px;"></span>
+              <span class="stroke-label">${p.label} (${p.size})</span>
+            </div>
+          `).join('')}
+          <div class="stroke-option stroke-custom-option ${isCustomSize ? 'selected' : ''}" data-size="custom">
+            <span class="stroke-label">Custom...</span>
+          </div>
+        </div>
+      </div>
+      <div class="custom-stroke-input" style="display: ${isCustomSize ? 'flex' : 'none'};">
+        <input type="number" class="custom-size-input" min="0.4" max="30" step="0.1" value="${currentSize}" placeholder="0.4-30">
+        <span class="custom-size-unit">px</span>
+      </div>
     </div>
     <div class="modifier-footer">
       <label>Visibility:</label>
@@ -587,64 +628,113 @@ function createModifierCard(id, mod) {
     </div>
   `;
 
-    if (mod.label == "Default Pen") {
-        card.style.backgroundColor = "#142231ff";
-        penSize = mod.size;
-        defaultPenColor = mod.color;
+  if (isDefaultPen) {
+    card.style.backgroundColor = "#142231ff";
+    penSize = mod.size;
+    defaultPenColor = mod.color;
+  }
+
+  console.log('mod', mod);
+
+  if (isDefaultPen || mod?.label?.includes("Shortcut")) {
+    card.querySelector(".modifier-footer").style.display = "none";
+  }
+
+  // Dropdown functionality
+  const dropdownBtn = card.querySelector(".stroke-dropdown-btn");
+  const dropdownMenu = card.querySelector(".stroke-dropdown-menu");
+  const customInput = card.querySelector(".custom-stroke-input");
+  const customSizeInput = card.querySelector(".custom-size-input");
+  const strokeOptions = card.querySelectorAll(".stroke-option");
+
+  function updateStrokeDisplay(size, label) {
+    const previewLine = dropdownBtn.querySelector(".stroke-preview-line");
+    const labelSpan = dropdownBtn.querySelector(".stroke-label");
+    previewLine.style.height = `${size}px`;
+    labelSpan.textContent = `${label} (${size})`;
+  }
+
+  function setStrokeSize(size) {
+    mod.size = size;
+    if (isDefaultPen) {
+      penSize = size;
+      // If sync is enabled, update all other modifiers
+      if (syncStrokeSizeEnabled) {
+        syncAllModifierSizes(size);
+      }
     }
+    updateTools();
+  }
 
-    if (mod.label == "Default Pen"  || mod.label.includes("Shortcut")) {
-        card.querySelector(".modifier-footer").style.display = "none";
-    }
-
-    const penSizeSlider = card.querySelector("#penSize");
-    const penSizeInput  = card.querySelector("#penSizeValue");
-
-    const MIN_penSize = Number(penSizeSlider.min);
-    const MAX_penSize = Number(penSizeSlider.max);
-
-    function clampPenSize(value) {
-        return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
-    }
-
-    function setPenSize(value) {
-        const v = clampPenSize(Number(value) || MIN_penSize);
-        penSizeSlider.value = v;
-        penSizeInput.value = v;
-        //penSize = v;        // <-- your existing gridSize
-    }
-
-    setPenSize(mod?.size ?? 0);
-
-    // Slider → number
-    penSizeSlider.addEventListener("input", e => {
-        setPenSize(e.target.value);
-        if (mod.label == "Default Pen") {
-            penSize = mod.size;
-        }
-        mod.size = clampPenSize(Number(e.target.value) || MIN_penSize);
-        updateTools();
+  // Toggle dropdown
+  dropdownBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = dropdownMenu.classList.contains("show");
+    // Close all other dropdowns first
+    document.querySelectorAll(".stroke-dropdown-menu.show").forEach(menu => {
+      menu.classList.remove("show");
     });
+    if (!isOpen) {
+      dropdownMenu.classList.add("show");
+    }
+  });
 
-    // Number typing → slider
-    penSizeInput.addEventListener("input", e => {
-        setPenSize(e.target.value);
-        if (mod.label == "Default Pen") {
-            penSize = mod.size;
-        }
-        mod.size = e.target.value; 
-        updateTools();
+  // Handle option selection
+  strokeOptions.forEach(option => {
+    option.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const size = option.dataset.size;
+
+      // Remove selected from all
+      strokeOptions.forEach(opt => opt.classList.remove("selected"));
+      option.classList.add("selected");
+
+      if (size === "custom") {
+        customInput.style.display = "flex";
+        dropdownMenu.classList.remove("show");
+        customSizeInput.focus();
+      } else {
+        const numSize = parseFloat(size);
+        const preset = STROKE_SIZE_PRESETS.find(p => p.size === numSize);
+        customInput.style.display = "none";
+        updateStrokeDisplay(numSize, preset.label);
+        setStrokeSize(numSize);
+        dropdownMenu.classList.remove("show");
+      }
     });
+  });
 
-    // Commit on Enter
-    penSizeInput.addEventListener("keydown", e => {
+  // Custom size input handling
+  customSizeInput.addEventListener("input", (e) => {
+    let val = parseFloat(e.target.value);
+    if (isNaN(val)) return;
+    val = Math.min(30, Math.max(0.4, val));
+    updateStrokeDisplay(val, "Custom");
+    setStrokeSize(val);
+  });
+
+  customSizeInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
-        e.target.blur();
+      e.target.blur();
     }
-    });
+  });
 
+  // Close dropdown when clicking outside
+  document.addEventListener("click", () => {
+    dropdownMenu.classList.remove("show");
+  });
 
   return card;
+}
+
+// Sync all modifier sizes to the default pen size
+function syncAllModifierSizes(size) {
+  Object.keys(modifiers).forEach(key => {
+    const mod = modifiers[key];
+    if (!mod.canvasSetting && mod.label !== "Default Pen") {
+      mod.size = size;
+    }
+  });
 }
 
 // -------------------- RENDER / BIND UI --------------------
@@ -652,10 +742,16 @@ function renderModifiers(mods = modifiers) {
   const grid = document.getElementById("modifierGrid");
   if (!grid) return console.warn("No modifier grid found");
   grid.innerHTML = "";
+
+  // Update sync toggle state
+  const syncToggle = document.getElementById("syncStrokeSize");
+  if (syncToggle) {
+    syncToggle.checked = syncStrokeSizeEnabled;
+  }
   Object.entries(mods).forEach(([id, mod]) => {
-    if (!mod.canvasSetting) {
+    if (!mod.canvasSetting && mod.label) {
         grid.appendChild(createModifierCard(id, mod));
-    } else {
+    } else if (mod.canvasSetting){
         backgroundColor = mod.backgroundColor;
         gridLineColor = mod.gridLineColor;
         backgroundColorPicker.value = mod.backgroundColor;
@@ -753,27 +849,12 @@ function bindModifierUI(mods = modifiers) {
 }
 
 function updateTools() {
-    saveToolboxSettings({ modifiers, toolboxLayout });
-}
-
-// -------------------- ADD / DELETE --------------------
-function addNewModifier({ id, name, type = "pen", color = "#ffffff", penType = PEN_TYPES.NORMAL, visible = true }) {
-  const key = name || `${id}_${Date.now()}`;
-  modifiers[key] = { label: name || id, color, penType, visibility: visible };
-  if (!toolboxLayout[type]) toolboxLayout[type] = [];
-  toolboxLayout[type].push({ id, modifier: key, color });
-  renderModifiers();
-  updateTools();
-}
-
-function deleteModifier(id) {
-  if (!modifiers[id]) return console.warn(`Modifier "${id}" does not exist`);
-  delete modifiers[id];
-  for (const type in toolboxLayout) {
-    toolboxLayout[type] = toolboxLayout[type].filter(tool => tool.modifier !== id);
-  }
-  renderModifiers();
-  updateTools();
+    saveToolboxSettings({
+        modifiers,
+        toolboxLayout,
+        syncStrokeSize: syncStrokeSizeEnabled,
+        syncBracketToolboxes: syncBracketToolboxesEnabled
+    });
 }
 
 // -------------------- TOOLBOX --------------------
@@ -846,8 +927,7 @@ function getToolCustomization(toolId, toolboxId) {
 function applyToolCustomization(popup, customization) {
     const colorLabel = popup.querySelector("#colorLabel");
     const colorPicker = popup.querySelector("#colorPicker");
-    const sizeLabel = popup.querySelector("#sizeLabel");
-    const rangeRow = popup.querySelector(".range-row");
+    const sizeSection = popup.querySelector("#sizeSection");
     const footer = popup.querySelector(".modifier-footer");
     const customizable = popup.querySelector("#customizable");
     const tapePresets = popup.querySelector("#tapePresets");
@@ -865,8 +945,7 @@ function applyToolCustomization(popup, customization) {
     // Show/hide individual controls
     if (colorLabel) colorLabel.style.display = customization.colorCustomizable ? "block" : "none";
     if (colorPicker) colorPicker.style.display = customization.colorCustomizable ? "block" : "none";
-    if (sizeLabel) sizeLabel.style.display = customization.sizeCustomizable ? "block" : "none";
-    if (rangeRow) rangeRow.style.display = customization.sizeCustomizable ? "flex" : "none";
+    if (sizeSection) sizeSection.style.display = customization.sizeCustomizable ? "block" : "none";
     if (footer) footer.style.display = customization.visibilityCustomizable ? "flex" : "none";
 
     // Show/hide tape presets
@@ -876,14 +955,55 @@ function applyToolCustomization(popup, customization) {
 }
 
 async function renderTools() {
+    const container = document.getElementById("toolboxes");
+    if (container) container.innerHTML = "";
+
+    // Update sync bracket toggle state
+    const syncBracketToggle = document.getElementById("syncBracketToolboxes");
+    if (syncBracketToggle) {
+        syncBracketToggle.checked = syncBracketToolboxesEnabled;
+    }
+
     Object.entries(toolboxLayout).forEach(([id, tools]) => {
         const dial = document.createElement("div");
         dial.className = "toolbox-dial";
 
+        // Check if this is a synced bracket toolbox
+        const isSyncedBracket = syncBracketToolboxesEnabled &&
+            (id === "wavyBracket" || id === "circleBracket");
+
         const title = document.createElement("div");
         title.className = "toolbox-title";
-        title.innerText = id;
-        dial.appendChild(title);
+
+        if (id != 'underline' && id != 'press') {
+          const img = document.createElement("img");
+          img.src = `assets/${id}.png`;
+          img.alt = id;
+          img.className = "toolbox-title-icon"; // optional for styling
+
+          title.appendChild(img);
+          dial.appendChild(title); 
+        } else {
+          const title = document.createElement("div");
+          title.className = "toolbox-title";
+          title.innerText = id;
+          dial.appendChild(title);
+        }
+    
+
+        // Add sync overlay for synced bracket toolboxes
+        if (isSyncedBracket) {
+            const syncOverlay = document.createElement("div");
+            syncOverlay.className = "toolbox-sync-overlay";
+            syncOverlay.innerHTML = `
+                <div class="sync-overlay-content">
+                    <i class='bx bx-link'></i>
+                    <span>Synced to Square Bracket</span>
+                    <small>Disable sync to customize</small>
+                </div>
+            `;
+            dial.appendChild(syncOverlay);
+        }
 
         const radius = 85;
         const center = 125; // Half of 250px dial width
@@ -930,6 +1050,11 @@ async function renderTools() {
             toolDiv.appendChild(popup);
 
             toolDiv.addEventListener("click", function(e) {
+                // Get current size and find matching preset
+                const currentSize = tool.size || 2;
+                const matchingPreset = STROKE_SIZE_PRESETS.find(p => p.size === currentSize);
+                const isCustomSize = !matchingPreset;
+
                 popup.innerHTML = `
                     <div class="modifier-title">Tool Settings</div>
                     <label>Tool:</label>
@@ -939,10 +1064,30 @@ async function renderTools() {
                     <div id="customizable">
                     <label id="colorLabel">Color:</label>
                     <input type="color" id="colorPicker" class="modifier-color" value="${tool.color}">
-                    <label id="sizeLabel">Size:</label>
-                    <div class="range-row">
-                        <input type="range" id="penSize" min="0.4" max="30" step="0.2" value="2"/>
-                        <input type="number" id="penSizeValue" min="0.4" max="30" step="0.2" value="2"/>
+                    <div id="sizeSection" class="stroke-size-section">
+                      <label id="sizeLabel">Size:</label>
+                      <div class="stroke-dropdown-container">
+                        <button class="stroke-dropdown-btn" type="button" id="toolSizeDropdownBtn">
+                          <span class="stroke-preview-line" style="height: ${currentSize}px;"></span>
+                          <span class="stroke-label">${matchingPreset ? matchingPreset.label : 'Custom'} (${currentSize})</span>
+                          <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="stroke-dropdown-menu" id="toolSizeDropdownMenu">
+                          ${STROKE_SIZE_PRESETS.map(p => `
+                            <div class="stroke-option ${p.size === currentSize ? 'selected' : ''}" data-size="${p.size}">
+                              <span class="stroke-preview-line" style="height: ${p.size}px;"></span>
+                              <span class="stroke-label">${p.label} (${p.size})</span>
+                            </div>
+                          `).join('')}
+                          <div class="stroke-option stroke-custom-option ${isCustomSize ? 'selected' : ''}" data-size="custom">
+                            <span class="stroke-label">Custom...</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="custom-stroke-input" id="toolCustomInput" style="display: ${isCustomSize ? 'flex' : 'none'};">
+                        <input type="number" class="custom-size-input" id="toolCustomSizeInput" min="0.4" max="30" step="0.1" value="${currentSize}" placeholder="0.4-30">
+                        <span class="custom-size-unit">px</span>
+                      </div>
                     </div>
                     <div class="modifier-footer">
                         <label id="visibilityLabel">Visible</label>
@@ -1083,55 +1228,97 @@ async function renderTools() {
                         }
                     }
 
-                    // Set default size for highlight
-                    if (toolInput.value == "highlight") {
-                        setPenSize(30);
-                    } else {
-                        setPenSize(2);
+                    // Set default size for highlight (fixed at 30) or default for other tools
+                    const defaultSize = TOOL_REGISTRY[toolInput.value]?.defaultSize || 2;
+                    tool.size = defaultSize;
+                    const newPreset = STROKE_SIZE_PRESETS.find(p => p.size === defaultSize);
+                    const dropdownBtnEl = popup.querySelector("#toolSizeDropdownBtn");
+                    if (dropdownBtnEl) {
+                        const previewLine = dropdownBtnEl.querySelector(".stroke-preview-line");
+                        const labelSpan = dropdownBtnEl.querySelector(".stroke-label");
+                        if (previewLine) previewLine.style.height = `${defaultSize}px`;
+                        if (labelSpan) labelSpan.textContent = `${newPreset ? newPreset.label : 'Custom'} (${defaultSize})`;
                     }
+                    // Update border thickness
+                    const borderThickness = Math.min(Math.sqrt(defaultSize) * 2.46, 11);
+                    toolDiv.style.boxShadow = `inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35)`;
                     updateTools();
                 };
 
                 
 
-                const penSizeSlider = popup.querySelector("#penSize");
-                const penSizeInput  = popup.querySelector("#penSizeValue");
+                // Stroke size dropdown functionality
+                const dropdownBtn = popup.querySelector("#toolSizeDropdownBtn");
+                const dropdownMenu = popup.querySelector("#toolSizeDropdownMenu");
+                const customInput = popup.querySelector("#toolCustomInput");
+                const customSizeInput = popup.querySelector("#toolCustomSizeInput");
+                const strokeOptions = popup.querySelectorAll(".stroke-option");
 
-                const MIN_penSize = Number(penSizeSlider.min);
-                const MAX_penSize = Number(penSizeSlider.max);
-
-                function clampPenSize(value) {
-                    return Math.min(MAX_penSize, Math.max(MIN_penSize, value));
+                function updateToolSizeDisplay(size, label) {
+                    const previewLine = dropdownBtn.querySelector(".stroke-preview-line");
+                    const labelSpan = dropdownBtn.querySelector(".stroke-label");
+                    previewLine.style.height = `${size}px`;
+                    labelSpan.textContent = `${label} (${size})`;
                 }
 
-                function setPenSize(value) {
-                    const v = clampPenSize(Number(value) || MIN_penSize);
-                    penSizeSlider.value = v;
-                    penSizeInput.value = v;
-                    tool.size = v;
+                function setToolSize(size) {
+                    tool.size = size;
                     // Update inner border thickness based on new size (0.4-30 → 1.5-11px, sqrt curve, capped at 11px)
-                    const borderThickness = Math.min(Math.sqrt(v) * 2.46, 11);
+                    const borderThickness = Math.min(Math.sqrt(size) * 2.46, 11);
                     toolDiv.style.boxShadow = `inset 0 0 0 ${borderThickness}px rgba(0, 0, 0, 0.35)`;
+                    updateTools();
                 }
 
-                setPenSize(tool?.size ?? 0);
-
-                // Slider → number
-                penSizeSlider.addEventListener("input", e => {
-                    setPenSize(e.target.value);
-                    updateTools();
+                // Toggle dropdown
+                dropdownBtn.addEventListener("click", (ev) => {
+                    ev.stopPropagation();
+                    const isOpen = dropdownMenu.classList.contains("show");
+                    // Close all other dropdowns first
+                    document.querySelectorAll(".stroke-dropdown-menu.show").forEach(menu => {
+                        menu.classList.remove("show");
+                    });
+                    if (!isOpen) {
+                        dropdownMenu.classList.add("show");
+                    }
                 });
 
-                // Number typing → slider
-                penSizeInput.addEventListener("input", e => {
-                    setPenSize(e.target.value);
-                    updateTools();
+                // Handle option selection
+                strokeOptions.forEach(option => {
+                    option.addEventListener("click", (ev) => {
+                        ev.stopPropagation();
+                        const size = option.dataset.size;
+
+                        // Remove selected from all
+                        strokeOptions.forEach(opt => opt.classList.remove("selected"));
+                        option.classList.add("selected");
+
+                        if (size === "custom") {
+                            customInput.style.display = "flex";
+                            dropdownMenu.classList.remove("show");
+                            customSizeInput.focus();
+                        } else {
+                            const numSize = parseFloat(size);
+                            const preset = STROKE_SIZE_PRESETS.find(p => p.size === numSize);
+                            customInput.style.display = "none";
+                            updateToolSizeDisplay(numSize, preset.label);
+                            setToolSize(numSize);
+                            dropdownMenu.classList.remove("show");
+                        }
+                    });
                 });
 
-                // Commit on Enter
-                penSizeInput.addEventListener("keydown", e => {
-                    if (e.key === "Enter") {
-                        e.target.blur();
+                // Custom size input handling
+                customSizeInput.addEventListener("input", (ev) => {
+                    let val = parseFloat(ev.target.value);
+                    if (isNaN(val)) return;
+                    val = Math.min(30, Math.max(0.4, val));
+                    updateToolSizeDisplay(val, "Custom");
+                    setToolSize(val);
+                });
+
+                customSizeInput.addEventListener("keydown", (ev) => {
+                    if (ev.key === "Enter") {
+                        ev.target.blur();
                     }
                 });
 
@@ -1161,6 +1348,7 @@ async function initModifiers() {
   const saved = await loadToolboxSettings(); // may return nul
   //const saved = null;
 
+  let modifiers;
   // Load modifiers: use saved if exists, otherwise defaults
   if (saved?.modifiers) {
     modifiers = structuredClone(saved.modifiers);
@@ -1173,6 +1361,22 @@ async function initModifiers() {
     toolboxLayout = structuredClone(saved.toolboxLayout);
   } else {
     toolboxLayout = structuredClone(DEFAULT_TOOLBOX_LAYOUT);
+  }
+
+  // Load sync stroke size setting
+  syncStrokeSizeEnabled = modifiers?.syncStrokeSize ?? false;
+  const syncToggle = document.getElementById("syncStrokeSize");
+  if (syncToggle) {
+    syncToggle.checked = syncStrokeSizeEnabled;
+    syncToggle.addEventListener("change", handleSyncToggleChange);
+  }
+
+  // Load sync bracket toolboxes setting
+  syncBracketToolboxesEnabled = modifiers.syncBracketToolboxes ?? false;
+  const syncBracketToggle = document.getElementById("syncBracketToolboxes");
+  if (syncBracketToggle) {
+    syncBracketToggle.checked = syncBracketToolboxesEnabled;
+    syncBracketToggle.addEventListener("change", handleBracketSyncToggleChange);
   }
 
   // Reset colors to white for non-colorCustomizable tools
@@ -1191,6 +1395,36 @@ async function initModifiers() {
   renderTools();
 
   return modifiers;
+}
+
+// Handle sync toggle change
+function handleSyncToggleChange(e) {
+  syncStrokeSizeEnabled = e.target.checked;
+
+  if (syncStrokeSizeEnabled) {
+    // Sync all modifier sizes to default pen size
+    const defaultPenSize = modifiers.defaultPen?.size || 3;
+    syncAllModifierSizes(defaultPenSize);
+  }
+
+  // Re-render modifiers to show/hide stroke dropdowns
+  renderModifiers(modifiers);
+  updateTools();
+}
+
+// Handle bracket sync toggle change
+function handleBracketSyncToggleChange(e) {
+  syncBracketToolboxesEnabled = e.target.checked;
+
+  if (syncBracketToolboxesEnabled) {
+    // Sync wavy and circle bracket toolboxes to square bracket
+    toolboxLayout.wavyBracket = structuredClone(toolboxLayout.squareBracket);
+    toolboxLayout.circleBracket = structuredClone(toolboxLayout.squareBracket);
+  }
+
+  // Re-render tools to show/hide synced toolbox overlays
+  renderTools();
+  updateTools();
 }
 
 
@@ -1492,7 +1726,10 @@ async function classifyStroke(stroke, hold = false) {
                 size: group.size,
                 titleStatus: group.titleStatus,
                 titleLevel: group.titleLevel,
-                titleGroupId: group.titleGroupId
+                titleGroupId: group.titleGroupId,
+                reminderStatus: group.reminderStatus,
+                reminderDate: group.reminderDate,
+                reminderGroupId: group.reminderGroupId
             };
         });
         const change = {
@@ -1555,7 +1792,18 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
     else if (shortcutGroup.includes(modifiedGroups.predictedLabel)) {
       // Set visibility to false instead of removing, so summary feature can find shortcuts
       allGroups[allGroups.length - 1].visibility = false;
-      showToolbox(e.offsetX, e.offsetY, "bracket");
+      // Determine which bracket toolbox to open
+      let bracketToolbox = "squareBracket";
+      if (!syncBracketToolboxesEnabled) {
+        if (modifiedGroups.predictedLabel === STROKE_TYPE.BOXS) {
+          bracketToolbox = "squareBracket";
+        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.CURLYS) {
+          bracketToolbox = "wavyBracket";
+        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.CIRCLES) {
+          bracketToolbox = "circleBracket";
+        }
+      }
+      showToolbox(e.offsetX, e.offsetY, bracketToolbox);
     }
     else if (modifiedGroups.predictedLabel == STROKE_TYPE.UNDERLINE) {
         showToolbox(e.offsetX, e.offsetY, "underline");
@@ -1660,6 +1908,7 @@ window.onload = async () => {
                         idCount = 0;
                     }
                     reDrawAll(drawCtx);
+                    updateReminderCount();
                 }
             });
             setTimeout(() => {
@@ -2424,6 +2673,8 @@ window.onload = async () => {
     // }
 
     modifiers = await initModifiers();
+
+    updateReminderCount();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2677,7 +2928,10 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
                 size: group.size,
                 titleStatus: group.titleStatus,
                 titleLevel: group.titleLevel,
-                titleGroupId: group.titleGroupId
+                titleGroupId: group.titleGroupId,
+                reminderStatus: group.reminderStatus,
+                reminderDate: group.reminderDate,
+                reminderGroupId: group.reminderGroupId
             };
         });
 
@@ -2707,6 +2961,11 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
     }
     else if (selectedTool == "title3") {
         selectTitle(toolColor, toolVisibility, 3, toolSize);
+    }
+    else if (selectedTool == "reminder") {
+        // Show date/time picker for reminder deadline
+        showReminderPicker(toolColor, toolVisibility, toolSize);
+        return; // Don't close toolbox yet, wait for date selection
     }
     else if (selectedTool == "move") {
         // Skip pop if last group is already hidden (shortcut marker for summary)
@@ -2822,7 +3081,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
                 redoGroups = [];
 
                 reDrawAll(drawCtx);
-                if (title) saveNote(title, allGroups);
+                if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
             }
         });
         }
@@ -2927,7 +3186,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         flashTape(tapeGroup);
         reDrawAll(drawCtx);
-        if (title) saveNote(title, allGroups);
+        if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
         return;
     }
 }
@@ -2953,7 +3212,10 @@ function undo() {
                     size: group.size,
                     titleStatus: group.titleStatus,
                     titleLevel: group.titleLevel,
-                    titleGroupId: group.titleGroupId
+                    titleGroupId: group.titleGroupId,
+                    reminderStatus: group.reminderStatus,
+                    reminderDate: group.reminderDate,
+                    reminderGroupId: group.reminderGroupId
                 };
             }
         }
@@ -2976,6 +3238,9 @@ function undo() {
                     group.titleStatus = original.titleStatus;
                     group.titleLevel = original.titleLevel;
                     group.titleGroupId = original.titleGroupId;
+                    group.reminderStatus = original.reminderStatus;
+                    group.reminderDate = original.reminderDate;
+                    group.reminderGroupId = original.reminderGroupId;
                 }
             }
         }
@@ -2984,9 +3249,10 @@ function undo() {
             allGroups.splice(allGroups.indexOf(action.groupToRemove), 1);
         }
 
-        // Refresh TOC
+        // Refresh TOC and Reminders
         titleAnchorsNeedRefresh = true;
         if (typeof populateTocList === 'function') populateTocList();
+        if (typeof updateReminderCount === 'function') updateReminderCount();
     }
     else if (action.change == 'normalStroke') { 
         const redo = {
@@ -3122,7 +3388,10 @@ function redo() {
                     size: group.size,
                     titleStatus: group.titleStatus,
                     titleLevel: group.titleLevel,
-                    titleGroupId: group.titleGroupId
+                    titleGroupId: group.titleGroupId,
+                    reminderStatus: group.reminderStatus,
+                    reminderDate: group.reminderDate,
+                    reminderGroupId: group.reminderGroupId
                 };
             }
         }
@@ -3150,13 +3419,17 @@ function redo() {
                     group.titleStatus = original.titleStatus;
                     group.titleLevel = original.titleLevel;
                     group.titleGroupId = original.titleGroupId;
+                    group.reminderStatus = original.reminderStatus;
+                    group.reminderDate = original.reminderDate;
+                    group.reminderGroupId = original.reminderGroupId;
                 }
             }
         }
 
-        // Refresh TOC
+        // Refresh TOC and Reminders
         titleAnchorsNeedRefresh = true;
         if (typeof populateTocList === 'function') populateTocList();
+        if (typeof updateReminderCount === 'function') updateReminderCount();
     }
     else if (action.change == 'normalStroke') {
         const change = {
@@ -3891,6 +4164,20 @@ function showSummarizePopup() {
   const old = document.getElementById("summarizePopup");
   if (old) old.remove();
 
+  // Get colors from settings
+  const getToolColor = (toolId, fallback) => {
+    const tool = toolboxLayout?.underline?.find(t => t.id === toolId);
+    return tool?.color || fallback;
+  };
+  const title1Color = getToolColor(TOOL_ID.TITLE1, "#f4c64a");
+  const title2Color = getToolColor(TOOL_ID.TITLE2, "#ff6a00");
+  const title3Color = getToolColor(TOOL_ID.TITLE3, "#7adb13");
+  const boxColor = modifiers?.box?.color || DEFAULT_MODIFIERS.box.color;
+  const curlyColor = modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color;
+  const boxShortcutColor = modifiers?.boxshortcut?.color || DEFAULT_MODIFIERS.boxshortcut.color;
+  const curlyShortcutColor = modifiers?.curlyshortcut?.color || DEFAULT_MODIFIERS.curlyshortcut.color;
+  const circleShortcutColor = modifiers?.circleshortcut?.color || DEFAULT_MODIFIERS.circleshortcut.color;
+
   const overlay = document.createElement("div");
   overlay.id = "summarizePopup";
   overlay.style.position = "fixed";
@@ -3927,44 +4214,40 @@ function showSummarizePopup() {
     <div style="margin-bottom:12px;">
       <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Titles</p>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#f4c64a;">
-        <span style="color:#f4c64a;">Title 1</span>
+        <input id="chkTitle1" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:${title1Color};">
+        <span style="color:${title1Color};">Title 1</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#ff6a00;">
-        <span style="color:#ff6a00;">Title 2</span>
+        <input id="chkTitle2" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:${title2Color};">
+        <span style="color:${title2Color};">Title 2</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkTitle3" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#7adb13;">
-        <span style="color:#7adb13;">Title 3</span>
+        <input id="chkTitle3" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${title3Color};">
+        <span style="color:${title3Color};">Title 3</span>
       </label>
     </div>
 
     <div style="margin-bottom:12px;">
       <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Modifiers</p>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkBox" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:#ffb6ff;">
-        <span style="color:#ffb6ff;">Box</span>
+        <input id="chkBox" type="checkbox" checked style="transform:scale(1.2);margin-right:8px;accent-color:${boxColor};">
+        <span style="color:${boxColor};">Box</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkCurly" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#fa6e6e;">
-        <span style="color:#fa6e6e;">Curly Bracket</span>
-      </label>
-    </div>
-
-    <div style="margin-bottom:16px;">
-      <p style="font-size:13px;color:#888;margin:0 0 6px;font-weight:600;">Shortcuts</p>
-      <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkBoxShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#a3fba9;">
-        <span style="color:#a3fba9;">Box Shortcut [ ]</span>
+        <input id="chkCurly" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${curlyColor};">
+        <span style="color:${curlyColor};">Curly Bracket</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkCurlyShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#74d8ff;">
-        <span style="color:#74d8ff;">Curly Shortcut { }</span>
+        <input id="chkBoxShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${boxShortcutColor};">
+        <span style="color:${boxShortcutColor};">Square bracket</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkCircleShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:#ffc5d3;">
-        <span style="color:#ffc5d3;">Circle Shortcut</span>
+        <input id="chkCurlyShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${curlyShortcutColor};">
+        <span style="color:${curlyShortcutColor};">Curly bracket </span>
+      </label>
+      <label style="display:block;margin:6px 0;padding-left:12px;">
+        <input id="chkCircleShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${circleShortcutColor};">
+        <span style="color:${circleShortcutColor};">Circle bracket</span>
       </label>
     </div>
 
@@ -4268,21 +4551,17 @@ function summarizeNotes(options) {
                              group.predictedLabel === "curly";
 
               if (isCurly) {
+                const curlyClone = structuredClone(group);
                 const children = [];
-                const curlyBox = group.bbox;
 
-                // Collect strokes within curly's Y bounds and to the left (only unclaimed ones WITH matching color)
+                // Collect strokes inside the curly (only unclaimed ones WITH matching color)
                 groups.forEach(other => {
                   if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
                     // Check if stroke color matches the curly modifier color
                     const strokeColor = normalizeColor(other.color);
                     const colorMatches = strokeColor === curlyModifierColor;
 
-                    const otherBox = other.bbox;
-                    const isWithinYBounds = otherBox.y >= curlyBox.y && (otherBox.y + otherBox.h) <= (curlyBox.y + curlyBox.h);
-                    const isToLeft = otherBox.x < curlyBox.x;
-
-                    if (!claimedStrokeIds.has(other.id) && colorMatches && isWithinYBounds && isToLeft) {
+                    if (!claimedStrokeIds.has(other.id) && colorMatches && isInside(other.stroke, group.stroke)) {
                       children.push(structuredClone(other));
                     }
                   }
@@ -4293,26 +4572,17 @@ function summarizeNotes(options) {
                   // Claim these stroke IDs
                   children.forEach(c => claimedStrokeIds.add(c.id));
 
-                  // Calculate combined bbox from children
-                  const childBboxes = children.map(c => c.bbox);
-                  const combinedBbox = {
-                    x: Math.min(...childBboxes.map(b => b.x)),
-                    y: Math.min(...childBboxes.map(b => b.y)),
-                    w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
-                    h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
-                  };
-
                   allSummaryItems.push({
                     summaryType: "curly",
                     summaryLevel: null,
                     summarySource: noteInfo.path,
                     noteCreatedAt: noteCreatedAt,
                     noteIndex: noteIndex,
-                    originalY: combinedBbox.y,
-                    originalBbox: { ...combinedBbox },
-                    bbox: { ...combinedBbox },
-                    strokes: children, // Just the children strokes, not the curly modifier
-                    children: []
+                    originalY: group.bbox.y,
+                    originalBbox: { ...group.bbox },
+                    bbox: { ...group.bbox },
+                    strokes: [curlyClone], // The curly modifier itself
+                    children: children
                   });
                 }
               }
@@ -4444,64 +4714,114 @@ function summarizeNotes(options) {
       const baseSpacing = 25;
       const sectionSpacing = 40;
       const navButtonHeight = 28;
+      const heightThreshold = 85; // If gap between consecutive items exceeds this, start new section
       let currentY = 80;
-      let lastNoteIndex = -1;
       const newGroups = [];
       let startID = Date.now();
 
-      allSummaryItems.forEach((item) => {
-        // Add extra spacing when switching to a new note
-        if (lastNoteIndex !== -1 && item.noteIndex !== lastNoteIndex) {
+      // Group items into sections based on height threshold
+      // Items from the same note that are close together (gap < threshold) form one section
+      const sections = [];
+      let currentSection = null;
+
+      allSummaryItems.forEach((item, idx) => {
+        const prevItem = idx > 0 ? allSummaryItems[idx - 1] : null;
+
+        // Check if we should start a new section
+        const isDifferentNote = !prevItem || item.noteIndex !== prevItem.noteIndex;
+        const exceedsHeightThreshold = prevItem &&
+          item.noteIndex === prevItem.noteIndex &&
+          (item.originalY - (prevItem.originalY + prevItem.originalBbox.h)) > heightThreshold;
+
+        if (isDifferentNote || exceedsHeightThreshold) {
+          // Start a new section
+          currentSection = {
+            noteIndex: item.noteIndex,
+            summarySource: item.summarySource,
+            noteCreatedAt: item.noteCreatedAt,
+            items: [item],
+            // Track original bbox for the section (for nav link positioning)
+            originalBbox: { ...item.originalBbox }
+          };
+          sections.push(currentSection);
+        } else {
+          // Add to current section
+          currentSection.items.push(item);
+        }
+      });
+
+      // Now layout each section
+      sections.forEach((section, sectionIdx) => {
+        // Add extra spacing between sections
+        if (sectionIdx > 0) {
           currentY += sectionSpacing;
         }
-        lastNoteIndex = item.noteIndex;
 
-        // Calculate translation based on the item's combined bbox
-        const dx = leftMargin - item.bbox.x;
-        const dy = currentY - item.bbox.y;
+        // Calculate the section's combined original bbox
+        const sectionMinY = Math.min(...section.items.map(it => it.originalY));
+        const sectionMaxBottom = Math.max(...section.items.map(it => it.originalY + it.originalBbox.h));
 
-        // Track the bottom-most Y position (start at 0, only use translated positions)
-        let maxBottomY = 0;
-
-        // Translate and add all strokes in this summary item
-        item.strokes.forEach(strokeGroup => {
-          translateGroup(strokeGroup, dx, dy);
-          strokeGroup.id = startID++;
-          newGroups.push(strokeGroup);
-
-          // Track bottom after translation
-          const bottom = strokeGroup.bbox.y + strokeGroup.bbox.h;
-          if (bottom > maxBottomY) maxBottomY = bottom;
-        });
-
-        // Translate and add children
-        item.children.forEach(child => {
-          translateGroup(child, dx, dy);
-          child.id = startID++;
-          newGroups.push(child);
-
-          // Track bottom after translation
-          const bottom = child.bbox.y + child.bbox.h;
-          if (bottom > maxBottomY) maxBottomY = bottom;
-        });
-
-        // Update item bbox after translation
-        item.bbox.x += dx;
-        item.bbox.y += dy;
-
-        // Create navigation link right below the strokes' bounding box (no margin)
+        // First, add the nav link at the top of the section
         const navLinkGroup = createSummaryNavLink(
-          item.summarySource,
-          item.originalBbox,
-          item.bbox.x,
-          maxBottomY,
+          section.summarySource,
+          section.originalBbox,
+          leftMargin,
+          currentY,
           startID++,
-          item.noteCreatedAt
+          section.noteCreatedAt
         );
         newGroups.push(navLinkGroup);
 
-        // Update currentY for next item
-        currentY = maxBottomY + navButtonHeight + baseSpacing;
+        // Move currentY below the nav link
+        currentY += navButtonHeight + 8; // Small gap after nav link
+
+        // Track the starting Y for this section's content
+        const sectionStartY = currentY;
+        let maxBottomY = currentY;
+
+        // Layout items within the section
+        section.items.forEach((item, itemIdx) => {
+          let dy;
+
+          if (section.items.length === 1) {
+            // Single item section: place directly at currentY
+            dy = sectionStartY - item.bbox.y;
+          } else {
+            // Multiple items in section: preserve their relative y positions
+            dy = sectionStartY + (item.originalY - sectionMinY) - item.bbox.y;
+          }
+
+          const dx = leftMargin - item.bbox.x;
+
+          // Translate and add all strokes in this summary item
+          item.strokes.forEach(strokeGroup => {
+            translateGroup(strokeGroup, dx, dy);
+            strokeGroup.id = startID++;
+            newGroups.push(strokeGroup);
+
+            // Track bottom after translation
+            const bottom = strokeGroup.bbox.y + strokeGroup.bbox.h;
+            if (bottom > maxBottomY) maxBottomY = bottom;
+          });
+
+          // Translate and add children
+          item.children.forEach(child => {
+            translateGroup(child, dx, dy);
+            child.id = startID++;
+            newGroups.push(child);
+
+            // Track bottom after translation
+            const bottom = child.bbox.y + child.bbox.h;
+            if (bottom > maxBottomY) maxBottomY = bottom;
+          });
+
+          // Update item bbox after translation
+          item.bbox.x += dx;
+          item.bbox.y += dy;
+        });
+
+        // Update currentY for next section
+        currentY = maxBottomY + baseSpacing;
       });
 
       // Store metadata for freshness tracking
@@ -4785,6 +5105,1201 @@ if (tocTab) {
   tocTab.onclick = toggleTocPanel;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// REMINDER SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+let reminderPickerContext = null; // Stores tool context when picker opens
+
+// Show the reminder date/time picker modal
+function showReminderPicker(toolColor, toolVisibility, toolSize) {
+    const overlay = document.getElementById('reminderPickerOverlay');
+    const dateInput = document.getElementById('reminderDate');
+    const timeInput = document.getElementById('reminderTime');
+
+    // Store context for when user confirms
+    reminderPickerContext = { toolColor, toolVisibility, toolSize };
+
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    dateInput.value = tomorrow.toISOString().split('T')[0];
+
+    // Set default time to 9:00 AM
+    timeInput.value = '09:00';
+
+    overlay.classList.add('show');
+}
+
+// Initialize reminder picker events
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('reminderPickerOverlay');
+    const cancelBtn = document.getElementById('reminderCancel');
+    const confirmBtn = document.getElementById('reminderConfirm');
+
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            overlay.classList.remove('show');
+            reminderPickerContext = null;
+            // Clean up modifier stroke
+            if (allGroups[allGroups.length - 1]?.visibility !== false) {
+                allGroups.pop();
+            }
+            modifiedGroups.modifiedGroups.pop();
+            reDrawAll(drawCtx);
+        };
+    }
+
+    if (confirmBtn) {
+        confirmBtn.onclick = () => {
+            const dateInput = document.getElementById('reminderDate');
+            const timeInput = document.getElementById('reminderTime');
+
+            if (!dateInput.value) {
+                alert('Please select a date');
+                return;
+            }
+
+            const reminderDate = new Date(`${dateInput.value}T${timeInput.value || '09:00'}`);
+
+            if (reminderPickerContext) {
+                selectReminder(
+                    reminderPickerContext.toolColor,
+                    reminderPickerContext.toolVisibility,
+                    reminderPickerContext.toolSize,
+                    reminderDate.toISOString()
+                );
+            }
+
+            overlay.classList.remove('show');
+            reminderPickerContext = null;
+            reDrawAll(drawCtx);
+
+            // Save the note
+            if (title) {
+              saveNote(title, allGroups);
+            }
+        };
+    }
+
+    // Close on overlay click (outside modal)
+    if (overlay) {
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                cancelBtn?.click();
+            }
+        };
+    }
+
+    // Initialize reminder count on load
+    updateReminderCount();
+});
+
+// Toggle reminder panel visibility
+function toggleReminderPanel() {
+    const panel = document.getElementById('reminderPanel');
+    const btn = document.getElementById('reminderBtn');
+
+    if (panel.classList.contains('show')) {
+        panel.classList.remove('show');
+    } else {
+        // Unfold the button if it's folded
+        if (btn.classList.contains('folded')) {
+            btn.classList.remove('folded');
+        }
+        panel.classList.add('show');
+        populateReminderList();
+    }
+}
+
+// Toggle folded state of reminder button
+function toggleReminderBtnFold() {
+    const btn = document.getElementById('reminderBtn');
+    const wasFolded = btn.classList.contains('folded');
+    btn.classList.toggle('folded');
+
+    // If unfolding, also close the panel
+    if (wasFolded) {
+        const panel = document.getElementById('reminderPanel');
+        if (panel) panel.classList.remove('show');
+    }
+}
+
+// Update reminder count in the button (counts all reminders across all notebooks)
+function updateReminderCount() {
+    const countSpan = document.getElementById('reminderCount');
+    const btn = document.getElementById('reminderBtn');
+    if (!countSpan || !btn) return;
+
+    // First count reminders from current note (in-memory, includes unsaved changes)
+    const currentNoteReminderIds = new Set();
+    allGroups.forEach(group => {
+        if (group.reminderStatus && group.reminderGroupId) {
+            currentNoteReminderIds.add(group.reminderGroupId);
+        }
+    });
+
+    // Count reminders from all other notebooks via IndexedDB
+    openNoteDB((db, done) => {
+        const tx = db.transaction("notes", "readonly");
+        const store = tx.objectStore("notes");
+        const otherReminderIds = new Set();
+        const currentNotePath = title; // Current note path
+
+        const cursor = store.openCursor();
+        cursor.onsuccess = (event) => {
+            const cur = event.target.result;
+            if (cur) {
+                // Skip current note (we already counted it from allGroups)
+                if (cur.key !== currentNotePath) {
+                    const content = cur.value.content || [];
+                    content.forEach(group => {
+                        if (group.reminderStatus && group.reminderGroupId) {
+                            otherReminderIds.add(group.reminderGroupId);
+                        }
+                    });
+                }
+                cur.continue();
+            } else {
+                done();
+                // Combine counts: current note + other notes
+                const count = currentNoteReminderIds.size + otherReminderIds.size;
+
+                // Hide button if no reminders, show if there are reminders
+                if (count === 0) {
+                    btn.style.display = 'none';
+                    const panel = document.getElementById('reminderPanel');
+                    if (panel) panel.classList.remove('show');
+                } else {
+                    btn.style.display = 'flex';
+                }
+
+                // Update button text
+                countSpan.textContent = `${count} reminder${count !== 1 ? 's' : ''}`;
+
+                // Update badge for folded state
+                let badge = btn.querySelector('.reminder-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'reminder-badge';
+                    btn.appendChild(badge);
+                }
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'flex' : 'none';
+            }
+        };
+
+        cursor.onerror = () => {
+            done();
+        };
+    });
+}
+
+// Populate the reminder list panel with all reminders from all notebooks
+async function populateReminderList() {
+    const reminderList = document.getElementById('reminderList');
+    if (!reminderList) return;
+
+    reminderList.innerHTML = '<div class="reminder-empty">Loading reminders...</div>';
+
+    // Get all folders and notes from IndexedDB
+    openNoteDB(async (db, done) => {
+        const tx = db.transaction("notes", "readonly");
+        const store = tx.objectStore("notes");
+        const allNotes = [];
+
+        const cursor = store.openCursor();
+        cursor.onsuccess = (event) => {
+            const cur = event.target.result;
+            if (cur) {
+                allNotes.push({
+                    path: cur.key,
+                    content: cur.value.content || []
+                });
+                cur.continue();
+            } else {
+                done();
+                renderReminderList(allNotes, reminderList);
+            }
+        };
+
+        cursor.onerror = () => {
+            done();
+            reminderList.innerHTML = '<div class="reminder-empty">Error loading reminders</div>';
+        };
+    });
+}
+
+// Render the reminder list organized by notebook/note
+function renderReminderList(allNotes, container) {
+    // Organize reminders by notebook > note
+    const notebooks = {};
+
+    allNotes.forEach(note => {
+        const parts = note.path.split('/');
+        const notebook = parts[0] || 'Default';
+        const noteName = parts.slice(1).join('/').replace('.json', '') || note.path;
+
+        // Find all reminders in this note
+        const reminderGroups = new Map();
+        (note.content || []).forEach(group => {
+            if (group.reminderStatus && group.reminderGroupId) {
+                if (!reminderGroups.has(group.reminderGroupId)) {
+                    reminderGroups.set(group.reminderGroupId, {
+                        id: group.reminderGroupId,
+                        date: group.reminderDate,
+                        groups: [],
+                        notePath: note.path
+                    });
+                }
+                reminderGroups.get(group.reminderGroupId).groups.push(group);
+            }
+        });
+
+        if (reminderGroups.size > 0) {
+            if (!notebooks[notebook]) {
+                notebooks[notebook] = {};
+            }
+            if (!notebooks[notebook][noteName]) {
+                notebooks[notebook][noteName] = [];
+            }
+            notebooks[notebook][noteName].push(...reminderGroups.values());
+        }
+    });
+
+    // Check if any reminders exist
+    if (Object.keys(notebooks).length === 0) {
+        container.innerHTML = '<div class="reminder-empty">No reminders yet</div>';
+        return;
+    }
+
+    // Build the HTML
+    container.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    Object.entries(notebooks).forEach(([notebookName, notes]) => {
+        const notebookDiv = document.createElement('div');
+        notebookDiv.className = 'reminder-notebook';
+
+        const notebookHeader = document.createElement('div');
+        notebookHeader.className = 'reminder-notebook-header';
+        notebookHeader.innerHTML = `
+            <i class='bx bx-folder'></i>
+            <span>${notebookName}</span>
+            <i class='bx bx-chevron-down chevron'></i>
+        `;
+        notebookHeader.onclick = () => notebookDiv.classList.toggle('collapsed');
+        notebookDiv.appendChild(notebookHeader);
+
+        const notesContainer = document.createElement('div');
+        notesContainer.className = 'reminder-notebook-notes';
+
+        Object.entries(notes).forEach(([noteName, reminders]) => {
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'reminder-note';
+
+            const noteHeader = document.createElement('div');
+            noteHeader.className = 'reminder-note-header';
+            noteHeader.innerHTML = `
+                <i class='bx bx-file'></i>
+                <span>${noteName}</span>
+            `;
+            noteHeader.onclick = (e) => {
+                e.stopPropagation();
+                noteDiv.classList.toggle('collapsed');
+            };
+            noteDiv.appendChild(noteHeader);
+
+            const itemsContainer = document.createElement('div');
+            itemsContainer.className = 'reminder-items';
+
+            reminders.forEach(reminder => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'reminder-item';
+
+                // Create thumbnail
+                const thumbnail = createReminderThumbnail(reminder.groups);
+
+                // Format due date
+                const dueDate = new Date(reminder.date);
+                const now = new Date();
+                const diffMs = dueDate - now;
+                const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+                let dueClass = '';
+                let dueText = '';
+
+                if (diffMs < 0) {
+                    dueClass = 'overdue';
+                    dueText = 'Overdue';
+                } else if (diffDays <= 1) {
+                    dueClass = 'soon';
+                    dueText = 'Due today';
+                } else if (diffDays <= 3) {
+                    dueClass = 'soon';
+                    dueText = `Due in ${diffDays} days`;
+                } else {
+                    dueText = dueDate.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: dueDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+                    });
+                }
+
+                itemDiv.innerHTML = `
+                    <img class="reminder-item-preview" src="${thumbnail}" alt="Reminder preview">
+                    <div class="reminder-item-info">
+                        <div class="reminder-item-due ${dueClass}">
+                            <i class='bx bx-calendar'></i>
+                            <span>${dueText}</span>
+                        </div>
+                        <button class="reminder-delete-btn" title="Delete reminder">
+                            <i class='bx bx-trash'></i>
+                        </button>
+                    </div>
+                `;
+
+                // Click thumbnail to navigate to reminder
+                itemDiv.querySelector('.reminder-item-preview').onclick = () => {
+                    navigateToReminder(reminder.notePath, reminder.groups[0]);
+                };
+
+                // Delete button
+                itemDiv.querySelector('.reminder-delete-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    deleteReminder(reminder.notePath, reminder.id);
+                };
+
+                itemsContainer.appendChild(itemDiv);
+            });
+
+            noteDiv.appendChild(itemsContainer);
+            notesContainer.appendChild(noteDiv);
+        });
+
+        notebookDiv.appendChild(notesContainer);
+        fragment.appendChild(notebookDiv);
+    });
+
+    container.appendChild(fragment);
+}
+
+// Create a thumbnail image for reminder strokes
+function createReminderThumbnail(groups) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 250;
+    canvas.height = 80;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (!groups || groups.length === 0) {
+        return canvas.toDataURL();
+    }
+
+    // Calculate bounding box of all groups
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    groups.forEach(group => {
+        if (group.bbox) {
+            minX = Math.min(minX, group.bbox.x);
+            minY = Math.min(minY, group.bbox.y);
+            maxX = Math.max(maxX, group.bbox.x + group.bbox.w);
+            maxY = Math.max(maxY, group.bbox.y + group.bbox.h);
+        }
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    if (contentWidth <= 0 || contentHeight <= 0) {
+        return canvas.toDataURL();
+    }
+
+    // Calculate scale to fit
+    const padding = 3;
+    const availableWidth = canvas.width - padding * 2;
+    const availableHeight = canvas.height - padding * 2;
+    const scale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 1);
+
+    // Center the content
+    const offsetX = (canvas.width - contentWidth * scale) / 2 - minX * scale;
+    const offsetY = (canvas.height - contentHeight * scale) / 2 - minY * scale;
+
+    // Draw strokes
+    groups.forEach(group => {
+        if (!group.stroke || group.stroke.length < 2 || group.visibility == false) return;
+
+        ctx.beginPath();
+        ctx.strokeStyle = group.color || '#ff6b6b';
+        ctx.lineWidth = Math.max((group.size || 2) * scale, 1);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const firstPoint = group.stroke[0];
+        ctx.moveTo(firstPoint.x * scale + offsetX, firstPoint.y * scale + offsetY);
+
+        for (let i = 1; i < group.stroke.length; i++) {
+            const point = group.stroke[i];
+            ctx.lineTo(point.x * scale + offsetX, point.y * scale + offsetY);
+        }
+
+        ctx.stroke();
+    });
+
+    return canvas.toDataURL();
+}
+
+// Navigate to a specific reminder
+function navigateToReminder(notePath, targetGroup) {
+    // Close reminder panel
+    document.getElementById('reminderPanel').classList.remove('show');
+
+    // Load the note if different from current
+    if (title !== notePath) {
+        loadNote(notePath, (note) => {
+            if (!note) return;
+
+            title = notePath;
+            allGroups = note.content || [];
+
+            // Scroll to the reminder
+            if (targetGroup && targetGroup.bbox) {
+                viewportOffset.y = Math.max(0, targetGroup.bbox.y - 100);
+                viewportOffset.x = 0;
+                screenBox.y = viewportOffset.y;
+                screenBox.x = viewportOffset.x;
+            }
+
+            syncGroupIds();
+            reDrawAll(drawCtx);
+            drawGrid(backgroundCtx);
+            updateScrollbar?.();
+            updateReminderCount();
+            titleAnchorsNeedRefresh = true;
+            if (typeof populateTocList === 'function') populateTocList();
+        });
+    } else {
+        // Same note, just scroll
+        if (targetGroup && targetGroup.bbox) {
+            const targetY = targetGroup.bbox.y - 100;
+            const duration = 400;
+            const startY = viewportOffset.y;
+            const deltaY = targetY - startY;
+            const startTime = performance.now();
+
+            function smoothScroll() {
+                const now = performance.now();
+                const progress = Math.min((now - startTime) / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                viewportOffset.y = startY + deltaY * ease;
+                screenBox.y = viewportOffset.y;
+
+                updateScrollbar?.();
+                drawGrid?.(backgroundCtx);
+                reDrawAll?.(drawCtx);
+
+                if (progress < 1) requestAnimationFrame(smoothScroll);
+            }
+            requestAnimationFrame(smoothScroll);
+        }
+    }
+}
+
+// Delete a reminder
+function deleteReminder(notePath, reminderGroupId) {
+    if (!confirm('Delete this reminder?')) return;
+
+    // Load the note, remove reminder status, save
+    loadNote(notePath, (note) => {
+        if (!note || !note.content) return;
+
+        // Remove reminder properties from matching groups
+        note.content.forEach(group => {
+            if (group.reminderGroupId === reminderGroupId) {
+                delete group.reminderStatus;
+                delete group.reminderDate;
+                delete group.reminderGroupId;
+            }
+        });
+
+        // Save the note
+        saveNote(notePath, note.content, () => {
+            // If it's the current note, update display
+            if (title === notePath) {
+                allGroups = note.content;
+                reDrawAll(drawCtx);
+                updateReminderCount();
+            }
+
+            // Refresh the reminder list
+            populateReminderList();
+        });
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FLASHCARD SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+let generatedFlashcards = [];
+let currentFlashcardIndex = 0;
+
+// Scan a notebook (folder) for tapes and generate flashcards
+async function scanNotebookForFlashcards(folderName) {
+    return new Promise((resolve) => {
+        const flashcards = [];
+
+        openNoteDB((db, done) => {
+            const tx = db.transaction("notes", "readonly");
+            const store = tx.objectStore("notes");
+            const notesToProcess = [];
+
+            store.openCursor().onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const path = cursor.value.path;
+                    if (path.startsWith(folderName + "/") && path.endsWith('.json')) {
+                        notesToProcess.push({
+                            path: path,
+                            content: cursor.value.content || []
+                        });
+                    }
+                    cursor.continue();
+                } else {
+                    done();
+
+                    // Process each note to find tapes
+                    notesToProcess.forEach(note => {
+                        const noteFlashcards = extractFlashcardsFromNote(note.path, note.content, folderName);
+                        flashcards.push(...noteFlashcards);
+                    });
+
+                    resolve(flashcards);
+                }
+            };
+        });
+    });
+}
+
+// Extract flashcards from a single note's content
+function extractFlashcardsFromNoteOld(notePath, content, folderName) {
+    const flashcards = [];
+    if (!content || !Array.isArray(content)) return flashcards;
+
+    // Find all tapes in the note
+    const tapes = content.filter(g => g.type === "tape" && g.visibility !== false);
+
+    // Track which tapes have already been processed (to avoid double-counting)
+    const processedTapeIds = new Set();
+
+    // Process tapes from newest to oldest (by id, assuming higher id = newer)
+    tapes.sort((a, b) => (b.id || 0) - (a.id || 0));
+
+    tapes.forEach(tape => {
+        if (processedTapeIds.has(tape.id)) return;
+        processedTapeIds.add(tape.id);
+
+        // Get the strokes covered by the tape (keywords - front of card)
+        const keywordIds = tape.coveredGroupIds || [];
+        const keywordStrokes = content.filter(g =>
+            keywordIds.includes(g.id) &&
+            g.visibility !== false &&
+            g.type !== "tape"
+        );
+
+        if (keywordStrokes.length === 0) return;
+
+        // Find info strokes: strokes that are spatially related to the tape
+        // but NOT covered by it (above, below, or beside the tape)
+        const infoStrokes = findInfoStrokesForTape(tape, content, keywordIds);
+
+        if (infoStrokes.length === 0) return; // Skip if no info strokes found
+
+        // Create the flashcard
+        const noteName = notePath.split('/').pop().replace('.json', '');
+        flashcards.push({
+            id: `fc_${tape.id}`,
+            tapeId: tape.id,
+            notePath: notePath,
+            noteName: noteName,
+            folderName: folderName,
+            keywordStrokes: keywordStrokes,
+            infoStrokes: infoStrokes,
+            tapeBbox: tape.bbox
+        });
+    });
+
+    return flashcards;
+}
+
+// Find strokes that are spatially related to the tape (the "info" or "answer" part)
+function extractFlashcardsFromNote(notePath, content, folderName) {
+       // ========== GLOBAL DEDUPLICATION ==========
+        // Track claimed stroke IDs across ALL modifier types to prevent duplicates
+        // Priority order: Titles > Box > Curly > Shortcuts (most recent shortcut wins within shortcuts)
+        let allSummaryItems = [];
+        const flashcards = [];
+        const keywords = {};
+        const claimedStrokeIds = new Set();
+        const noteName = notePath.split('/').pop().replace('.json', '');
+
+         // Find all tapes in the note
+        const tapes = content.filter(g => g.type === "tape" && g.visibility !== false);
+
+        // Track which tapes have already been processed (to avoid double-counting)
+        const processedTapeIds = new Set();
+
+        // Process tapes from newest to oldest (by id, assuming higher id = newer)
+        tapes.sort((a, b) => (b.id || 0) - (a.id || 0));
+
+        console.log("tapes", tapes);
+
+        tapes.forEach(tape => {
+          if (processedTapeIds.has(tape.id)) return;
+          processedTapeIds.add(tape.id);
+
+          // Get the strokes covered by the tape (keywords - front of card)
+          const keywordIds = tape.coveredGroupIds || [];
+          const keywordStrokes = content.filter(g =>
+              keywordIds.includes(g.id) &&
+              g.visibility !== false &&
+              g.type !== "tape"
+          );
+
+          if (keywordStrokes.length === 0) return;
+
+          keywords[tape.id] = keywordStrokes;
+        });
+
+        // ========== COLLECT BOX MODIFIERS ==========
+        // Get the expected box modifier color from settings
+        const boxModifierColor = normalizeColor(modifiers?.box?.color || DEFAULT_MODIFIERS.box.color);
+
+        content.forEach(group => {
+          if (group.visibility === false) return;
+          if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+          const isBox = group.predictedLabel === STROKE_TYPE.BOX ||
+                        group.predictedLabel === 1 ||
+                        group.predictedLabel === "box";
+
+          if (isBox) {
+            const boxClone = structuredClone(group);
+            const children = [];
+
+            // Collect strokes inside the box (only unclaimed ones WITH matching color)
+            content.forEach(other => {
+              if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                // Check if stroke color matches the box modifier color
+                const strokeColor = normalizeColor(other.color);
+                const colorMatches = strokeColor === boxModifierColor;
+
+                if (!claimedStrokeIds.has(other.id) && colorMatches && isInside(other.stroke, group.stroke)) {
+                  children.push(structuredClone(other));
+                }
+              }
+            });
+
+            //Find whether this box contains the tape and which tape this box matches based on keywords 
+            let matchResult = null;
+
+            for (const [tapeId, keywordStrokes] of Object.entries(keywords)) {
+              const keywordIds = new Set(keywordStrokes.map(s => s.id));
+
+              const matchedStrokes = children.filter(
+                s => keywordIds.has(s.id)
+              );
+
+              if (matchedStrokes.length > 0) {
+                matchResult = {
+                  tapeId,
+                  keywordStrokes,
+                  matchedStrokes
+                };
+                break; // remove if you want ALL tape matches
+              }
+            }
+
+            if (children.length > 0 && matchResult) {
+              // Claim these stroke IDs
+              children.forEach(c => claimedStrokeIds.add(c.id));
+              
+              flashcards.push({
+                id: `fc_${matchResult.tapeId}`,
+                tapeId: matchResult.tapeId,
+                notePath: notePath,
+                noteName: noteName, 
+                folderName: folderName,
+                keywordStrokes: matchResult.keywordStrokes,
+                infoStrokes: children,
+                tapeBbox: tapes.find(item => item.id === matchResult.tapeId)?.bbox || null,
+              });
+            }
+          }
+        });
+  
+        // ========== COLLECT CURLY MODIFIERS ==========
+        // Get the expected curly modifier color from settings
+        const curlyModifierColor = normalizeColor(modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color);
+
+        content.forEach(group => {
+          if (group.visibility === false) return;
+          if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+          const isCurly = group.predictedLabel === STROKE_TYPE.CURLY ||
+                          group.predictedLabel === 2 ||
+                          group.predictedLabel === "curly";
+
+          if (isCurly) {
+            const children = [];
+
+            // Collect strokes inside the curly (only unclaimed ones WITH matching color)
+            content.forEach(other => {
+              if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                // Check if stroke color matches the curly modifier color
+                const strokeColor = normalizeColor(other.color);
+                const colorMatches = strokeColor === curlyModifierColor;
+
+                if (!claimedStrokeIds.has(other.id) && colorMatches && isInside(other.stroke, group.stroke)) {
+                  children.push(structuredClone(other));
+                }
+              }
+            });
+
+            //Find whether this modifier contains the tape and which tape this modifier matches based on keywords 
+            let matchResult = null;
+
+            for (const [tapeId, keywordStrokes] of Object.entries(keywords)) {
+              const keywordIds = new Set(keywordStrokes.map(s => s.id));
+
+              const matchedStrokes = children.filter(
+                s => keywordIds.has(s.id)
+              );
+
+              if (matchedStrokes.length > 0) {
+                matchResult = {
+                  tapeId,
+                  keywordStrokes,
+                  matchedStrokes
+                };
+                break; // remove if you want ALL tape matches
+              }
+            }
+
+            // Only add if there are unclaimed children with matching color
+            if (children.length > 0 && matchResult) {
+              // Claim these stroke IDs
+              children.forEach(c => claimedStrokeIds.add(c.id));
+
+              // Calculate combined bbox from children
+              const childBboxes = children.map(c => c.bbox);
+              const combinedBbox = {
+                x: Math.min(...childBboxes.map(b => b.x)),
+                y: Math.min(...childBboxes.map(b => b.y)),
+                w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
+                h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
+              };
+
+              flashcards.push({
+                id: `fc_${matchResult.tapeId}`,
+                tapeId: matchResult.tapeId,
+                notePath: notePath,
+                noteName: noteName, 
+                folderName: folderName,
+                keywordStrokes: matchResult.keywordStrokes,
+                infoStrokes: children,
+                tapeBbox: tapes.find(item => item.id === matchResult.tapeId)?.bbox || null,
+              });
+            }
+          }
+        });
+        
+
+        // ========== COLLECT SHORTCUTS (box, curly, circle) ==========
+        // First pass: collect all potential shortcuts with their children
+        const potentialShortcuts = [];
+        const shortcutTypes = [
+          { include: true, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"], type: "boxshortcut" },
+          { include: true, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"], type: "curlyshortcut" },
+          { include: true, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"], type: "circleshortcut" }
+        ];
+
+        shortcutTypes.forEach(({ include, labels, type }) => {
+          if (!include) return;
+
+          // Get the expected shortcut modifier color from settings
+          const shortcutModifierColor = normalizeColor(modifiers?.[type]?.color || DEFAULT_MODIFIERS[type]?.color);
+
+          content.forEach((group, groupIndex) => {
+            if (!group.bbox || !Array.isArray(group.stroke)) return;
+
+            const isShortcut = labels.includes(group.predictedLabel);
+            // Skip visibility=false unless it's a shortcut we're looking for
+            // (shortcuts have visibility=false but should still be collected)
+            if (group.visibility === false && !isShortcut) return;
+
+            if (isShortcut) {
+              const children = [];
+              const shortcutBox = group.bbox;
+
+              // Collect strokes within Y bounds (how shortcuts select - see classifyStroke)
+              // Exclude the shortcut modifier itself - only collect content strokes WITH matching color
+              content.forEach(other => {
+                if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
+                  const otherBox = other.bbox;
+                  // Match classifyStroke logic: bbox.y > newBox.y && (bbox.y + bbox.h) < (newBox.y + newBox.h)
+                  const isWithinYBounds = otherBox.y > shortcutBox.y &&
+                                          (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
+
+                  // Check if stroke color matches the shortcut modifier color
+                  const strokeColor = normalizeColor(other.color);
+                  const colorMatches = strokeColor === shortcutModifierColor;
+
+                  if (isWithinYBounds && colorMatches) {
+                    children.push(structuredClone(other));
+                  }
+                }
+              });
+
+               //Find whether this modifier contains the tape and which tape this modifier matches based on keywords 
+              let matchResult = null;
+
+              for (const [tapeId, keywordStrokes] of Object.entries(keywords)) {
+                const keywordIds = new Set(keywordStrokes.map(s => s.id));
+
+                const matchedStrokes = children.filter(
+                  s => keywordIds.has(s.id)
+                );
+
+                if (matchedStrokes.length > 0) {
+                  matchResult = {
+                    tapeId,
+                    keywordStrokes,
+                    matchedStrokes
+                  };
+                  break; // remove if you want ALL tape matches
+                }
+              }
+
+              // Store potential shortcut with its groupIndex for sorting
+              if (children.length > 0 && matchResult) {
+                potentialShortcuts.push({
+                  groupIndex,
+                  type,
+                  children,
+                  noteInfoPath: notePath,
+                  matchResult: matchResult
+                });
+              }
+            }
+          });
+        });
+
+        // Second pass: deduplicate by processing most recent shortcuts first
+        // This ensures if user draws a wrong shortcut then corrects it,
+        // only the most recent (correct) shortcut claims the strokes
+        // Note: uses the shared claimedStrokeIds set from above (titles, box, curly already claimed their strokes)
+
+        // Sort by groupIndex descending (most recent shortcut first)
+        potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
+
+        potentialShortcuts.forEach(item => {
+          // Filter children to only those not claimed by a more recent shortcut
+          const unclaimedChildren = item.children.filter(c => !claimedStrokeIds.has(c.id));
+
+          if (unclaimedChildren.length === 0) return; // Skip - all children already claimed
+
+          // Claim these stroke IDs
+          unclaimedChildren.forEach(c => claimedStrokeIds.add(c.id));
+
+          // Calculate bounding box from unclaimed children only
+          const childBboxes = unclaimedChildren.map(c => c.bbox);
+          const combinedBbox = {
+            x: Math.min(...childBboxes.map(b => b.x)),
+            y: Math.min(...childBboxes.map(b => b.y)),
+            w: Math.max(...childBboxes.map(b => b.x + b.w)) - Math.min(...childBboxes.map(b => b.x)),
+            h: Math.max(...childBboxes.map(b => b.y + b.h)) - Math.min(...childBboxes.map(b => b.y))
+          };
+
+          matchResult = item.matchResult;
+
+          flashcards.push({
+            id: `fc_${matchResult.tapeId}`,
+            tapeId: matchResult.tapeId,
+            notePath: notePath,
+            noteName: noteName, 
+            folderName: folderName,
+            keywordStrokes: matchResult.keywordStrokes,
+            infoStrokes: unclaimedChildren,
+            tapeBbox: tapes.find(item => item.id === matchResult.tapeId)?.bbox || null,
+          });
+        });
+
+  return flashcards
+}
+
+// Helper: Check if bbox A is fully contained within bbox B
+function isFullyContained(a, b) {
+    return a.x >= b.x &&
+           a.y >= b.y &&
+           (a.x + a.w) <= (b.x + b.w) &&
+           (a.y + a.h) <= (b.y + b.h);
+}
+
+// Update flashcard button visibility and count
+function updateFlashcardButton(flashcards) {
+    const btn = document.getElementById('flashcardBtn');
+    const btnText = document.getElementById('flashcardBtnText');
+
+    if (!btn || !btnText) return;
+
+    if (flashcards.length > 0) {
+        btn.style.display = 'flex';
+        btnText.textContent = `${flashcards.length} Flashcard${flashcards.length !== 1 ? 's' : ''} Ready`;
+        generatedFlashcards = flashcards;
+    } else {
+        btn.style.display = 'none';
+        generatedFlashcards = [];
+    }
+}
+
+// Open flashcard review modal
+function openFlashcardReview() {
+    if (generatedFlashcards.length === 0) return;
+
+    const modal = document.getElementById('flashcardModal');
+    if (!modal) return;
+
+    currentFlashcardIndex = 0;
+    modal.classList.add('show');
+
+    // Add click handler for flashcard container
+    const flashcardContainer = document.querySelector('.flashcard-container');
+    if (flashcardContainer) {
+        flashcardContainer.onclick = flipFlashcard;
+    }
+
+    renderCurrentFlashcard();
+    updateFlashcardNavButtons();
+}
+
+// Close flashcard review modal
+function closeFlashcardReview() {
+    const modal = document.getElementById('flashcardModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    // Reset card to front
+    const card = document.getElementById('flashcard');
+    if (card) card.classList.remove('flipped');
+}
+
+// Flip the flashcard
+function flipFlashcard() {
+    const card = document.getElementById('flashcard');
+    if (card) card.classList.toggle('flipped');
+}
+
+// Navigate to previous flashcard
+function prevFlashcard() {
+    if (currentFlashcardIndex > 0) {
+        currentFlashcardIndex--;
+        renderCurrentFlashcard();
+        updateFlashcardNavButtons();
+    }
+}
+
+// Navigate to next flashcard
+function nextFlashcard() {
+    if (currentFlashcardIndex < generatedFlashcards.length - 1) {
+        currentFlashcardIndex++;
+        renderCurrentFlashcard();
+        updateFlashcardNavButtons();
+    }
+}
+
+// Update navigation buttons state
+function updateFlashcardNavButtons() {
+    const prevBtn = document.getElementById('flashcardPrevBtn');
+    const nextBtn = document.getElementById('flashcardNextBtn');
+
+    if (prevBtn) prevBtn.disabled = currentFlashcardIndex === 0;
+    if (nextBtn) nextBtn.disabled = currentFlashcardIndex >= generatedFlashcards.length - 1;
+
+    // Update progress
+    const progress = document.getElementById('flashcardProgress');
+    const progressFill = document.getElementById('flashcardProgressFill');
+
+    if (progress) {
+        progress.textContent = `${currentFlashcardIndex + 1} / ${generatedFlashcards.length}`;
+    }
+    if (progressFill) {
+        const percent = ((currentFlashcardIndex + 1) / generatedFlashcards.length) * 100;
+        progressFill.style.width = `${percent}%`;
+    }
+}
+
+// Render the current flashcard
+function renderCurrentFlashcard() {
+    const flashcard = generatedFlashcards[currentFlashcardIndex];
+    if (!flashcard) return;
+
+    // Reset flip state
+    const card = document.getElementById('flashcard');
+    if (card) card.classList.remove('flipped');
+
+    // Update source labels
+    const sourceFront = document.getElementById('flashcardSourceFront');
+    const sourceBack = document.getElementById('flashcardSourceBack');
+
+    if (sourceFront) {
+        sourceFront.innerHTML = `<i class='bx bx-folder'></i> ${flashcard.folderName} / <i class='bx bx-file'></i> ${flashcard.noteName}`;
+    }
+    if (sourceBack) {
+        sourceBack.innerHTML = `<i class='bx bx-folder'></i> ${flashcard.folderName} / <i class='bx bx-file'></i> ${flashcard.noteName}`;
+    }
+
+    // Render front canvas (keywords - covered by tape)
+    const frontCanvas = document.getElementById('flashcardFrontCanvas');
+    if (frontCanvas) {
+        renderStrokesToCanvas(frontCanvas, flashcard.keywordStrokes);
+    }
+
+    // Render back canvas (info/answer)
+    const backCanvas = document.getElementById('flashcardBackCanvas');
+    if (backCanvas) {
+        renderStrokesToCanvas(backCanvas, flashcard.infoStrokes);
+    }
+}
+
+// Render strokes to a canvas
+function renderStrokesToCanvas(canvas, strokes) {
+    if (!canvas || !strokes || strokes.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    const containerWidth = canvas.parentElement.clientWidth || 500;
+    const containerHeight = canvas.parentElement.clientHeight - 60 || 200; // Account for source and hint
+
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
+
+    // Clear canvas
+    ctx.fillStyle = 'transparent';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Calculate bounding box of all strokes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    strokes.forEach(group => {
+        if (group.bbox) {
+            minX = Math.min(minX, group.bbox.x);
+            minY = Math.min(minY, group.bbox.y);
+            maxX = Math.max(maxX, group.bbox.x + group.bbox.w);
+            maxY = Math.max(maxY, group.bbox.y + group.bbox.h);
+        } else if (group.stroke) {
+            group.stroke.forEach(pt => {
+                minX = Math.min(minX, pt.x);
+                minY = Math.min(minY, pt.y);
+                maxX = Math.max(maxX, pt.x);
+                maxY = Math.max(maxY, pt.y);
+            });
+        }
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    if (contentWidth <= 0 || contentHeight <= 0) return;
+
+    // Calculate scale to fit with padding
+    const padding = 20;
+    const availableWidth = canvas.width - padding * 2;
+    const availableHeight = canvas.height - padding * 2;
+    const scale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 2);
+
+    // Center the content
+    const offsetX = (canvas.width - contentWidth * scale) / 2 - minX * scale;
+    const offsetY = (canvas.height - contentHeight * scale) / 2 - minY * scale;
+
+    // Draw each stroke
+    strokes.forEach(group => {
+        if (!group.stroke || group.stroke.length < 2) return;
+
+        ctx.beginPath();
+        ctx.strokeStyle = group.color || '#ffffff';
+        ctx.lineWidth = Math.max((group.size || 2) * scale, 1);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const firstPoint = group.stroke[0];
+        ctx.moveTo(firstPoint.x * scale + offsetX, firstPoint.y * scale + offsetY);
+
+        for (let i = 1; i < group.stroke.length; i++) {
+            const point = group.stroke[i];
+            ctx.lineTo(point.x * scale + offsetX, point.y * scale + offsetY);
+        }
+
+        ctx.stroke();
+    });
+}
+
+// Navigate to the source note of the current flashcard
+function goToFlashcardSource() {
+    const flashcard = generatedFlashcards[currentFlashcardIndex];
+    if (!flashcard) return;
+
+    // Close the modal
+    closeFlashcardReview();
+
+    // Close the notes navbar if needed
+    const navbar = document.getElementById('notenavbar');
+    if (navbar && navbar.classList.contains('open')) {
+        navbar.classList.remove('open');
+    }
+
+    // Load the note
+    loadNote(flashcard.notePath, (note) => {
+        if (!note) return;
+
+        title = flashcard.notePath;
+        allGroups = note.content || [];
+
+        // Scroll to the tape location
+        if (flashcard.tapeBbox) {
+            viewportOffset.y = Math.max(0, flashcard.tapeBbox.y - 100);
+            viewportOffset.x = Math.max(0, flashcard.tapeBbox.x - 100);
+            screenBox.y = viewportOffset.y;
+            screenBox.x = viewportOffset.x;
+        }
+
+        syncGroupIds();
+        reDrawAll(drawCtx);
+        drawGrid(backgroundCtx);
+        updateScrollbar?.();
+        updateReminderCount();
+        titleAnchorsNeedRefresh = true;
+        if (typeof populateTocList === 'function') populateTocList();
+    });
+}
+
+// Initialize flashcard click to flip
+document.addEventListener('DOMContentLoaded', () => {
+    const flashcard = document.getElementById('flashcard');
+    if (flashcard) {
+        flashcard.addEventListener('click', flipFlashcard);
+    }
+
+    // Close modal on clicking outside
+    const modal = document.getElementById('flashcardModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeFlashcardReview();
+            }
+        });
+    }
+});
 
 
 // ======================= REGROUP TITLES ==========================
@@ -5255,7 +6770,7 @@ async function reRenderPdfMedia(group) {
     loadMediaImage(group);
 
     // Save the updated note
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
 
     console.log(`Re-rendered PDF page ${group.pdfPage} at ${newWidth}px - SUCCESS`);
   } catch (err) {
@@ -5410,7 +6925,7 @@ function createMediaGroup(mediaData) {
   loadMediaImage(mediaGroup);
 
   reDrawAll(drawCtx);
-  if (title) saveNote(title, allGroups);
+  if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
 }
 
 /**
@@ -5483,7 +6998,7 @@ function createMediaGroupsVertical(pagesData) {
   console.log(`Inserted ${pagesData.length} PDF pages vertically`);
 
   reDrawAll(drawCtx);
-  if (title) saveNote(title, allGroups);
+  if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
 }
 
 /**
@@ -5676,14 +7191,14 @@ function setupMediaEditListeners(popup, group) {
     group.rotation = (group.rotation - CONFIG.MEDIA.ROTATION_SNAP + 360) % 360;
     document.getElementById('rotationValue').textContent = group.rotation + '°';
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   document.getElementById('rotateCW').onclick = () => {
     group.rotation = (group.rotation + CONFIG.MEDIA.ROTATION_SNAP) % 360;
     document.getElementById('rotationValue').textContent = group.rotation + '°';
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   // Opacity
@@ -5695,7 +7210,7 @@ function setupMediaEditListeners(popup, group) {
     reDrawAll(drawCtx);
   };
   opacitySlider.onchange = () => {
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   // Layer (z-index)
@@ -5703,20 +7218,20 @@ function setupMediaEditListeners(popup, group) {
     group.zIndex = (group.zIndex || 0) - 1;
     document.getElementById('layerValue').textContent = group.zIndex;
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   document.getElementById('layerUp').onclick = () => {
     group.zIndex = (group.zIndex || 0) + 1;
     document.getElementById('layerValue').textContent = group.zIndex;
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   // Aspect lock
   document.getElementById('aspectLock').onchange = (e) => {
     group.aspectLocked = e.target.checked;
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   };
 
   // Delete single page
@@ -5731,7 +7246,7 @@ function setupMediaEditListeners(popup, group) {
       redoGroups = [];
       mediaCache.delete(group.id);
       reDrawAll(drawCtx);
-      if (title) saveNote(title, allGroups);
+      if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
     }
     popup.remove();
     selectedMedia = null;
@@ -5770,7 +7285,7 @@ function setupMediaEditListeners(popup, group) {
       }
 
       reDrawAll(drawCtx);
-      if (title) saveNote(title, allGroups);
+      if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
       popup.remove();
       selectedMedia = null;
     };
@@ -5950,7 +7465,7 @@ function endMediaResize() {
       console.log('Triggering PDF re-render...');
       reRenderPdfMedia(selectedMedia);
     }
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   }
   isResizingMedia = false;
   resizeHandle = null;
@@ -6024,14 +7539,14 @@ function updateMediaEditPopupPosition() {
  */
 function endMediaDrag() {
   if (isDraggingMedia && selectedMedia) {
-    if (title) saveNote(title, allGroups);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   }
   isDraggingMedia = false;
   dragStartBbox = null;
   canvasGroup.style.cursor = 'default';
 }
 
-//======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
+// //======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
 // (function () {
 //   const penOverlay = document.createElement("img");
 //   penOverlay.src = "cursor.png"; // your 945×1396 image

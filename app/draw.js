@@ -1484,6 +1484,53 @@ function selectHighlight(highlightColor){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// REMINDER SELECTION (Similar to Title)
+// ═══════════════════════════════════════════════════════════════════════════
+function selectReminder(reminderColor, visibility, size, reminderDate) {
+    if (visibility == 'false') {
+        const lastGroup = allGroups[allGroups.length - 1];
+        if (lastGroup) lastGroup.visibility = false;
+    }
+
+    // Store original values for undo
+    const modifierId = modifiedGroups.modifier?.id;
+    const originalStyles = {};
+    modifiedGroups.modifiedGroups.forEach(group => {
+        originalStyles[group.id] = {
+            color: group.color,
+            size: group.size,
+            reminderStatus: group.reminderStatus,
+            reminderDate: group.reminderDate,
+            reminderGroupId: group.reminderGroupId
+        };
+    });
+
+    // Generate unique reminder group ID for grouping
+    const reminderGroupId = `reminder_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    modifiedGroups.modifiedGroups.forEach(group => {
+        group.reminderStatus = true;
+        group.reminderDate = reminderDate;
+        group.reminderGroupId = reminderGroupId;
+        group.color = reminderColor;
+        group.size = size;
+    });
+
+    // Track for undo
+    const change = {
+      change: 'styling',
+      originalStyles: originalStyles,
+      groupToRemove: modifiedGroups.modifier,
+    }
+    pastGroups.push(change);
+    redoGroups = [];
+
+    // Refresh reminder list
+    if (typeof updateReminderCount === 'function') updateReminderCount();
+    if (typeof populateReminderList === 'function') populateReminderList();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MEDIA RENDERING (Images & PDFs)
 // ═══════════════════════════════════════════════════════════════════════════
 

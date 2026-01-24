@@ -165,6 +165,7 @@ const TOOL_ID = Object.freeze({
   MATH: "mathSolver",
   MEDIA: "media",
   TAPE: "tape",
+  REMINDER: "reminder",
 });
 
 
@@ -176,13 +177,39 @@ const TOOLBOX_SELECTION = {
     MEDIA: "media",
     PASTE: "paste",
   }),
-  bracket: Object.freeze({
+  squareBracket: Object.freeze({
     PEN: "pen",
     TITLE1: "title1",
     TITLE2: "title2",
     TITLE3: "title3",
+    HIGHLIGHT: "highlight",
     DELETE: "delete",
     COPY: "copy",
+    PASTE: "paste",
+    ERASER: "eraser",
+  }),
+  wavyBracket: Object.freeze({
+    PEN: "pen",
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    HIGHLIGHT: "highlight",
+    DELETE: "delete",
+    COPY: "copy",
+    PASTE: "paste",
+    ERASER: "eraser",
+  }),
+  circleBracket: Object.freeze({
+    PEN: "pen",
+    TITLE1: "title1",
+    TITLE2: "title2",
+    TITLE3: "title3",
+    HIGHLIGHT: "highlight",
+    DELETE: "delete",
+    COPY: "copy",
+    PASTE: "paste",
+    ERASER: "eraser",
+    REMINDER: "reminder",
   }),
   underline: Object.freeze({
     PEN: "pen",
@@ -215,6 +242,7 @@ const TOOLBOX_SELECTION = {
     TAPE: "tape",
     COPY: "copy",
     PASTE: "paste",
+    REMINDER: "reminder",
   }),
   curly: Object.freeze({
     PEN: "pen",
@@ -287,9 +315,9 @@ const TOOL_REGISTRY = Object.freeze({
   highlight: {
     icon: "bx-highlight",
     colorCustomizable: true,
-    sizeCustomizable: true,  // Size only in "press" toolbox
+    sizeCustomizable: false,
     visibilityCustomizable: false,
-    contextual: { press: { sizeCustomizable: true }, default: { sizeCustomizable: false } }
+    defaultSize: 30  // Fixed size for highlight tool
   },
   bold: {
     icon: "bx-bold",
@@ -359,6 +387,12 @@ const TOOL_REGISTRY = Object.freeze({
     sizeCustomizable: false,
     visibilityCustomizable: false,
     tapePresetCustomizable: true
+  },
+  reminder: {
+    icon: "bx-bell",
+    colorCustomizable: true,
+    sizeCustomizable: true,
+    visibilityCustomizable: true
   }
 });
 

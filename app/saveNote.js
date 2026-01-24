@@ -223,6 +223,15 @@ function openFolder(folderName) {
       createSubnoteButton(noteName, folderName, note.created_at, note.isSummaryNote);
     });
   });
+
+  // Scan for flashcards (tapes) in this notebook
+  if (typeof scanNotebookForFlashcards === 'function') {
+    scanNotebookForFlashcards(folderName).then(flashcards => {
+      if (typeof updateFlashcardButton === 'function') {
+        updateFlashcardButton(flashcards);
+      }
+    });
+  }
 }
 
 function listNotesInFolderWithDates(folder, callback) {
@@ -431,8 +440,15 @@ function deleteFolder(folderName) {
 
       // Clear canvas if current note was in deleted folder
       if (title && title.startsWith(`${folderName}/`)) {
+        // Close any open popups
+        const stickyPopup = document.getElementById("stickyPopup");
+        const linkPopup = document.getElementById("linkPopup");
+        if (stickyPopup) stickyPopup.remove();
+        if (linkPopup) linkPopup.remove();
+
         title = null;
         allGroups = [];
+        currentNoteIsSummary = false; // Reset summary flag when folder is deleted
         viewportOffset = { x: 0, y: 0 };
         reDrawAll(drawCtx);
       }
@@ -462,7 +478,7 @@ function openSubFolder(container) {
 }
 
 function promptNewNote(folderName) {
-  if (title) saveNote(title, allGroups);
+  if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
 
   const noteName = prompt("Enter new note name:");
   if (!noteName || !folderName) return;
@@ -540,8 +556,15 @@ function createSubnoteButton(noteName, folderName, createdDate = null, isSummary
 
 
 function loadNoteOnBtn(path, selectedButton) {
+  // Close any open popups (sticky notes, links) before switching notes
+  const stickyPopup = document.getElementById("stickyPopup");
+  const linkPopup = document.getElementById("linkPopup");
+  if (stickyPopup) stickyPopup.remove();
+  if (linkPopup) linkPopup.remove();
+
   if (title) {
-    saveNote(title, allGroups);
+    // Preserve isSummaryNote flag when saving current note
+    saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   }
 
   title = path;
@@ -558,6 +581,9 @@ function loadNoteOnBtn(path, selectedButton) {
 
   loadNote(path, note => {
     if (note) {
+      // Track if this note is a summary note
+      currentNoteIsSummary = note.isSummaryNote || false;
+
       if (note.content) {
         allGroups = note.content;
         syncGroupIds(allGroups);
@@ -566,6 +592,9 @@ function loadNoteOnBtn(path, selectedButton) {
         idCount = 0;
       }
       reDrawAll(drawCtx);
+
+      // Update reminder count for the loaded note
+      if (typeof updateReminderCount === 'function') updateReminderCount();
 
       // Check if this is a summary note and if it's stale
       if (note.isSummaryNote && note.summaryMetadata) {
@@ -731,11 +760,13 @@ function loadNote(path, callback) {
 
 
 // -----save modifiers -----------
-function saveToolboxSettings({ modifiers, toolboxLayout }) {
+function saveToolboxSettings({ modifiers, toolboxLayout, syncStrokeSize, syncBracketToolboxes }) {
   const payload = {
     version: 2,
     modifiers,
     toolboxLayout,
+    syncStrokeSize: syncStrokeSize ?? false,
+    syncBracketToolboxes: syncBracketToolboxes ?? false,
     updatedAt: Date.now()
   };
 
@@ -877,8 +908,15 @@ function deleteNote(noteName) {
 
     deleteReq.onsuccess = () => {
       if (title === noteName) {
+        // Close any open popups
+        const stickyPopup = document.getElementById("stickyPopup");
+        const linkPopup = document.getElementById("linkPopup");
+        if (stickyPopup) stickyPopup.remove();
+        if (linkPopup) linkPopup.remove();
+
         title = null;
         allGroups = [];
+        currentNoteIsSummary = false; // Reset summary flag when deleting current note
         reDrawAll(drawCtx);
         //clearCanvas();  // Make sure you have this function to clear your drawing
       }

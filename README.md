@@ -62,7 +62,7 @@ I designed and deployed a **fully in-browser ML system** that recognizes gesture
 
 ---
 
-#🔍 Deep Dive
+# 🔍 Deep Dive
 
 ---
 
