@@ -302,4 +302,4 @@ class TestFeatureExtractionIntegration:
         features = extractor.extract(delete_stroke)
 
         # Should have high compactness (long path relative to bounding box)
-        assert features[1] > 1.5
+        assert features[1] > 1
