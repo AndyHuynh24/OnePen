@@ -17,7 +17,7 @@ const FEEDBACK_CONFIG = {
     acceptanceTimeout: 5000,
 
     // Batch size before uploading to Firestore
-    batchSize: 10,
+    batchSize: 2,
 
     // Local storage key for pending feedback
     storageKey: 'onepen_feedback_queue',
@@ -120,9 +120,10 @@ function recordPrediction({
     if (!FEEDBACK_CONFIG.enabled) return;
 
     // Skip if confidence is too high (model is already confident)
-    if (confidence > FEEDBACK_CONFIG.uncertaintyThreshold) {
-        return;
-    }
+    // if (confidence > FEEDBACK_CONFIG.uncertaintyThreshold) {
+    //     console.log('[Feedback] Skipping high-confidence prediction:', confidence);
+    //     return;
+    // }
 
     // Skip non-prediction strokes
     if (predictedLabel === undefined || predictedLabel === null) return;
@@ -247,6 +248,7 @@ function addToFeedbackQueue(feedback) {
 
     // Upload if batch is ready
     if (feedbackQueue.length >= FEEDBACK_CONFIG.batchSize) {
+        console.log('[Feedback] Batch size reached, uploading feedback');
         uploadFeedbackBatch();
     }
 }
@@ -260,6 +262,8 @@ function addToFeedbackQueue(feedback) {
  */
 async function uploadFeedbackBatch() {
     if (feedbackQueue.length === 0) return;
+
+    console.log('[Feedback] Uploading feedback batch to Firestore');
 
     // Check if Firebase is available
     if (typeof firebase === 'undefined' || !firebase.firestore) {

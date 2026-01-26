@@ -1781,6 +1781,7 @@ async function classifyStroke(stroke, hold = false) {
                 probabilities: predData.probabilities,
                 modifier: modifier,
             });
+            console.log('work');
         }
     }
 
