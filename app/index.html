@@ -312,6 +312,19 @@
      <div id="toolboxes"></div>
     </div>
 
+    <div class="settings-divider"></div>
+    <div class="modifier-section">
+      <h2>Help Improve OnePen</h2>
+      <p class="settings-description">Help us improve stroke recognition by sharing anonymous usage data. We only collect stroke patterns and whether predictions were accurate - never your actual notes or personal information.</p>
+      <div class="sync-stroke-toggle">
+        <label class="toggle-switch">
+          <input type="checkbox" id="dataCollectionToggle">
+          <span class="slider"></span>
+        </label>
+        <span class="sync-label">Share anonymous usage data to improve AI</span>
+      </div>
+    </div>
+
   <div id="scrollbar">
     <div id="thumb"></div>
   </div>
@@ -324,12 +337,38 @@
     <span>You're offline - changes saved locally</span>
   </div>
 
+  <!-- Data Collection Opt-in Modal -->
+  <div id="dataOptInModal" class="data-optin-modal" style="display: none;">
+    <div class="data-optin-content">
+      <div class="data-optin-icon">
+        <i class='bx bx-brain'></i>
+      </div>
+      <h2>Help Improve OnePen</h2>
+      <p>Would you like to help us improve stroke recognition? We'll collect anonymous data about how well our AI predictions work.</p>
+      <ul class="data-optin-list">
+        <li><i class='bx bx-check'></i> Only stroke shapes (not your actual notes)</li>
+        <li><i class='bx bx-check'></i> Whether predictions were accurate</li>
+        <li><i class='bx bx-check'></i> Completely anonymous</li>
+        <li><i class='bx bx-x'></i> Never your personal information</li>
+      </ul>
+      <div class="data-optin-actions">
+        <button id="dataOptInYes" class="data-optin-btn primary">Yes, I'll help</button>
+        <button id="dataOptInNo" class="data-optin-btn secondary">No thanks</button>
+      </div>
+      <p class="data-optin-note">You can change this anytime in Settings</p>
+    </div>
+  </div>
+
   <script src="tf.min.js"></script>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
+
+  <!-- Feedback Collection for ML Improvement -->
+  <script src="feedbackCollector.js"></script>
 
   <script src="config.js"></script>
   <script src="math.js"></script>

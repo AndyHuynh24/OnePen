@@ -337,6 +337,13 @@ function normalizeStroke(stroke) {
 
 // STROKE_TYPE, CLASSES, and CLASS_THRESHOLDS are now defined in config.js
 
+// Store last prediction for feedback collection
+let lastPredictionData = null;
+
+function getLastPredictionData() {
+    return lastPredictionData;
+}
+
 async function predictImageFromCanvas(stroke, canvas, model) {
   let imgTensor, featureTensor;
   const t0 = performance.now();
@@ -384,28 +391,42 @@ async function predictImageFromCanvas(stroke, canvas, model) {
     const threshold = CONFIG.CLASS_THRESHOLDS[best.label] ?? 0.6;
 
     /* ---------- 5️⃣ Decision ---------- */
+    let finalLabel = STROKE_TYPE.NONE;
+    let finalConfidence = best.prob;
+
     if (best.prob >= threshold) {
       console.log(
         `Predicted: ${best.label} (${best.prob.toFixed(3)})`
       );
-      return best.label;
-    }
-
-    const fallback = ranked.find(
-      r => r.prob >= (CONFIG.CLASS_THRESHOLDS[r.label] ?? 0.6)
-    );
-
-    if (fallback) {
-      console.log(
-        `Fallback: ${fallback.label} (${fallback.prob.toFixed(3)})`
+      finalLabel = best.label;
+    } else {
+      const fallback = ranked.find(
+        r => r.prob >= (CONFIG.CLASS_THRESHOLDS[r.label] ?? 0.6)
       );
-      return fallback.label;
+
+      if (fallback) {
+        console.log(
+          `Fallback: ${fallback.label} (${fallback.prob.toFixed(3)})`
+        );
+        finalLabel = fallback.label;
+        finalConfidence = fallback.prob;
+      } else {
+        console.log(
+          `Prediction too low (max=${best.prob.toFixed(3)} @ ${best.label})`
+        );
+      }
     }
 
-    console.log(
-      `Prediction too low (max=${best.prob.toFixed(3)} @ ${best.label})`
-    );
-    return STROKE_TYPE.NONE;
+    // Store prediction data for feedback collection
+    lastPredictionData = {
+      stroke: stroke,
+      predictedLabel: finalLabel,
+      confidence: finalConfidence,
+      probabilities: probs,
+      timestamp: Date.now(),
+    };
+
+    return finalLabel;
 
   } catch (err) {
     console.error("❌ Prediction failed:", err);

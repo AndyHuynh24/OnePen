@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onepen-v1';
+const CACHE_NAME = 'onepen-v2';
 
 // Core app files to cache
 const CORE_ASSETS = [
@@ -14,6 +14,7 @@ const CORE_ASSETS = [
   '/predict.js',
   '/saveNote.js',
   '/signin.js',
+  '/feedbackCollector.js',
   '/tf.min.js',
   '/cursor.png',
   '/manifest.json',

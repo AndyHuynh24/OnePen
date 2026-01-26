@@ -1769,6 +1769,21 @@ async function classifyStroke(stroke, hold = false) {
     }
 
     reDrawAll(drawCtx);
+
+    // Record prediction for feedback collection (ML improvement)
+    if (typeof recordPrediction === 'function' && predictedLabel !== STROKE_TYPE.NONE) {
+        const predData = typeof getLastPredictionData === 'function' ? getLastPredictionData() : null;
+        if (predData) {
+            recordPrediction({
+                stroke: predData.stroke,
+                predictedLabel: predData.predictedLabel,
+                confidence: predData.confidence,
+                probabilities: predData.probabilities,
+                modifier: modifier,
+            });
+        }
+    }
+
     return {
         modifiedGroups,
         predictedLabel,
@@ -3193,8 +3208,13 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
 function undo() {
     if (pastGroups.length < 1) return;
-    
+
     action = pastGroups.pop();
+
+    // Record undo for feedback collection (ML improvement)
+    if (typeof recordUndo === 'function') {
+        recordUndo(action);
+    }
 
     // Unified styling handler - handles all modifier styling changes (box, curly, bold, title, etc.)
     if (action.change == 'styling') {
@@ -3370,8 +3390,13 @@ function undo() {
 
 function redo() {
     if (redoGroups.length < 1) return;
-    
+
     action = redoGroups.pop();
+
+    // Record redo for feedback collection (ML improvement)
+    if (typeof recordRedo === 'function') {
+        recordRedo(action);
+    }
 
     // Unified styling handler - handles all modifier styling changes (box, curly, bold, title, etc.)
     if (action.change == 'styling') {
@@ -5491,17 +5516,20 @@ function createReminderThumbnail(groups) {
     canvas.height = 80;
     const ctx = canvas.getContext('2d');
 
+    const contentGroups = [...groups];
+    contentGroups.pop();
+
     // Background
     ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (!groups || groups.length === 0) {
+    if (!contentGroups || contentGroups.length === 0) {
         return canvas.toDataURL();
     }
 
     // Calculate bounding box of all groups
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    groups.forEach(group => {
+    contentGroups.forEach(group => {
         if (group.bbox) {
             minX = Math.min(minX, group.bbox.x);
             minY = Math.min(minY, group.bbox.y);
@@ -5518,7 +5546,7 @@ function createReminderThumbnail(groups) {
     }
 
     // Calculate scale to fit
-    const padding = 3;
+    const padding = 4;
     const availableWidth = canvas.width - padding * 2;
     const availableHeight = canvas.height - padding * 2;
     const scale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 1);
@@ -5528,8 +5556,8 @@ function createReminderThumbnail(groups) {
     const offsetY = (canvas.height - contentHeight * scale) / 2 - minY * scale;
 
     // Draw strokes
-    groups.forEach(group => {
-        if (!group.stroke || group.stroke.length < 2 || group.visibility == false) return;
+    contentGroups.forEach(group => {
+        if (!group.stroke || group.stroke.length < 2 || group.visibility == false ) return;
 
         ctx.beginPath();
         ctx.strokeStyle = group.color || '#ff6b6b';

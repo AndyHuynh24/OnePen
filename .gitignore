@@ -1,61 +1,173 @@
-# Python
+# ═══════════════════════════════════════════════════════════════════════════════
+# OnePen .gitignore
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# PYTHON
+# ─────────────────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-
-# Environment (DO NOT COMMIT!)
-.env
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
 *.egg
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
 
 # Virtual environments
 .venv/
 venv/
 ENV/
 env/
-# IDE
+.conda/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# ML / DATA SCIENCE
+# ─────────────────────────────────────────────────────────────────────────────────
+# MLflow tracking (large, auto-generated)
+mlruns/
+
+# Training outputs (large, auto-generated)
+outputs/
+
+# Model files (train new ones, don't commit)
+*.keras
+*.h5
+*.tflite
+*.onnx
+*.pb
+*.pth
+*.pt
+
+# Large data files
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.parquet
+*.feather
+
+# Processed/augmented data (regenerate from raw)
+data/processed/
+data/augmented/
+!data/processed/.gitkeep
+
+# Checkpoints
+checkpoints/
+*.ckpt
+
+# TensorBoard logs
+tensorboard_logs/
+tb_logs/
+
+# Weights & Biases
+wandb/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# JUPYTER NOTEBOOKS
+# ─────────────────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Notebook outputs (optional - uncomment if you want to ignore)
+# *.ipynb
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# IDE / EDITORS
+# ─────────────────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
 
-# Jupyter
-.ipynb_checkpoints/
-
-# ML artifacts (use DVC to track these)
-logs/
-*.keras
-*.h5
-*.tflite
-
-# Processed data (use DVC to track)
-data/processed/*.npz
-data/processed/*.json
-data/augmented/
-
-# OS files
+# ─────────────────────────────────────────────────────────────────────────────────
+# OS FILES
+# ─────────────────────────────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Logs
+# ─────────────────────────────────────────────────────────────────────────────────
+# LOGS
+# ─────────────────────────────────────────────────────────────────────────────────
+logs/
 *.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment
+# ─────────────────────────────────────────────────────────────────────────────────
+# ENVIRONMENT & SECRETS (NEVER COMMIT!)
+# ─────────────────────────────────────────────────────────────────────────────────
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*serviceAccount*.json
+*service-account*.json
+firebase-adminsdk*.json
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# FIREBASE
+# ─────────────────────────────────────────────────────────────────────────────────
+.firebase/
+.firebaserc
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# NODE.JS (if applicable)
+# ─────────────────────────────────────────────────────────────────────────────────
+node_modules/
+package-lock.json
+yarn.lock
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# TESTING
+# ─────────────────────────────────────────────────────────────────────────────────
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.pytest_cache/
+.hypothesis/
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# MISC
+# ─────────────────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+nul
+.cache/
