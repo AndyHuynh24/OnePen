@@ -232,7 +232,9 @@ function drawPastePreview() {
 
   // Draw the pasted strokes (like move feature uses drawStroke)
   pastedGroups.forEach(group => {
-    if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
+    if (group.type === 'text') {
+      drawTextGroup(liveCtx, group);
+    } else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) {
       drawHighlight(liveCtx, group.bbox, group.color);
     } else {
       drawStroke(liveCtx, group.stroke, group.color, 2);
@@ -1945,6 +1947,9 @@ window.onload = async () => {
             openFolder(pathSegments[0]);
             loadNote(lastSaveNote.path, note => {
                 if (note) {
+                    // Close any open embed frame when switching notes
+                    if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
+
                     if (note.content) {
                         allGroups = note.content;
                         syncGroupIds(allGroups);
@@ -2238,7 +2243,10 @@ window.onload = async () => {
             pastedGroups.forEach(group => {
                 group.bbox.x += dx;
                 group.bbox.y += dy;
-                if (group.stroke) {
+                if (group.type === 'text') {
+                    // For text blocks, update fake strokes based on new bbox position
+                    updateTextStrokes(group);
+                } else if (group.stroke) {
                     group.stroke.forEach(st => {
                         if (st.path) {
                             st.path.forEach(point => {
@@ -2397,10 +2405,15 @@ window.onload = async () => {
             modifiedGroups.modifiedGroups.forEach(group => {
                 group.bbox.x += dx;
                 group.bbox.y += dy;
-                group.stroke.forEach(point => {
-                    point.x += dx;
-                    point.y += dy;
-                });
+                if (group.type === 'text') {
+                    // For text blocks, update fake strokes based on new bbox position
+                    updateTextStrokes(group);
+                } else {
+                    group.stroke.forEach(point => {
+                        point.x += dx;
+                        point.y += dy;
+                    });
+                }
             });
 
             moveStartX = e.offsetX/scale;
@@ -3068,16 +3081,28 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
             allGroups.pop();
         }
         modifiedGroups.modifiedGroups.pop();
-        clipboard = modifiedGroups.modifiedGroups.map(group => ({
-            ...group,
-            stroke: group.stroke.map(s => ({
-                ...s,
-                path: s.path ? s.path.map(p => ({ ...p })) : undefined,
-                x: s.x,
-                y: s.y
-            })),
-            bbox: { ...group.bbox }
-        }));
+        clipboard = modifiedGroups.modifiedGroups.map(group => {
+            // Handle text blocks specially
+            if (group.type === 'text') {
+                return {
+                    ...group,
+                    stroke: group.stroke ? [...group.stroke] : [],
+                    fakeStrokes: group.fakeStrokes ? group.fakeStrokes.map(s => [...s]) : [],
+                    bbox: { ...group.bbox }
+                };
+            }
+            // Handle regular stroke groups
+            return {
+                ...group,
+                stroke: group.stroke ? group.stroke.map(s => {
+                    if (typeof s === 'object' && s !== null) {
+                        return { ...s, path: s.path ? s.path.map(p => ({ ...p })) : undefined };
+                    }
+                    return { ...s };
+                }) : [],
+                bbox: { ...group.bbox }
+            };
+        });
         // Flash feedback
         reDrawAll(drawCtx);
         return;
@@ -3096,15 +3121,32 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         // Deep clone clipboard strokes at original position (no offset)
         pastedGroups = clipboard.map(group => {
+            // Handle text blocks specially
+            if (group.type === 'text') {
+                const newGroup = {
+                    ...group,
+                    id: 'text_' + Date.now() + '_' + getNextId(),
+                    stroke: group.stroke ? [...group.stroke] : [],
+                    fakeStrokes: group.fakeStrokes ? group.fakeStrokes.map(s => [...s]) : [],
+                    bbox: { ...group.bbox }
+                };
+                return newGroup;
+            }
+            // Handle regular stroke groups
             const newGroup = {
                 ...group,
                 id: getNextId(),
-                stroke: group.stroke.map(s => ({
-                    ...s,
-                    path: s.path ? s.path.map(p => ({ x: p.x, y: p.y })) : undefined,
-                    x: s.x,
-                    y: s.y
-                })),
+                stroke: group.stroke ? group.stroke.map(s => {
+                    if (typeof s === 'object' && s !== null) {
+                        return {
+                            ...s,
+                            path: s.path ? s.path.map(p => ({ x: p.x, y: p.y })) : undefined,
+                            x: s.x,
+                            y: s.y
+                        };
+                    }
+                    return { ...s };
+                }) : [],
                 bbox: {
                     x: group.bbox.x,
                     y: group.bbox.y,
@@ -3397,17 +3439,20 @@ function undo() {
         const dx = action.dx;
         const dy = action.dy;
         action.modifiedGroups.forEach(group => {
-          // Move strokes back
-          if (group.stroke && Array.isArray(group.stroke)) {
-            group.stroke.forEach(p => {
-              p.x -= dx;
-              p.y -= dy;
-            });
-          }
           // Move bbox back (same direction as strokes)
           if (group.bbox) {
             group.bbox.x -= dx;
             group.bbox.y -= dy;
+          }
+          // Move strokes back
+          if (group.type === 'text') {
+            // For text blocks, update fake strokes based on new bbox position
+            updateTextStrokes(group);
+          } else if (group.stroke && Array.isArray(group.stroke)) {
+            group.stroke.forEach(p => {
+              p.x -= dx;
+              p.y -= dy;
+            });
           }
         });
     }
@@ -3582,17 +3627,20 @@ function redo() {
         const dy = action.dy;
 
         action.modifiedGroups.forEach(group => {
-          // Move strokes forward
-          if (group.stroke && Array.isArray(group.stroke)) {
-            group.stroke.forEach(p => {
-              p.x += dx;
-              p.y += dy;
-            });
-          }
           // Move bbox forward (same direction as strokes)
           if (group.bbox) {
             group.bbox.x += dx;
             group.bbox.y += dy;
+          }
+          // Move strokes forward
+          if (group.type === 'text') {
+            // For text blocks, update fake strokes based on new bbox position
+            updateTextStrokes(group);
+          } else if (group.stroke && Array.isArray(group.stroke)) {
+            group.stroke.forEach(p => {
+              p.x += dx;
+              p.y += dy;
+            });
           }
         });
     }
@@ -5080,6 +5128,9 @@ function autoOpenSummaryNote(summaryPath) {
   // Fallback: directly load the note if button not found
   loadNote(summaryPath, (note) => {
     if (note) {
+      // Close any open embed frame when switching notes
+      if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
+
       title = summaryPath;
       allGroups = note.content || [];
       syncGroupIds(allGroups);
@@ -5095,15 +5146,17 @@ function translateGroup(group, dx, dy) {
     group.bbox.x += dx;
     group.bbox.y += dy;
   }
-  if (Array.isArray(group.stroke)) {
+  if (group.type === 'text') {
+    // For text blocks, update fake strokes based on new bbox position
+    updateTextStrokes(group);
+  } else if (Array.isArray(group.stroke)) {
     group.stroke.forEach(p => {
         if (p && typeof p.x === "number" && typeof p.y === "number") {
         p.x += dx;
         p.y += dy;
         }
     });
-    }
-
+  }
 }
 
 function showStatus(msg) {
@@ -5246,6 +5299,9 @@ function navigateToSummarySource(navGroup) {
       showStatus("Could not load the original note");
       return;
     }
+
+    // Close any open embed frame when switching notes
+    if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
 
     // Update current note state
     title = targetPath;
@@ -5772,6 +5828,9 @@ function navigateToReminder(notePath, targetGroup) {
     if (title !== notePath) {
         loadNote(notePath, (note) => {
             if (!note) return;
+
+            // Close any open embed frame when switching notes
+            if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
 
             title = notePath;
             allGroups = note.content || [];
@@ -6510,6 +6569,9 @@ function goToFlashcardSource() {
     loadNote(flashcard.notePath, (note) => {
         if (!note) return;
 
+        // Close any open embed frame when switching notes
+        if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
+
         title = flashcard.notePath;
         allGroups = note.content || [];
 
@@ -6748,8 +6810,25 @@ function renderTitleThumbnailFromAnchor(anchor) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // Render strokes using each group's actual size
+  // Render strokes and text blocks using each group's actual size
   strokes.forEach(st => {
+    // Handle text blocks
+    if (st.type === 'text') {
+      ctx.save();
+      ctx.globalAlpha = st.opacity !== undefined ? st.opacity : 1.0;
+      ctx.font = `${st.fontSize}px '${st.fontFamily}', sans-serif`;
+      ctx.fillStyle = st.color || '#ffffff';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      const lines = st.text.split('\n');
+      const lineHeight = st.fontSize * 1.3;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, st.bbox.x + 10, st.bbox.y + 5 + i * lineHeight);
+      });
+      ctx.restore();
+      return;
+    }
+    // Handle regular strokes
     if (!st.stroke || st.stroke.length < 2) return;
     ctx.strokeStyle = st.color || "#fff";
     // Use the group's size, with a minimum of 2 and scale up slightly for visibility

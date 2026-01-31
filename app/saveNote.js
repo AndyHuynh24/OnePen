@@ -556,11 +556,11 @@ function createSubnoteButton(noteName, folderName, createdDate = null, isSummary
 
 
 function loadNoteOnBtn(path, selectedButton) {
-  // Close any open popups (sticky notes, links) before switching notes
+  // Close any open popups (sticky notes, embed frames) before switching notes
   const stickyPopup = document.getElementById("stickyPopup");
-  const linkPopup = document.getElementById("linkPopup");
   if (stickyPopup) stickyPopup.remove();
-  if (linkPopup) linkPopup.remove();
+  // Close embed frame using the function from draw.js
+  if (typeof closeEmbedFrame === 'function') closeEmbedFrame();
 
   if (title) {
     // Preserve isSummaryNote flag when saving current note

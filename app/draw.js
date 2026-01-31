@@ -694,10 +694,23 @@ function reDrawMovement() {
     liveCtx.save();
     liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
     if (movingToggle) {
-        moveBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
+        // Calculate combined bounding box from all groups
+        let allPoints = [];
+        modifiedGroups.modifiedGroups.forEach(g => {
+            if (g.type === 'text') {
+                // For text blocks, use bbox corners
+                allPoints.push({ x: g.bbox.x, y: g.bbox.y });
+                allPoints.push({ x: g.bbox.x + g.bbox.w, y: g.bbox.y + g.bbox.h });
+            } else if (g.stroke) {
+                allPoints = allPoints.concat(g.stroke);
+            }
+        });
+        moveBBox = getBoundingBox(allPoints);
         drawBox(moveBBox, 'lightgray', '', true, liveCtx);
         for (const group of modifiedGroups.modifiedGroups) {
-            if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) { //highlighter
+            if (group.type === 'text') {
+                drawTextGroup(liveCtx, group);
+            } else if (group.predictedLabel === STROKE_TYPE.HIGHLIGHT) { //highlighter
                 drawHighlight(liveCtx, group.bbox, group.color)
             } else {
                 drawStroke(liveCtx, group.stroke, group.color, 2);
@@ -708,106 +721,586 @@ function reDrawMovement() {
     }
     liveCtx.restore();
 }
-function showLinkPopup(link) {
-  // Remove any existing popup
-  const old = document.getElementById("linkPopup");
-  if (old) old.remove();
+// ═══════════════════════════════════════════════════════════════════════════
+// EMBEDDED LINK FRAME
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const popupWidth = 240;
-  const popupHeight = 100;
+// State for embedded frame
+let activeEmbedFrame = null;
+let embedFrameState = {
+  linkGroup: null,
+  currentSize: { width: 480, height: 360 }
+};
+
+function showLinkPopup(link) {
+  // Close any existing embed frame (only one at a time)
+  closeEmbedFrame();
+
+  // If no URL set, show URL input first
+  if (!link.url) {
+    showUrlInputPopup(link);
+    return;
+  }
+
+  // Show the embedded frame
+  showEmbedFrame(link);
+}
+
+function showUrlInputPopup(link) {
+  const old = document.getElementById("embedUrlInput");
+  if (old) old.remove();
 
   // Convert world → screen
   const screenX = link.bbox.x - viewportOffset.x;
   const screenY = link.bbox.y - viewportOffset.y;
 
-  // Try above first
-  let popupTop = screenY - popupHeight - 24;
+  const popupWidth = 300;
+  const popupHeight = 90;
+
+  // Position above or below
+  let popupTop = screenY - popupHeight - 12;
   let popupLeft = screenX + link.bbox.w / 2 - popupWidth / 2;
-
-  // If above is offscreen, go below
   if (popupTop < 0) popupTop = screenY + link.bbox.h + 8;
-
-  // Clamp horizontally
   popupLeft = Math.max(8, Math.min(window.innerWidth - popupWidth - 8, popupLeft));
 
-  // === Create popup ===
   const popup = document.createElement("div");
-  popup.id = "linkPopup";
-  popup.style.position = "fixed";
-  popup.style.left = `${popupLeft}px`;
-  popup.style.top = `${popupTop}px`;
-  popup.style.width = `${popupWidth}px`;
-  popup.style.height = `${popupHeight}px`;
-  popup.style.background = "rgba(230,245,255,0.98)";
-  popup.style.border = "2px solid #0077ff";
-  popup.style.borderRadius = "10px";
-  popup.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
-  popup.style.padding = "12px";
-  popup.style.display = "flex";
-  popup.style.flexDirection = "column";
-  popup.style.alignItems = "center";
-  popup.style.justifyContent = "center";
-  popup.style.zIndex = 999999;
+  popup.id = "embedUrlInput";
+  popup.className = "embed-url-popup";
+  popup.style.cssText = `
+    position: fixed;
+    left: ${popupLeft}px;
+    top: ${popupTop}px;
+    width: ${popupWidth}px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  `;
 
-  // === Input field ===
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = "Enter or edit URL...";
+  input.placeholder = "Enter URL to embed...";
   input.value = link.url || "";
-  input.style.width = "90%";
-  input.style.height = "30px";
-  input.style.border = "1px solid #aaa";
-  input.style.borderRadius = "6px";
-  input.style.padding = "4px 8px";
-  input.style.marginBottom = "10px";
-  input.style.fontSize = "14px";
+  input.style.cssText = `
+    width: 100%;
+    height: 32px;
+    background: #1a1a1a;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 0 10px;
+    color: #ddd;
+    font-size: 13px;
+    font-family: 'Mali', sans-serif;
+    box-sizing: border-box;
+  `;
 
-  // === Buttons ===
-  const btnContainer = document.createElement("div");
-  btnContainer.style.display = "flex";
-  btnContainer.style.gap = "10px";
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display: flex; gap: 8px; justify-content: flex-end;";
 
-  const goBtn = document.createElement("button");
-  goBtn.textContent = "🌐 Go";
-  goBtn.style.padding = "4px 12px";
-  goBtn.style.border = "none";
-  goBtn.style.borderRadius = "6px";
-  goBtn.style.background = "#0077ff";
-  goBtn.style.color = "white";
-  goBtn.style.cursor = "pointer";
-  goBtn.onclick = () => {
+  const embedBtn = document.createElement("button");
+  embedBtn.innerHTML = "<i class='bx bx-window-alt'></i> Embed";
+  embedBtn.style.cssText = `
+    padding: 6px 14px;
+    background: #555;
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-family: 'Mali', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  `;
+  embedBtn.onclick = () => {
     let url = input.value.trim();
     if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    link.url = url;
+    popup.remove();
+    showEmbedFrame(link);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+  };
 
-    // ✅ Ensure proper protocol so it doesn't open as a relative path
-    if (!/^https?:\/\//i.test(url)) {
-        url = "https://" + url;
-    }
+  const cancelBtn = document.createElement("button");
+  cancelBtn.innerHTML = "<i class='bx bx-x'></i>";
+  cancelBtn.style.cssText = `
+    padding: 6px 10px;
+    background: #3a3a3a;
+    border: none;
+    border-radius: 6px;
+    color: #888;
+    cursor: pointer;
+  `;
+  cancelBtn.onclick = () => popup.remove();
 
-    window.open(url, "_blank", "noopener,noreferrer");
-    };
-
-
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "✕";
-  closeBtn.style.padding = "4px 10px";
-  closeBtn.style.border = "none";
-  closeBtn.style.borderRadius = "6px";
-  closeBtn.style.background = "#ccc";
-  closeBtn.style.cursor = "pointer";
-  closeBtn.onclick = () => popup.remove();
-
-  btnContainer.appendChild(goBtn);
-  btnContainer.appendChild(closeBtn);
-
-  // === Auto-save on input ===
-  input.addEventListener("input", () => {
-    link.url = input.value;
+  // Enter key to embed
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") embedBtn.click();
+    if (e.key === "Escape") popup.remove();
   });
 
+  btnRow.appendChild(embedBtn);
+  btnRow.appendChild(cancelBtn);
   popup.appendChild(input);
-  popup.appendChild(btnContainer);
+  popup.appendChild(btnRow);
   document.body.appendChild(popup);
+  input.focus();
+}
+
+function showEmbedFrame(link) {
+  embedFrameState.linkGroup = link;
+
+  // Calculate initial position (below or above strokes)
+  const screenX = link.bbox.x - viewportOffset.x;
+  const screenY = link.bbox.y - viewportOffset.y;
+  const frameWidth = embedFrameState.currentSize.width;
+  const frameHeight = embedFrameState.currentSize.height;
+
+  // Try below first
+  let frameTop = screenY + link.bbox.h + 12;
+  let frameLeft = screenX + link.bbox.w / 2 - frameWidth / 2;
+
+  // If below would clip, try above
+  if (frameTop + frameHeight > window.innerHeight - 20) {
+    frameTop = screenY - frameHeight - 12;
+  }
+
+  // If above also clips, just place at top
+  if (frameTop < 50) frameTop = 50;
+
+  // Clamp horizontally within screen bounds
+  frameLeft = Math.max(10, Math.min(window.innerWidth - frameWidth - 10, frameLeft));
+
+  // Create frame container
+  const frame = document.createElement("div");
+  frame.id = "embedFrame";
+  frame.className = "embed-frame";
+  frame.style.cssText = `
+    position: fixed;
+    left: ${frameLeft}px;
+    top: ${frameTop}px;
+    width: ${frameWidth}px;
+    height: ${frameHeight}px;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 999998;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  `;
+
+  // Header bar
+  const header = document.createElement("div");
+  header.className = "embed-frame-header";
+  header.style.cssText = `
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    cursor: move;
+    flex-shrink: 0;
+  `;
+
+  // URL display
+  const urlDisplay = document.createElement("div");
+  urlDisplay.className = "embed-url-display";
+  urlDisplay.style.cssText = `
+    flex: 1;
+    font-size: 11px;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+    font-family: monospace;
+  `;
+  try {
+    const urlObj = new URL(link.url);
+    urlDisplay.textContent = urlObj.hostname + urlObj.pathname.substring(0, 30) + (urlObj.pathname.length > 30 ? "..." : "");
+  } catch {
+    urlDisplay.textContent = link.url.substring(0, 40) + "...";
+  }
+
+  // Header buttons
+  const headerBtns = document.createElement("div");
+  headerBtns.style.cssText = "display: flex; gap: 6px;";
+
+  // Edit URL button
+  const editBtn = document.createElement("button");
+  editBtn.innerHTML = "<i class='bx bx-edit-alt'></i>";
+  editBtn.title = "Edit URL";
+  editBtn.style.cssText = `
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    border-radius: 4px;
+  `;
+  editBtn.onmouseenter = () => editBtn.style.background = "#3a3a3a";
+  editBtn.onmouseleave = () => editBtn.style.background = "transparent";
+  editBtn.onclick = () => {
+    closeEmbedFrame();
+    link.url = ""; // Clear to show input
+    showUrlInputPopup(link);
+  };
+
+  // Open in new tab button
+  const openBtn = document.createElement("button");
+  openBtn.innerHTML = "<i class='bx bx-link-external'></i>";
+  openBtn.title = "Open in new tab";
+  openBtn.style.cssText = `
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    border-radius: 4px;
+  `;
+  openBtn.onmouseenter = () => openBtn.style.background = "#3a3a3a";
+  openBtn.onmouseleave = () => openBtn.style.background = "transparent";
+  openBtn.onclick = () => window.open(link.url, "_blank", "noopener,noreferrer");
+
+  // Close button
+  const closeBtn = document.createElement("button");
+  closeBtn.innerHTML = "<i class='bx bx-x'></i>";
+  closeBtn.title = "Close";
+  closeBtn.style.cssText = `
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    border-radius: 4px;
+  `;
+  closeBtn.onmouseenter = () => closeBtn.style.background = "#3a3a3a";
+  closeBtn.onmouseleave = () => closeBtn.style.background = "transparent";
+  closeBtn.onclick = closeEmbedFrame;
+
+  headerBtns.appendChild(editBtn);
+  headerBtns.appendChild(openBtn);
+  headerBtns.appendChild(closeBtn);
+  header.appendChild(urlDisplay);
+  header.appendChild(headerBtns);
+
+  // Iframe container
+  const iframeContainer = document.createElement("div");
+  iframeContainer.style.cssText = "flex: 1; position: relative; overflow: hidden;";
+
+  // Loading indicator
+  const loader = document.createElement("div");
+  loader.className = "embed-loader";
+  loader.style.cssText = `
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1e1e1e;
+    color: #666;
+    font-size: 13px;
+  `;
+  loader.innerHTML = "<i class='bx bx-loader-alt bx-spin' style='font-size: 24px; margin-right: 8px;'></i> Loading...";
+
+  // Iframe
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = `
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+  `;
+  iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
+
+  // Error fallback
+  const errorDiv = document.createElement("div");
+  errorDiv.className = "embed-error";
+  errorDiv.style.cssText = `
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1e1e1e;
+    color: #888;
+    text-align: center;
+    padding: 20px;
+  `;
+  errorDiv.innerHTML = `
+    <i class='bx bx-shield-x' style='font-size: 48px; color: #555; margin-bottom: 12px;'></i>
+    <div style="font-size: 14px; margin-bottom: 8px;">This site cannot be embedded</div>
+    <div style="font-size: 11px; color: #666; margin-bottom: 16px;">The website blocks iframe embedding for security reasons</div>
+    <button id="embedErrorOpenBtn" style="
+      padding: 8px 16px;
+      background: #444;
+      border: none;
+      border-radius: 6px;
+      color: #ddd;
+      cursor: pointer;
+      font-family: 'Mali', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    "><i class='bx bx-link-external'></i> Open in new tab</button>
+  `;
+
+  // Convert URL to embed-friendly format for known platforms
+  function getEmbedUrl(url) {
+    try {
+      const urlObj = new URL(url);
+
+      // YouTube: convert watch URLs to embed URLs
+      if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+        let videoId = null;
+        if (urlObj.hostname.includes('youtu.be')) {
+          videoId = urlObj.pathname.slice(1);
+        } else if (urlObj.searchParams.has('v')) {
+          videoId = urlObj.searchParams.get('v');
+        } else if (urlObj.pathname.includes('/embed/')) {
+          return url; // Already embed URL
+        }
+        if (videoId) {
+          return `https://www.youtube.com/embed/${videoId}`;
+        }
+      }
+
+      // Vimeo: convert to embed URL
+      if (urlObj.hostname.includes('vimeo.com')) {
+        const match = urlObj.pathname.match(/\/(\d+)/);
+        if (match) {
+          return `https://player.vimeo.com/video/${match[1]}`;
+        }
+      }
+
+      // Google Slides/Docs/Sheets: convert to embed format
+      if (urlObj.hostname.includes('docs.google.com')) {
+        // Already in embed/preview format
+        if (url.includes('/embed') || url.includes('/preview') || url.includes('/pub')) {
+          return url;
+        }
+
+        // Google Slides presentation
+        if (url.includes('/presentation/')) {
+          // Extract the presentation ID and convert to embed
+          const match = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+          if (match) {
+            return `https://docs.google.com/presentation/d/${match[1]}/embed?start=false&loop=false&delayms=3000`;
+          }
+        }
+
+        // Google Docs document
+        if (url.includes('/document/')) {
+          const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+          if (match) {
+            return `https://docs.google.com/document/d/${match[1]}/preview`;
+          }
+        }
+
+        // Google Sheets spreadsheet
+        if (url.includes('/spreadsheets/')) {
+          const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+          if (match) {
+            return `https://docs.google.com/spreadsheets/d/${match[1]}/preview`;
+          }
+        }
+
+        // Google Forms
+        if (url.includes('/forms/')) {
+          return url.replace(/\/edit.*$/, '/viewform?embedded=true');
+        }
+
+        // Fallback: try preview
+        return url.replace(/\/edit.*$/, '/preview');
+      }
+
+      // Figma
+      if (urlObj.hostname.includes('figma.com')) {
+        return `https://www.figma.com/embed?embed_host=onepen&url=${encodeURIComponent(url)}`;
+      }
+
+      // CodePen
+      if (urlObj.hostname.includes('codepen.io') && urlObj.pathname.includes('/pen/')) {
+        return url.replace('/pen/', '/embed/');
+      }
+
+    } catch (e) {
+      console.warn('URL parsing failed:', e);
+    }
+    return url;
+  }
+
+  // Handle iframe load/error
+  let loadTimeout;
+  let hasLoaded = false;
+
+  iframe.onload = () => {
+    hasLoaded = true;
+    clearTimeout(loadTimeout);
+    loader.style.display = "none";
+    // For cross-origin iframes, onload fires even when content loads
+    // We can't detect X-Frame-Options errors easily, so we trust onload
+  };
+
+  iframe.onerror = () => {
+    clearTimeout(loadTimeout);
+    showEmbedError();
+  };
+
+  function showEmbedError() {
+    loader.style.display = "none";
+    iframe.style.display = "none";
+    errorDiv.style.display = "flex";
+    errorDiv.querySelector("#embedErrorOpenBtn").onclick = () => {
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    };
+  }
+
+  // Longer timeout - only show error if nothing loads at all
+  loadTimeout = setTimeout(() => {
+    if (!hasLoaded && loader.style.display !== "none") {
+      showEmbedError();
+    }
+  }, 15000);
+
+  // Set iframe src with converted embed URL
+  const embedUrl = getEmbedUrl(link.url);
+  iframe.src = embedUrl;
+
+  iframeContainer.appendChild(loader);
+  iframeContainer.appendChild(iframe);
+  iframeContainer.appendChild(errorDiv);
+
+  // Resize handle
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "embed-resize-handle";
+  resizeHandle.style.cssText = `
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, #444 50%);
+    border-radius: 0 0 10px 0;
+  `;
+
+  // Assemble frame
+  frame.appendChild(header);
+  frame.appendChild(iframeContainer);
+  frame.appendChild(resizeHandle);
+  document.body.appendChild(frame);
+
+  activeEmbedFrame = frame;
+
+  // Setup drag (header) - freely moveable within canvas
+  setupEmbedDrag(frame, header);
+
+  // Setup resize
+  setupEmbedResize(frame, resizeHandle, iframe);
+}
+
+function setupEmbedDrag(frame, header) {
+  let isDragging = false;
+  let startX, startY, startLeft, startTop;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.tagName === "BUTTON") return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = parseInt(frame.style.left) || 0;
+    startTop = parseInt(frame.style.top) || 0;
+    frame.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // Get canvas bounds for constraint
+    const canvas = document.getElementById("canvasGroup");
+    const canvasRect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+
+    // Allow free movement within canvas bounds (keep at least 50px visible)
+    const minVisible = 50;
+    const newLeft = startLeft + dx;
+    const newTop = startTop + dy;
+
+    frame.style.left = Math.max(canvasRect.left - frame.offsetWidth + minVisible,
+                                Math.min(canvasRect.right - minVisible, newLeft)) + "px";
+    frame.style.top = Math.max(canvasRect.top - frame.offsetHeight + minVisible,
+                               Math.min(canvasRect.bottom - minVisible, newTop)) + "px";
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      frame.style.cursor = "";
+    }
+  });
+}
+
+function setupEmbedResize(frame, handle, iframe) {
+  let isResizing = false;
+  let startX, startY, startW, startH;
+
+  handle.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startW = frame.offsetWidth;
+    startH = frame.offsetHeight;
+    // Disable iframe pointer events during resize
+    iframe.style.pointerEvents = "none";
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const newW = Math.max(280, Math.min(window.innerWidth - 20, startW + dx));
+    const newH = Math.max(200, Math.min(window.innerHeight - 50, startH + dy));
+    frame.style.width = newW + "px";
+    frame.style.height = newH + "px";
+    // Update stored size
+    embedFrameState.currentSize.width = newW;
+    embedFrameState.currentSize.height = newH;
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isResizing) {
+      isResizing = false;
+      iframe.style.pointerEvents = "auto";
+    }
+  });
+}
+
+function closeEmbedFrame() {
+  if (activeEmbedFrame) {
+    activeEmbedFrame.remove();
+    activeEmbedFrame = null;
+  }
+  embedFrameState.linkGroup = null;
+  embedFrameState.isPiP = false;
+
+  // Also close URL input if open
+  const urlInput = document.getElementById("embedUrlInput");
+  if (urlInput) urlInput.remove();
 }
 
 
@@ -1131,17 +1624,36 @@ function reDrawAll(ctx) {
             const { x, y, w, h } = group.bbox;
             ctx.save();
 
-            // --- Clickable dashed box (blue)
-            ctx.strokeStyle = group.color || "#0077ff";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 3]);
+            // Determine color based on whether URL is set
+            const hasUrl = group.url && group.url.trim() !== "";
+            const borderColor = hasUrl ? "#666" : "#888";
+            const iconColor = hasUrl ? "#888" : "#666";
+
+            // --- Clickable box with subtle styling
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
             ctx.strokeRect(x, y, w, h);
             ctx.setLineDash([]);
 
-            // --- Draw small link icon at top-left edge
+            // --- Draw embed icon badge at top-left
+            const badgeSize = 20;
+            ctx.fillStyle = "#2a2a2a";
+            ctx.beginPath();
+            ctx.roundRect(x - 2, y - badgeSize - 4, badgeSize + 4, badgeSize, 4);
+            ctx.fill();
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Draw icon inside badge
+            ctx.font = "12px 'boxicons'";
+            ctx.fillStyle = iconColor;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            // Use a window/frame icon to indicate embed
             ctx.font = "14px sans-serif";
-            ctx.fillStyle = "#0077ff";
-            ctx.fillText("🔗", x - 2, y - 4);
+            ctx.fillText("⧉", x + badgeSize / 2, y - badgeSize / 2 - 2);
 
             ctx.restore();
             return;
@@ -1466,8 +1978,18 @@ function selectHighlight(highlightColor){
     allGroups.pop();
     modifiedGroups.modifiedGroups.pop();
     highlightColor = hexToRgb(highlightColor);
-  
-    let bbox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
+
+    // Collect all points including text block bboxes
+    let allPoints = [];
+    modifiedGroups.modifiedGroups.forEach(g => {
+        if (g.type === 'text' && g.bbox) {
+            allPoints.push({ x: g.bbox.x, y: g.bbox.y });
+            allPoints.push({ x: g.bbox.x + g.bbox.w, y: g.bbox.y + g.bbox.h });
+        } else if (g.stroke) {
+            allPoints = allPoints.concat(g.stroke);
+        }
+    });
+    let bbox = getBoundingBox(allPoints);
     const horizontalPadding = bbox.h * 0.1; // Extra width
     const verticalPadding = bbox.h * 0.1; // Extra height
     const shiftUp = bbox.h * 0.025; // Shift highlight upwards by 10px (adjust as needed)
