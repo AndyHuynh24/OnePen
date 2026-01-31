@@ -108,6 +108,25 @@ function drawTapeGroup(ctx, group) {
     });
   }
 
+  // Draw text blocks underneath
+  if (Array.isArray(group.textBlocks) && group.textBlocks.length > 0) {
+    group.textBlocks.forEach(tb => {
+      ctx.save();
+      ctx.globalAlpha = tb.opacity !== undefined ? tb.opacity : 1.0;
+      ctx.font = `${tb.fontSize}px '${tb.fontFamily}', sans-serif`;
+      ctx.fillStyle = tb.color || '#ffffff';
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+
+      const lines = tb.text.split('\n');
+      const lineHeight = tb.fontSize * 1.3;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, tb.bbox.x + 10, tb.bbox.y + 5 + i * lineHeight);
+      });
+      ctx.restore();
+    });
+  }
+
   // Calculate opacity based on reveal state and fade progress
   let tapeOpacity;
   if (revealed) {
@@ -1061,12 +1080,15 @@ function reDrawAll(ctx) {
 
     let drawCount = 0;
 
-    // First pass: draw media groups (so they appear behind strokes)
+    // First pass: draw media and text groups (so they appear behind strokes)
     allGroups.forEach((group) => {
         if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
         if (group.type === "media") {
             drawCount++;
             drawMediaGroup(ctx, group);
+        } else if (group.type === "text") {
+            drawCount++;
+            drawTextGroup(ctx, group);
         }
     });
 
@@ -1083,7 +1105,7 @@ function reDrawAll(ctx) {
     // Third pass: draw all other groups
     allGroups.forEach((group) => {
         if (!group?.bbox || group?.visibility == false || !intersect(group?.bbox, screenBox)) return;
-        if (group.type === "media") return; // Skip media, already drawn
+        if (group.type === "media" || group.type === "text") return; // Skip media and text, already drawn
 
         // Skip highlights, already drawn in second pass
         const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT;
@@ -1190,10 +1212,10 @@ function reDrawAll(ctx) {
         }
     });
 
-    // Fourth pass: draw media selection handles on top of everything
+    // Fourth pass: draw media/text selection handles on top of everything
     if (selectedMedia) {
         allGroups.forEach((group) => {
-            if (group.type === "media" && group.id === selectedMedia.id) {
+            if ((group.type === "media" || group.type === "text") && group.id === selectedMedia.id) {
                 drawMediaSelection(ctx, group);
             }
         });
@@ -1568,6 +1590,53 @@ function drawMediaGroup(ctx, group) {
 
   // Draw the image
   ctx.drawImage(img, x, y, w, h);
+
+  ctx.restore();
+}
+
+/**
+ * Draw a text group on the canvas
+ */
+function drawTextGroup(ctx, group) {
+  if (!group.visibility || group.type !== 'text') return;
+
+  const { x, y, w, h } = group.bbox;
+
+  ctx.save();
+  ctx.globalAlpha = group.opacity !== undefined ? group.opacity : 1.0;
+
+  // Apply rotation around center
+  if (group.rotation && group.rotation !== 0) {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((group.rotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+
+  // Set font
+  ctx.font = `${group.fontSize}px '${group.fontFamily}', sans-serif`;
+  ctx.fillStyle = group.color || '#ffffff';
+  ctx.textBaseline = 'top';
+
+  // Handle text alignment
+  let textX = x + 10;
+  if (group.textAlign === 'center') {
+    ctx.textAlign = 'center';
+    textX = x + w / 2;
+  } else if (group.textAlign === 'right') {
+    ctx.textAlign = 'right';
+    textX = x + w - 10;
+  } else {
+    ctx.textAlign = 'left';
+  }
+
+  // Draw each line
+  const lines = group.text.split('\n');
+  const lineHeight = group.fontSize * 1.3;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, textX, y + 5 + i * lineHeight);
+  });
 
   ctx.restore();
 }

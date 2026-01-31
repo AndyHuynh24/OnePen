@@ -300,6 +300,10 @@ let currentTapePreset = 'polkadot'; // Default preset
 let lastTapeClickTime = 0;
 let lastTapeClickTarget = null;
 
+// Text block click tracking for double-click detection
+let lastTextClickTime = 0;
+let lastTextClickTarget = null;
+
 function flashTape(tape) {
   const originalColor = tape.borderColor;
   tape.borderColor = CONFIG.COLORS.FLASH_TAPE;
@@ -1605,7 +1609,22 @@ async function classifyStroke(stroke, hold = false) {
             }
 
             //check if inside box
-            if (isInside(group.stroke, currentStroke)) {
+            // Special handling for text blocks - check if bbox is inside modifier
+            let isGroupInside = false;
+            if (group.type === 'text') {
+                // For text blocks, check if bbox corners are inside the modifier
+                const corners = [
+                    { x: group.bbox.x, y: group.bbox.y },
+                    { x: group.bbox.x + group.bbox.w, y: group.bbox.y },
+                    { x: group.bbox.x + group.bbox.w, y: group.bbox.y + group.bbox.h },
+                    { x: group.bbox.x, y: group.bbox.y + group.bbox.h }
+                ];
+                isGroupInside = isInside(corners, currentStroke);
+            } else {
+                isGroupInside = isInside(group.stroke, currentStroke);
+            }
+
+            if (isGroupInside) {
                 modifiedGroups.push(group);
             //else set maxY to detect underline for later on
             } else {
@@ -1649,7 +1668,17 @@ async function classifyStroke(stroke, hold = false) {
         }
     }
 
-    if (modifiedGroups.length >= 3 || intersectPointsCount >= 4)  {
+    // Count effective strokes (text blocks count as 3)
+    let effectiveStrokeCount = 0;
+    modifiedGroups.forEach(g => {
+        if (g.type === 'text' && g.fakeStrokes) {
+            effectiveStrokeCount += g.fakeStrokes.length;
+        } else {
+            effectiveStrokeCount += 1;
+        }
+    });
+
+    if (effectiveStrokeCount >= 3 || intersectPointsCount >= 4)  {
         imgData = extractImageData(stroke, 96);
         // Preview
         const viewerCanvas = document.getElementById('viewer');
@@ -2060,13 +2089,50 @@ window.onload = async () => {
             return; // Prevents drawing
         }
 
-        // === Media Drag Detection ===
-        // If clicking inside selected media (not on handle), start drag
-        if (selectedMedia && isPointInsideSelectedMedia(e.offsetX, e.offsetY)) {
+        // === Text/Media Click Detection ===
+        // Check for clicks on text or media blocks
+        const clickedGroup = findMediaGroupAt(worldX, worldY);
+        if (clickedGroup) {
             e.preventDefault();
             e.stopPropagation();
-            startMediaDrag(e.offsetX, e.offsetY);
-            return; // Prevents drawing
+
+            const now = Date.now();
+
+            // Check for double-click to edit (text blocks only)
+            if (clickedGroup.type === 'text' &&
+                lastTextClickTarget === clickedGroup.id &&
+                now - lastTextClickTime < 400) {
+                startTextEditing(clickedGroup);
+                lastTextClickTarget = null;
+                lastTextClickTime = 0;
+                return;
+            }
+
+            // If already selected, check for resize handle first
+            if (selectedMedia && selectedMedia.id === clickedGroup.id) {
+                const handleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
+                if (handleHit) {
+                    startMediaResize(handleHit, e.offsetX, e.offsetY);
+                    return;
+                }
+                // Start drag
+                startMediaDrag(e.offsetX, e.offsetY);
+                // Track for double-click (text only)
+                if (clickedGroup.type === 'text') {
+                    lastTextClickTarget = clickedGroup.id;
+                    lastTextClickTime = now;
+                }
+                return;
+            }
+
+            // Select the group
+            selectedMedia = clickedGroup;
+            if (clickedGroup.type === 'text') {
+                lastTextClickTarget = clickedGroup.id;
+                lastTextClickTime = now;
+            }
+            reDrawAll(drawCtx);
+            return;
         }
 
         // === Media Selection Management ===
@@ -3169,10 +3235,41 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         }
         modifiedGroups.modifiedGroups.pop();
 
-        const groupBBox = getBoundingBox(modifiedGroups.modifiedGroups.flatMap(g => g.stroke));
+        // Collect all strokes in proper format and calculate bbox
+        const coveredGroups = modifiedGroups.modifiedGroups;
+        const strokesForTape = [];
+        const textBlocksForTape = [];
+        let allPoints = [];
+
+        coveredGroups.forEach(g => {
+            if (g.type === 'text') {
+                // Store text block info for rendering
+                textBlocksForTape.push({
+                    text: g.text,
+                    fontFamily: g.fontFamily,
+                    fontSize: g.fontSize,
+                    color: g.color,
+                    bbox: { ...g.bbox },
+                    opacity: g.opacity
+                });
+                // Add bbox corners to allPoints for bbox calculation
+                allPoints.push({ x: g.bbox.x, y: g.bbox.y });
+                allPoints.push({ x: g.bbox.x + g.bbox.w, y: g.bbox.y + g.bbox.h });
+            } else if (g.stroke && g.stroke.length >= 2) {
+                // Store stroke with proper format
+                strokesForTape.push({
+                    path: g.stroke,
+                    color: g.color,
+                    size: g.size || 2
+                });
+                allPoints = allPoints.concat(g.stroke);
+            }
+        });
+
+        const groupBBox = getBoundingBox(allPoints);
 
         // Store IDs of covered groups
-        const coveredGroupIds = modifiedGroups.modifiedGroups.map(g => g.id);
+        const coveredGroupIds = coveredGroups.map(g => g.id);
 
         // Use the tool's preset (from toolbox) or fallback to default
         const tapePresetToUse = toolTapePreset || "polkadot";
@@ -3182,7 +3279,8 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
             id: getNextId(),
             type: "tape",
             bbox: groupBBox,
-            stroke: modifiedGroups.modifiedGroups.flatMap(g => g.stroke),
+            stroke: strokesForTape,
+            textBlocks: textBlocksForTape,
             coveredGroupIds: coveredGroupIds,
             preset: tapePresetToUse,
             revealed: false,
@@ -3924,12 +4022,14 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
 
         updateProgress(40);
 
-        // --- First pass: Draw media groups (behind strokes) ---
+        // --- First pass: Draw media and text groups (behind strokes) ---
         if (includeMedia) {
             for (const group of groups) {
                 if (!group?.bbox || group?.visibility === false) continue;
                 if (group.type === "media") {
                     await drawMediaForExport(ctx, group);
+                } else if (group.type === "text") {
+                    drawTextGroupForExport(ctx, group);
                 }
             }
         }
@@ -3939,7 +4039,7 @@ async function exportCanvasToPDF(groups, mode = "continuous", includeGrid = true
         // --- Second pass: Draw all other groups (matching reDrawAll) ---
         for (const group of groups) {
             if (!group?.bbox || group?.visibility === false) continue;
-            if (group.type === "media") continue; // Already drawn
+            if (group.type === "media" || group.type === "text") continue; // Already drawn
 
             const hasStroke = Array.isArray(group.stroke) && group.stroke.length > 0;
 
@@ -4119,6 +4219,47 @@ async function drawMediaForExport(ctx, group) {
     });
 }
 
+// Helper: Draw text group for export
+function drawTextGroupForExport(ctx, group) {
+    if (!group.text) return;
+
+    const { x, y, w } = group.bbox;
+
+    ctx.save();
+    ctx.globalAlpha = group.opacity !== undefined ? group.opacity : 1.0;
+
+    if (group.rotation && group.rotation !== 0) {
+        const cx = x + group.bbox.w / 2;
+        const cy = y + group.bbox.h / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate((group.rotation * Math.PI) / 180);
+        ctx.translate(-cx, -cy);
+    }
+
+    ctx.font = `${group.fontSize}px '${group.fontFamily}', sans-serif`;
+    ctx.fillStyle = group.color || '#ffffff';
+    ctx.textBaseline = 'top';
+
+    let textX = x + 10;
+    if (group.textAlign === 'center') {
+        ctx.textAlign = 'center';
+        textX = x + w / 2;
+    } else if (group.textAlign === 'right') {
+        ctx.textAlign = 'right';
+        textX = x + w - 10;
+    } else {
+        ctx.textAlign = 'left';
+    }
+
+    const lines = group.text.split('\n');
+    const lineHeight = group.fontSize * 1.3;
+    lines.forEach((line, i) => {
+        ctx.fillText(line, textX, y + 5 + i * lineHeight);
+    });
+
+    ctx.restore();
+}
+
 // Helper: Draw tape for export
 function drawTapeForExport(ctx, group) {
     const { x, y, w, h } = group.bbox;
@@ -4148,6 +4289,25 @@ function drawTapeForExport(ctx, group) {
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.stroke();
+        });
+    }
+
+    // Draw text blocks underneath
+    if (Array.isArray(group.textBlocks) && group.textBlocks.length > 0) {
+        group.textBlocks.forEach(tb => {
+            ctx.save();
+            ctx.globalAlpha = tb.opacity !== undefined ? tb.opacity : 1.0;
+            ctx.font = `${tb.fontSize}px '${tb.fontFamily}', sans-serif`;
+            ctx.fillStyle = tb.color || '#ffffff';
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+
+            const lines = tb.text.split('\n');
+            const lineHeight = tb.fontSize * 1.3;
+            lines.forEach((line, i) => {
+                ctx.fillText(line, tb.bbox.x + 10, tb.bbox.y + 5 + i * lineHeight);
+            });
+            ctx.restore();
         });
     }
 
@@ -5556,9 +5716,32 @@ function createReminderThumbnail(groups) {
     const offsetX = (canvas.width - contentWidth * scale) / 2 - minX * scale;
     const offsetY = (canvas.height - contentHeight * scale) / 2 - minY * scale;
 
-    // Draw strokes
+    // Draw strokes and text blocks
     contentGroups.forEach(group => {
-        if (!group.stroke || group.stroke.length < 2 || group.visibility == false ) return;
+        if (group.visibility == false) return;
+
+        // Handle text blocks
+        if (group.type === 'text') {
+            ctx.save();
+            const fontSize = Math.max(group.fontSize * scale, 8);
+            ctx.font = `${fontSize}px '${group.fontFamily}', sans-serif`;
+            ctx.fillStyle = group.color || '#ffffff';
+            ctx.textBaseline = 'top';
+
+            const textX = group.bbox.x * scale + offsetX + 4;
+            const textY = group.bbox.y * scale + offsetY + 2;
+
+            const lines = group.text.split('\n');
+            const lineHeight = fontSize * 1.2;
+            lines.forEach((line, i) => {
+                ctx.fillText(line, textX, textY + i * lineHeight);
+            });
+            ctx.restore();
+            return;
+        }
+
+        // Handle regular strokes
+        if (!group.stroke || group.stroke.length < 2) return;
 
         ctx.beginPath();
         ctx.strokeStyle = group.color || '#ff6b6b';
@@ -6209,14 +6392,19 @@ function renderStrokesToCanvas(canvas, strokes) {
 
     const ctx = canvas.getContext('2d');
     const containerWidth = canvas.parentElement.clientWidth || 500;
-    const containerHeight = canvas.parentElement.clientHeight - 60 || 200; // Account for source and hint
+    // Account for source header and hint footer
+    const containerHeight = Math.max(canvas.parentElement.clientHeight - 36, 150);
 
-    canvas.width = containerWidth;
-    canvas.height = containerHeight;
+    // HiDPI support
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = containerWidth * dpr;
+    canvas.height = containerHeight * dpr;
+    canvas.style.width = containerWidth + 'px';
+    canvas.style.height = containerHeight + 'px';
+    ctx.scale(dpr, dpr);
 
     // Clear canvas
-    ctx.fillStyle = 'transparent';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, containerWidth, containerHeight);
 
     // Calculate bounding box of all strokes
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -6243,21 +6431,52 @@ function renderStrokesToCanvas(canvas, strokes) {
 
     // Calculate scale to fit with padding
     const padding = 20;
-    const availableWidth = canvas.width - padding * 2;
-    const availableHeight = canvas.height - padding * 2;
-    const scale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 2);
+    const availableWidth = containerWidth - padding * 2;
+    const availableHeight = containerHeight - padding * 2;
+    const scale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 2.5);
 
     // Center the content
-    const offsetX = (canvas.width - contentWidth * scale) / 2 - minX * scale;
-    const offsetY = (canvas.height - contentHeight * scale) / 2 - minY * scale;
+    const offsetX = (containerWidth - contentWidth * scale) / 2 - minX * scale;
+    const offsetY = (containerHeight - contentHeight * scale) / 2 - minY * scale;
 
-    // Draw each stroke
+    // Draw each group (strokes and text blocks)
     strokes.forEach(group => {
+        // Handle text blocks
+        if (group.type === 'text') {
+            ctx.save();
+            ctx.globalAlpha = group.opacity !== undefined ? group.opacity : 1.0;
+
+            const fontSize = group.fontSize * scale;
+            ctx.font = `${fontSize}px '${group.fontFamily}', sans-serif`;
+            ctx.fillStyle = group.color || '#ffffff';
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+
+            const textX = group.bbox.x * scale + offsetX + 10 * scale;
+            const textY = group.bbox.y * scale + offsetY + 5 * scale;
+
+            const lines = group.text.split('\n');
+            const lineHeight = fontSize * 1.3;
+            lines.forEach((line, i) => {
+                ctx.fillText(line, textX, textY + i * lineHeight);
+            });
+
+            ctx.restore();
+            return;
+        }
+
+        // Handle regular strokes
         if (!group.stroke || group.stroke.length < 2) return;
 
         ctx.beginPath();
         ctx.strokeStyle = group.color || '#ffffff';
-        ctx.lineWidth = Math.max((group.size || 2) * scale, 1);
+
+        // Calculate stroke width: scale proportionally but clamp to reasonable range
+        const baseSize = group.size || 2;
+        const scaledSize = baseSize * scale;
+        // Clamp between 1.5 and 5 for balanced appearance on larger cards
+        ctx.lineWidth = Math.min(Math.max(scaledSize, 1.5), 5);
+
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -6545,6 +6764,298 @@ function renderTitleThumbnailFromAnchor(anchor) {
   });
 
   return canvas.toDataURL("image/png");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADD CONTENT DROPDOWN (Media/PDF and Text)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toggleAddContentDropdown(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById('addContentDropdown');
+  if (dropdown.style.display === 'none') {
+    dropdown.style.display = 'block';
+    // Close dropdown when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', hideAddContentDropdown, { once: true });
+    }, 0);
+  } else {
+    dropdown.style.display = 'none';
+  }
+}
+
+function hideAddContentDropdown() {
+  const dropdown = document.getElementById('addContentDropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEXT BLOCK FEATURE
+// ═══════════════════════════════════════════════════════════════════════════
+
+
+/**
+ * Create a new text block near the toolbar
+ */
+function handleTextInsert() {
+  // Position near the toolbar (top-left area of visible viewport)
+  const insertX = viewportOffset.x + 60;
+  const insertY = viewportOffset.y + 80;
+
+  const textGroup = {
+    id: 'text_' + Date.now() + '_' + getNextId(),
+    type: 'text',
+    bbox: { x: insertX, y: insertY, w: 100, h: 30 }, // Placeholder, will be recalculated
+    stroke: [],
+    fakeStrokes: [],
+    visibility: true,
+    text: 'Double-click to edit',
+    fontFamily: 'Mali',
+    fontSize: 24,
+    color: '#ffffff',
+    textAlign: 'left',
+    rotation: 0,
+    opacity: 1.0,
+    zIndex: 0,
+    aspectLocked: false
+  };
+
+  // Calculate correct bbox based on text content
+  recalculateTextBbox(textGroup);
+
+  allGroups.push(textGroup);
+  selectedMedia = textGroup;
+  reDrawAll(drawCtx);
+
+  if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+  markDirty();
+}
+
+/**
+ * Find text group at given canvas coordinates
+ */
+function findTextGroupAt(canvasX, canvasY) {
+  const textGroups = allGroups
+    .filter(g => g.type === 'text' && g.visibility)
+    .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+
+  for (const group of textGroups) {
+    const bbox = group.bbox;
+    if (canvasX >= bbox.x && canvasX <= bbox.x + bbox.w &&
+        canvasY >= bbox.y && canvasY <= bbox.y + bbox.h) {
+      return group;
+    }
+  }
+  return null;
+}
+
+/**
+ * Show text edit popup with textarea and settings
+ */
+function startTextEditing(group) {
+  const old = document.getElementById('textEditPopup');
+  if (old) old.remove();
+
+  if (typeof hideToolbox === 'function') {
+    hideToolbox();
+  }
+
+  selectedMedia = group;
+
+  // Calculate position near the text block
+  const screenX = (group.bbox.x - viewportOffset.x) * scale;
+  const screenY = (group.bbox.y - viewportOffset.y) * scale;
+
+  const popupWidth = 260;
+  let popupX = screenX;
+  let popupY = screenY + group.bbox.h * scale + 10;
+
+  // Keep popup on screen
+  popupX = Math.max(10, Math.min(popupX, window.innerWidth - popupWidth - 10));
+  popupY = Math.max(10, Math.min(popupY, window.innerHeight - 350));
+
+  const popup = document.createElement('div');
+  popup.id = 'textEditPopup';
+  popup.style.cssText = `
+    position: fixed;
+    left: ${popupX}px;
+    top: ${popupY}px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 12px;
+    z-index: 100001;
+    width: ${popupWidth}px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    font-family: 'Mali', sans-serif;
+    color: #fff;
+  `;
+
+  const currentText = group.text === 'Double-click to edit' ? '' : group.text;
+
+  popup.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <span style="font-size: 13px; font-weight: 500; color: #aaa;">Edit Text</span>
+      <button id="textPopupClose" style="background: none; border: none; color: #666; font-size: 18px; cursor: pointer; padding: 0;">&times;</button>
+    </div>
+
+    <textarea id="textContentInput" style="
+      width: 100%;
+      height: 80px;
+      background: #1e1e1e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 8px;
+      color: #fff;
+      font-family: '${group.fontFamily}', sans-serif;
+      font-size: 14px;
+      resize: vertical;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    ">${currentText}</textarea>
+
+    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+      <select id="textFontSelect" style="flex: 1; background: #333; border: 1px solid #444; border-radius: 4px; padding: 6px; color: #fff; font-size: 12px;">
+        <option value="Mali" ${group.fontFamily === 'Mali' ? 'selected' : ''}>Mali</option>
+        <option value="Arial" ${group.fontFamily === 'Arial' ? 'selected' : ''}>Arial</option>
+        <option value="Georgia" ${group.fontFamily === 'Georgia' ? 'selected' : ''}>Georgia</option>
+        <option value="Courier New" ${group.fontFamily === 'Courier New' ? 'selected' : ''}>Courier</option>
+      </select>
+      <input type="number" id="textSizeInput" value="${group.fontSize}" min="12" max="72" style="width: 50px; background: #333; border: 1px solid #444; border-radius: 4px; padding: 6px; color: #fff; font-size: 12px; text-align: center;">
+      <input type="color" id="textColorInput" value="${group.color}" style="width: 36px; height: 32px; border: 1px solid #444; border-radius: 4px; cursor: pointer; padding: 0;">
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+      <button id="textSaveBtn" style="flex: 1; background: #3a6ea5; border: none; border-radius: 6px; padding: 8px; color: #fff; cursor: pointer; font-size: 13px;">Save</button>
+      <button id="textDeleteBtn" style="background: #5a3a3a; border: none; border-radius: 6px; padding: 8px 12px; color: #fff; cursor: pointer; font-size: 13px;"><i class='bx bx-trash'></i></button>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Focus textarea
+  const textarea = document.getElementById('textContentInput');
+  textarea.focus();
+  textarea.select();
+
+  // Live text preview as user types
+  textarea.oninput = () => {
+    group.text = textarea.value || 'Text';
+    recalculateTextBbox(group);
+    reDrawAll(drawCtx);
+  };
+
+  // Live preview handlers
+  document.getElementById('textFontSelect').onchange = (e) => {
+    group.fontFamily = e.target.value;
+    textarea.style.fontFamily = `'${e.target.value}', sans-serif`;
+    recalculateTextBbox(group);
+    reDrawAll(drawCtx);
+  };
+
+  document.getElementById('textSizeInput').onchange = (e) => {
+    group.fontSize = parseInt(e.target.value) || 24;
+    recalculateTextBbox(group);
+    reDrawAll(drawCtx);
+  };
+
+  document.getElementById('textColorInput').oninput = (e) => {
+    group.color = e.target.value;
+    reDrawAll(drawCtx);
+  };
+
+  // Save button
+  document.getElementById('textSaveBtn').onclick = () => {
+    const newText = textarea.value.trim() || 'Text';
+    group.text = newText;
+    recalculateTextBbox(group);
+    popup.remove();
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+    markDirty();
+  };
+
+  // Delete button
+  document.getElementById('textDeleteBtn').onclick = () => {
+    const idx = allGroups.indexOf(group);
+    if (idx !== -1) allGroups.splice(idx, 1);
+    selectedMedia = null;
+    popup.remove();
+    reDrawAll(drawCtx);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+    markDirty();
+  };
+
+  // Close button
+  document.getElementById('textPopupClose').onclick = () => {
+    popup.remove();
+    reDrawAll(drawCtx);
+  };
+
+  // Enter to save (Shift+Enter for newline)
+  textarea.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById('textSaveBtn').click();
+    } else if (e.key === 'Escape') {
+      popup.remove();
+      reDrawAll(drawCtx);
+    }
+  };
+}
+
+/**
+ * Recalculate text bounding box based on content
+ */
+/**
+ * Generate 3 fake strokes for text block (for modifier compatibility)
+ */
+function generateTextFakeStrokes(x, y, w, h) {
+  // Create 3 strokes: top edge, right edge, bottom edge
+  return [
+    // Stroke 1: top edge
+    [{ x: x, y: y }, { x: x + w, y: y }],
+    // Stroke 2: right edge
+    [{ x: x + w, y: y }, { x: x + w, y: y + h }],
+    // Stroke 3: bottom edge
+    [{ x: x + w, y: y + h }, { x: x, y: y + h }]
+  ];
+}
+
+/**
+ * Update text block strokes after bbox change
+ */
+function updateTextStrokes(group) {
+  const { x, y, w, h } = group.bbox;
+  const fakeStrokes = generateTextFakeStrokes(x, y, w, h);
+  group.stroke = fakeStrokes[0];
+  group.fakeStrokes = fakeStrokes;
+}
+
+function recalculateTextBbox(group) {
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.font = `${group.fontSize}px '${group.fontFamily}', sans-serif`;
+
+  const lines = group.text.split('\n');
+  let maxWidth = 0;
+  lines.forEach(line => {
+    const metrics = tempCtx.measureText(line);
+    maxWidth = Math.max(maxWidth, metrics.width);
+  });
+
+  const lineHeight = group.fontSize * 1.3;
+  const totalHeight = lines.length * lineHeight;
+
+  // Padding: 10px left/right, 5px top/bottom
+  const paddingX = 10;
+  const paddingY = 5;
+
+  group.bbox.w = Math.max(maxWidth + paddingX * 2, 50);
+  group.bbox.h = Math.max(totalHeight + paddingY * 2, 30);
+
+  // Update fake strokes for modifier compatibility
+  updateTextStrokes(group);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -7048,12 +7559,13 @@ function loadMediaImage(group) {
 }
 
 /**
- * Find media group at given canvas coordinates
+ * Find media or text group at given canvas coordinates
  */
 function findMediaGroupAt(canvasX, canvasY) {
   // Search in reverse order (top-most first) respecting z-index
+  // Include both media and text types
   const mediaGroups = allGroups
-    .filter(g => g.type === 'media' && g.visibility)
+    .filter(g => (g.type === 'media' || g.type === 'text') && g.visibility)
     .sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
 
   for (const group of mediaGroups) {
@@ -7067,7 +7579,7 @@ function findMediaGroupAt(canvasX, canvasY) {
 }
 
 /**
- * Start long press detection for media editing
+ * Start long press detection for media/text editing
  */
 function startMediaLongPressDetection(screenX, screenY) {
   const canvasX = (screenX / scale) + viewportOffset.x;
@@ -7078,7 +7590,12 @@ function startMediaLongPressDetection(screenX, screenY) {
 
   mediaLongPressTarget = mediaGroup;
   mediaLongPressTimer = setTimeout(() => {
-    showMediaEditPopup(mediaGroup);
+    // Show appropriate popup based on group type
+    if (mediaGroup.type === 'text') {
+      startTextEditing(mediaGroup);
+    } else {
+      showMediaEditPopup(mediaGroup);
+    }
   }, CONFIG.MEDIA.LONG_PRESS_MS);
 
   return true;
@@ -7469,6 +7986,11 @@ function handleMediaResize(screenX, screenY) {
 
   selectedMedia.bbox = newBbox;
 
+  // Update strokes for text blocks (for modifier compatibility)
+  if (selectedMedia.type === 'text') {
+    updateTextStrokes(selectedMedia);
+  }
+
   // Update popup position to follow the media
   updateMediaEditPopupPosition();
 
@@ -7529,6 +8051,11 @@ function handleMediaDrag(screenX, screenY) {
 
   selectedMedia.bbox.x = dragStartBbox.x + dx;
   selectedMedia.bbox.y = dragStartBbox.y + dy;
+
+  // Update strokes for text blocks (for modifier compatibility)
+  if (selectedMedia.type === 'text') {
+    updateTextStrokes(selectedMedia);
+  }
 
   // Update popup position to follow the media
   updateMediaEditPopupPosition();

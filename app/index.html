@@ -33,7 +33,13 @@
           <span class="aiText">AI ON</span>
         </label>
         <span class="break"></span>
-        <button onclick="handleMediaInsert()" title="Insert Image/PDF"><i class='bx bx-file-plus' style="font-size: 18px;"></i></button>
+        <div class="add-content-dropdown" style="position: relative; display: inline-block;">
+          <button onclick="toggleAddContentDropdown(event)" title="Add Content"><i class='bx bx-plus' style="font-size: 18px;"></i></button>
+          <div id="addContentDropdown" class="add-content-menu" style="display: none;">
+            <button onclick="handleMediaInsert(); hideAddContentDropdown();"><i class='bx bx-image'></i> Media/PDF</button>
+            <button onclick="handleTextInsert(); hideAddContentDropdown();"><i class='bx bx-text'></i> Text</button>
+          </div>
+        </div>
         <span class="break"></span>
         <button onclick="toggleSetting()"><i class='bx bx-cog'></i></button>
     </div>

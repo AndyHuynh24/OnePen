@@ -1306,7 +1306,7 @@ function markDirty() {
         return;
       }
 
-      console.log('[AutoSync] markDirty: saving locally...');
+      console.log('[AutoSave] markDirty: saving locally...');
       saveNoteFast(title, allGroups);
       dirty = false;
       autosaveTimer = null;
@@ -1318,6 +1318,13 @@ function markDirty() {
       // } else {
       //   console.log('[AutoSync] markDirty: triggerAutoSync not found!');
       // }
+      if (typeof scanNotebookForFlashcards === 'function') {
+        scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+          if (typeof updateFlashcardButton === 'function') {
+            updateFlashcardButton(flashcards);
+          }
+        });
+      }
     }, 500); // 300–1000ms sweet spot
   }
 }
