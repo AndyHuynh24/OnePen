@@ -63,6 +63,267 @@ window.getInferenceStats = () => {
   return stats;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL BENCHMARKING UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Benchmark inference time with multiple iterations
+ * Usage: In console, run: await benchmarkInference(100)
+ * @param {number} iterations - Number of inference runs (default: 50)
+ * @param {boolean} warmup - Whether to run warmup iterations first (default: true)
+ */
+window.benchmarkInference = async function(iterations = 50, warmup = true) {
+  if (!model) {
+    console.error('❌ Model not loaded. Call loadModel() first.');
+    return null;
+  }
+
+  console.log('═══════════════════════════════════════════');
+  console.log('       INFERENCE BENCHMARK STARTING        ');
+  console.log('═══════════════════════════════════════════');
+
+  // Get model input shapes
+  const inputs = model.inputs;
+  const imgInput = inputs.find(inp => inp.shape.length === 4);
+  const featInput = inputs.find(inp => inp.shape.length === 2);
+  const imgSize = imgInput ? imgInput.shape[1] || 96 : 96;
+  const featDim = featInput ? featInput.shape[1] || 12 : 12;
+
+  console.log(`  Image size: ${imgSize}×${imgSize}`);
+  console.log(`  Feature dim: ${featDim}`);
+  console.log(`  Iterations: ${iterations}`);
+
+  // Create test canvas with random stroke-like pattern
+  const testCanvas = document.createElement('canvas');
+  testCanvas.width = imgSize;
+  testCanvas.height = imgSize;
+  const ctx = testCanvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, imgSize, imgSize);
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(10, imgSize / 2);
+  ctx.quadraticCurveTo(imgSize / 2, 10, imgSize - 10, imgSize / 2);
+  ctx.stroke();
+
+  // Create random feature vector
+  const randomFeatures = new Array(featDim).fill(0).map(() => Math.random());
+
+  // Warmup runs (not counted)
+  if (warmup) {
+    console.log('  Running 10 warmup iterations...');
+    for (let i = 0; i < 10; i++) {
+      // Create tensors synchronously
+      const imgTensor = tf.tidy(() =>
+        tf.browser.fromPixels(testCanvas)
+          .resizeBilinear([imgSize, imgSize])
+          .toFloat()
+          .div(255.0)
+          .expandDims(0)
+      );
+      const featTensor = tf.tensor2d([randomFeatures]);
+
+      // Run prediction
+      const result = model.predict([imgTensor, featTensor]);
+
+      // Dispose tensors
+      imgTensor.dispose();
+      featTensor.dispose();
+      result.dispose();
+    }
+  }
+
+  // Benchmark runs
+  const times = [];
+  console.log(`  Running ${iterations} benchmark iterations...`);
+
+  for (let i = 0; i < iterations; i++) {
+    // Create tensors synchronously
+    const imgTensor = tf.tidy(() =>
+      tf.browser.fromPixels(testCanvas)
+        .resizeBilinear([imgSize, imgSize])
+        .toFloat()
+        .div(255.0)
+        .expandDims(0)
+    );
+    const featTensor = tf.tensor2d([randomFeatures]);
+
+    // Time only the prediction
+    const start = performance.now();
+    const result = model.predict([imgTensor, featTensor]);
+    // Force sync to get accurate timing
+    result.dataSync();
+    const elapsed = performance.now() - start;
+
+    times.push(elapsed);
+
+    // Dispose tensors
+    imgTensor.dispose();
+    featTensor.dispose();
+    result.dispose();
+
+    // Progress update every 10 iterations
+    if ((i + 1) % 10 === 0) {
+      console.log(`  Progress: ${i + 1}/${iterations}`);
+    }
+  }
+
+  // Calculate statistics
+  const sorted = [...times].sort((a, b) => a - b);
+  const sum = sorted.reduce((a, b) => a + b, 0);
+  const avg = sum / sorted.length;
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const p95 = sorted[Math.floor(sorted.length * 0.95)];
+  const p99 = sorted[Math.floor(sorted.length * 0.99)];
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const stdDev = Math.sqrt(sorted.reduce((acc, t) => acc + Math.pow(t - avg, 2), 0) / sorted.length);
+
+  const results = { avg, median, min, max, p95, p99, stdDev, iterations, times };
+
+  console.log('');
+  console.log('═══════════════════════════════════════════');
+  console.log('         BENCHMARK RESULTS                 ');
+  console.log('═══════════════════════════════════════════');
+  console.log(`  Average:     ${avg.toFixed(2)} ms`);
+  console.log(`  Median:      ${median.toFixed(2)} ms`);
+  console.log(`  Min:         ${min.toFixed(2)} ms`);
+  console.log(`  Max:         ${max.toFixed(2)} ms`);
+  console.log(`  P95:         ${p95.toFixed(2)} ms`);
+  console.log(`  P99:         ${p99.toFixed(2)} ms`);
+  console.log(`  Std Dev:     ${stdDev.toFixed(2)} ms`);
+  console.log(`  Iterations:  ${iterations}`);
+  console.log('═══════════════════════════════════════════');
+  console.log('');
+  console.log(`📊 For resume: "${avg.toFixed(0)}ms average inference latency (${iterations} runs)"`);
+
+  return results;
+};
+
+/**
+ * Check model size (file size and memory footprint)
+ * Usage: In console, run: await checkModelSize()
+ */
+window.checkModelSize = async function() {
+  console.log('═══════════════════════════════════════════');
+  console.log('          MODEL SIZE ANALYSIS              ');
+  console.log('═══════════════════════════════════════════');
+
+  // 1. Fetch model files and calculate total size
+  const modelBasePath = 'tfjs/';
+  let totalFileSize = 0;
+  const fileSizes = {};
+
+  try {
+    // Fetch model.json to get weight file names
+    const modelJsonResponse = await fetch(modelBasePath + 'model.json');
+    const modelJson = await modelJsonResponse.json();
+    const modelJsonSize = new Blob([JSON.stringify(modelJson)]).size;
+    fileSizes['model.json'] = modelJsonSize;
+    totalFileSize += modelJsonSize;
+
+    console.log(`  model.json: ${(modelJsonSize / 1024).toFixed(2)} KB`);
+
+    // Get weight files from weightsManifest
+    if (modelJson.weightsManifest) {
+      for (const manifest of modelJson.weightsManifest) {
+        for (const path of manifest.paths) {
+          try {
+            const response = await fetch(modelBasePath + path);
+            const blob = await response.blob();
+            fileSizes[path] = blob.size;
+            totalFileSize += blob.size;
+            console.log(`  ${path}: ${(blob.size / 1024).toFixed(2)} KB`);
+          } catch (e) {
+            console.warn(`  ⚠️ Could not fetch ${path}`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('❌ Error fetching model files:', e);
+  }
+
+  // 2. Get TensorFlow.js memory info
+  const memInfo = tf.memory();
+
+  // 3. Count model parameters from weightsManifest (works for GraphModel)
+  let totalParams = 0;
+  try {
+    const modelJsonResponse = await fetch(modelBasePath + 'model.json');
+    const modelJson = await modelJsonResponse.json();
+    if (modelJson.weightsManifest) {
+      for (const manifest of modelJson.weightsManifest) {
+        if (manifest.weights) {
+          for (const weight of manifest.weights) {
+            if (weight.shape) {
+              const params = weight.shape.reduce((a, b) => a * b, 1);
+              totalParams += params;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Could not count parameters:', e.message);
+  }
+
+  console.log('');
+  console.log('───────────────────────────────────────────');
+  console.log('  SUMMARY');
+  console.log('───────────────────────────────────────────');
+  console.log(`  Total file size:    ${(totalFileSize / (1024 * 1024)).toFixed(2)} MB`);
+  console.log(`  Total parameters:   ${totalParams.toLocaleString()}`);
+  console.log(`  TF.js tensors:      ${memInfo.numTensors}`);
+  console.log(`  TF.js memory:       ${(memInfo.numBytes / (1024 * 1024)).toFixed(2)} MB`);
+  console.log('═══════════════════════════════════════════');
+  console.log('');
+  console.log(`📊 For resume: "${(totalFileSize / (1024 * 1024)).toFixed(1)}MB model size"`);
+
+  return {
+    totalFileSize,
+    totalFileSizeMB: totalFileSize / (1024 * 1024),
+    fileSizes,
+    totalParams,
+    tfMemory: memInfo
+  };
+};
+
+/**
+ * Run full benchmark suite (inference + size)
+ * Usage: In console, run: await runFullBenchmark()
+ */
+window.runFullBenchmark = async function() {
+  console.log('');
+  console.log('╔═══════════════════════════════════════════╗');
+  console.log('║      ONEPEN MODEL FULL BENCHMARK          ║');
+  console.log('╚═══════════════════════════════════════════╝');
+  console.log('');
+
+  // Check model size
+  const sizeResults = await window.checkModelSize();
+
+  console.log('');
+
+  // Run inference benchmark
+  const inferenceResults = await window.benchmarkInference(50, true);
+
+  console.log('');
+  console.log('╔═══════════════════════════════════════════╗');
+  console.log('║           RESUME-READY METRICS            ║');
+  console.log('╚═══════════════════════════════════════════╝');
+  console.log('');
+  console.log(`  📊 Model Size: ${sizeResults.totalFileSizeMB.toFixed(1)} MB`);
+  console.log(`  ⚡ Inference:  ${inferenceResults.avg.toFixed(0)} ms average`);
+  console.log(`  📈 Median:     ${inferenceResults.median.toFixed(0)} ms`);
+  console.log(`  🎯 P95:        ${inferenceResults.p95.toFixed(0)} ms`);
+  console.log('');
+
+  return { size: sizeResults, inference: inferenceResults };
+};
+
 async function preloadModel(model) {
   try {
     // --- Auto-detect input shapes ---

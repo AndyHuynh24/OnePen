@@ -27,7 +27,7 @@ class StrokeDataGenerator(Sequence):
     ):
         """
         Initialize the generator.
-        
+
         Args:
             images: Image data array (N, H, W, C).
             labels: Label array (N,).
@@ -35,6 +35,7 @@ class StrokeDataGenerator(Sequence):
             batch_size: Batch size.
             shuffle: Whether to shuffle data at the start of each epoch.
         """
+        super().__init__()  # Required for Keras Sequence on newer TF versions
         self.images = images
         self.labels = labels
         self.features = features
@@ -51,15 +52,18 @@ class StrokeDataGenerator(Sequence):
     
     def __getitem__(self, idx: int) -> tuple[dict[str, np.ndarray] | np.ndarray, np.ndarray]:
         """Get a batch of data."""
+        if idx == 0:
+            print(f"[Generator] Fetching batch 0/{len(self)}", flush=True)
+
         start = idx * self.batch_size
         end = min(start + self.batch_size, len(self.images))
         batch_indices = self.indices[start:end]
-        
-        batch_images = self.images[batch_indices]
+
+        batch_images = self.images[batch_indices].astype(np.float32)
         batch_labels = self.labels[batch_indices]
-        
+
         if self.features is not None:
-            batch_features = self.features[batch_indices]
+            batch_features = self.features[batch_indices].astype(np.float32)
             return (
                 {"img_input": batch_images, "feature_input": batch_features},
                 batch_labels,

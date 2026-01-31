@@ -1,16 +1,10 @@
-"""Model training orchestration."""
+"""Model training orchestration for OnePen stroke classifier."""
 
 from pathlib import Path
-from typing import Any
+from datetime import datetime
 
-import tensorflow as tf
-from tensorflow.keras.callbacks import (
-    EarlyStopping,
-    ModelCheckpoint,
-    ReduceLROnPlateau,
-    TensorBoard,
-)
-from tensorflow.keras.models import Model
+import numpy as np
+from tensorflow import keras
 
 from modifiers.utils.logging import get_logger
 
@@ -22,7 +16,7 @@ class StrokeModelTrainer:
 
     def __init__(
         self,
-        model: Model,
+        model: keras.Model,
         output_dir: str | Path = "outputs",
         experiment_name: str = "stroke_classifier",
     ):
@@ -36,6 +30,7 @@ class StrokeModelTrainer:
         self.model = model
         self.output_dir = Path(output_dir)
         self.experiment_name = experiment_name
+        self.history = None
 
         # Create output directories
         self.checkpoint_dir = self.output_dir / "checkpoints"
@@ -43,133 +38,144 @@ class StrokeModelTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        self.history: dict[str, list] | None = None
-
-    def _create_callbacks(
+    def _build_callbacks(
         self,
+        run_name: str,
         early_stopping_patience: int = 35,
         reduce_lr_patience: int = 5,
         reduce_lr_factor: float = 0.5,
         min_lr: float = 1e-6,
-    ) -> list[tf.keras.callbacks.Callback]:
-        """Create training callbacks.
+        use_tensorboard: bool = True,
+    ) -> list[keras.callbacks.Callback]:
+        """Build training callbacks."""
+        callbacks = []
 
-        Args:
-            early_stopping_patience: Patience for early stopping.
-            reduce_lr_patience: Patience for learning rate reduction.
-            reduce_lr_factor: Factor to reduce learning rate by.
-            min_lr: Minimum learning rate.
-
-        Returns:
-            List of Keras callbacks.
-        """
-        callbacks = [
-            # Save best model
-            ModelCheckpoint(
-                filepath=str(self.checkpoint_dir / "best_model.keras"),
+        # Model checkpoint - save best model
+        callbacks.append(
+            keras.callbacks.ModelCheckpoint(
+                filepath=str(self.checkpoint_dir / f"{run_name}_best.keras"),
                 monitor="val_accuracy",
                 save_best_only=True,
                 verbose=1,
-            ),
+            )
+        )
 
-            # Early stopping
-            EarlyStopping(
+        # Early stopping
+        callbacks.append(
+            keras.callbacks.EarlyStopping(
                 monitor="val_accuracy",
                 patience=early_stopping_patience,
                 restore_best_weights=True,
                 verbose=1,
-            ),
+            )
+        )
 
-            # Learning rate reduction
-            ReduceLROnPlateau(
+        # Learning rate reduction
+        callbacks.append(
+            keras.callbacks.ReduceLROnPlateau(
                 monitor="val_loss",
                 factor=reduce_lr_factor,
                 patience=reduce_lr_patience,
                 min_lr=min_lr,
                 verbose=1,
-            ),
+            )
+        )
 
-            # TensorBoard logging
-            TensorBoard(
-                log_dir=str(self.log_dir / self.experiment_name),
-                histogram_freq=1,
-            ),
-        ]
+        # TensorBoard (without histogram to avoid freezes)
+        if use_tensorboard:
+            callbacks.append(
+                keras.callbacks.TensorBoard(
+                    log_dir=str(self.log_dir / run_name),
+                    histogram_freq=0,
+                    write_graph=False,
+                    update_freq="epoch",
+                )
+            )
 
         return callbacks
 
     def train(
         self,
-        train_data: Any,
-        val_data: Any = None,
+        x_train: dict | np.ndarray,
+        y_train: np.ndarray,
+        x_val: dict | np.ndarray,
+        y_val: np.ndarray,
         epochs: int = 100,
         batch_size: int = 32,
         class_weights: dict[int, float] | None = None,
         early_stopping_patience: int = 35,
         reduce_lr_patience: int = 5,
-    ) -> dict[str, list]:
-        """Train the model.
+        use_tensorboard: bool = True,
+    ) -> keras.callbacks.History:
+        """Train the model with numpy arrays directly.
 
         Args:
-            train_data: Keras Sequence, tf.data.Dataset, or numpy arrays.
-            val_data: Validation data (Sequence, Dataset, or tuple).
+            x_train: Training features (dict with 'img_input' and 'feature_input').
+            y_train: Training labels.
+            x_val: Validation features.
+            y_val: Validation labels.
             epochs: Maximum number of epochs.
-            batch_size: Batch size (if using numpy arrays).
-            class_weights: Optional class weights.
+            batch_size: Batch size.
+            class_weights: Optional class weights for imbalanced data.
             early_stopping_patience: Patience for early stopping.
             reduce_lr_patience: Patience for LR reduction.
+            use_tensorboard: Whether to use TensorBoard callback.
 
         Returns:
-            Training history dictionary.
+            Training history.
         """
-        callbacks = self._create_callbacks(
+        run_name = f"{self.experiment_name}_{datetime.now():%Y%m%d_%H%M%S}"
+
+        callbacks = self._build_callbacks(
+            run_name=run_name,
             early_stopping_patience=early_stopping_patience,
             reduce_lr_patience=reduce_lr_patience,
+            use_tensorboard=use_tensorboard,
         )
 
         logger.info(f"Starting training for {epochs} epochs")
-        
-        # Keras .fit() handles specific logic for Sequence vs Numpy vs Dataset
-        history = self.model.fit(
-            train_data,
-            validation_data=val_data,
+        logger.info(f"  Training samples: {len(y_train)}")
+        logger.info(f"  Validation samples: {len(y_val)}")
+        logger.info(f"  Batch size: {batch_size}")
+
+        # Train with numpy arrays directly (like HandKey)
+        self.history = self.model.fit(
+            x_train,
+            y_train,
+            validation_data=(x_val, y_val),
             epochs=epochs,
-            batch_size=batch_size if not isinstance(train_data, (tf.keras.utils.Sequence, tf.data.Dataset)) else None,
+            batch_size=batch_size,
             class_weight=class_weights,
             callbacks=callbacks,
             verbose=1,
         )
 
-        self.history = history.history
         logger.info("Training complete")
-
         return self.history
 
     def evaluate(
         self,
-        test_data: Any,
+        x_test: dict | np.ndarray,
+        y_test: np.ndarray,
         batch_size: int = 32,
     ) -> dict[str, float]:
         """Evaluate model on test data.
 
         Args:
-            test_data: Sequence, Dataset, or (x, y) tuple.
-            batch_size: Batch size (for numpy arrays).
+            x_test: Test features.
+            y_test: Test labels.
+            batch_size: Batch size.
 
         Returns:
             Dictionary with loss and accuracy.
         """
-        logger.info("Evaluating/Predicting on test data...")
-        
-        results = self.model.evaluate(
-            test_data, 
-            batch_size=batch_size if not isinstance(test_data, (tf.keras.utils.Sequence, tf.data.Dataset)) else None,
-            verbose=1
-        )
+        logger.info("Evaluating on test data...")
+
+        results = self.model.evaluate(x_test, y_test, batch_size=batch_size, verbose=1)
 
         metrics = {
-            "test_loss": results[0],
-            "test_accuracy": results[1],
+            "test_loss": float(results[0]),
+            "test_accuracy": float(results[1]),
         }
 
         logger.info(f"Test loss: {metrics['test_loss']:.4f}")
@@ -177,11 +183,27 @@ class StrokeModelTrainer:
 
         return metrics
 
+    def predict(
+        self,
+        x: dict | np.ndarray,
+        batch_size: int = 32,
+    ) -> np.ndarray:
+        """Get predictions.
+
+        Args:
+            x: Input features.
+            batch_size: Batch size.
+
+        Returns:
+            Predicted probabilities.
+        """
+        return self.model.predict(x, batch_size=batch_size, verbose=0)
+
     def save_model(self, path: str | Path | None = None) -> Path:
         """Save the trained model.
 
         Args:
-            path: Optional custom path. Defaults to checkpoint_dir.
+            path: Optional custom path. Defaults to checkpoint_dir/final_model.keras.
 
         Returns:
             Path where model was saved.
@@ -191,6 +213,7 @@ class StrokeModelTrainer:
         else:
             path = Path(path)
 
+        path.parent.mkdir(parents=True, exist_ok=True)
         self.model.save(str(path))
         logger.info(f"Model saved to {path}")
 
@@ -205,10 +228,10 @@ class StrokeModelTrainer:
         if self.history is None:
             return {}
 
+        hist = self.history.history
         return {
-            "best_val_accuracy": max(self.history.get("val_accuracy", [0])),
-            "best_val_loss": min(self.history.get("val_loss", [float("inf")])),
-            "final_train_accuracy": self.history.get("accuracy", [0])[-1],
-            "epochs_trained": len(self.history.get("accuracy", [])),
+            "best_val_accuracy": float(max(hist.get("val_accuracy", [0]))),
+            "best_val_loss": float(min(hist.get("val_loss", [float("inf")]))),
+            "final_train_accuracy": float(hist.get("accuracy", [0])[-1]),
+            "epochs_trained": len(hist.get("accuracy", [])),
         }
-
