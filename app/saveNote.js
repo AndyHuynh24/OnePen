@@ -1269,22 +1269,28 @@ function getDB() {
 }
 
 function saveNoteFast(path, content) {
-  getDB().then(db => {
-    const tx = db.transaction("notes", "readwrite");
-    const store = tx.objectStore("notes");
+  return new Promise((resolve) => {
+    getDB().then(db => {
+      const tx = db.transaction("notes", "readwrite");
+      const store = tx.objectStore("notes");
 
-    // First get existing note to preserve created_at
-    const getReq = store.get(path);
-    getReq.onsuccess = () => {
-      const existing = getReq.result;
-      store.put({
-        path,
-        content,
-        created_at: existing?.created_at || new Date().toISOString()
-      });
-    };
+      // First get existing note to preserve created_at and other metadata
+      const getReq = store.get(path);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        store.put({
+          ...existing,  // Preserve all existing fields (isSummaryNote, summaryMetadata, etc.)
+          path,
+          content,
+          created_at: existing?.created_at || new Date().toISOString()
+        });
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();  // Resolve anyway to not block
+    });
+    saveSetting('lastSaveNote', { path, viewportOffset, scale });
   });
-  saveSetting('lastSaveNote', { path, viewportOffset, scale });
 }
 
 
@@ -1300,14 +1306,16 @@ function markDirty() {
   }
 
   if (!autosaveTimer) {
-    autosaveTimer = setTimeout(() => {
+    autosaveTimer = setTimeout(async () => {
       if (!dirty || !title) {
         console.log('[Autosave] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
         return;
       }
 
       console.log('[AutoSave] markDirty: saving locally...');
-      saveNoteFast(title, allGroups);
+
+      // Wait for save to complete before scanning flashcards
+      await saveNoteFast(title, allGroups);
       dirty = false;
       autosaveTimer = null;
 
@@ -1318,7 +1326,9 @@ function markDirty() {
       // } else {
       //   console.log('[AutoSync] markDirty: triggerAutoSync not found!');
       // }
-      if (typeof scanNotebookForFlashcards === 'function') {
+
+      // Now scan for flashcards after save is complete
+      if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
         scanNotebookForFlashcards(selectedFolder).then(flashcards => {
           if (typeof updateFlashcardButton === 'function') {
             updateFlashcardButton(flashcards);
