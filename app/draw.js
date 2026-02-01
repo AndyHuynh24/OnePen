@@ -150,33 +150,34 @@ function drawTapeGroup(ctx, group) {
     // Create repeating pattern
     const pattern = ctx.createPattern(patternCanvas, 'repeat');
 
-    // Draw tape shape with zigzag/torn edges
+    // Draw tape shape with zigzag/torn edges on left and right
     const zigzagSize = 8;
     const zigzagDepth = 6;
-    const zigzagCount = Math.ceil(tw / zigzagSize);
+    const zigzagCountVertical = Math.ceil(th / zigzagSize);
 
     ctx.beginPath();
 
-    // Top edge - zigzag (starts above to cover fully)
-    ctx.moveTo(tx, ty + zigzagDepth);
-    for (let i = 0; i <= zigzagCount; i++) {
-      const px = tx + (i * zigzagSize);
-      const py = ty + (i % 2 === 0 ? zigzagDepth : 0);
-      ctx.lineTo(Math.min(px, tx + tw), py);
+    // Top edge - straight line
+    ctx.moveTo(tx + zigzagDepth, ty);
+    ctx.lineTo(tx + tw - zigzagDepth, ty);
+
+    // Right edge - zigzag
+    for (let i = 0; i <= zigzagCountVertical; i++) {
+      const py = ty + (i * zigzagSize);
+      const px = tx + tw + (i % 2 === 0 ? -zigzagDepth : 0);
+      ctx.lineTo(px, Math.min(py, ty + th));
     }
 
-    // Right edge
-    ctx.lineTo(tx + tw, ty + th - zigzagDepth);
+    // Bottom edge - straight line
+    ctx.lineTo(tx + zigzagDepth, ty + th);
 
-    // Bottom edge - zigzag (reversed, extends below)
-    for (let i = zigzagCount; i >= 0; i--) {
-      const px = tx + (i * zigzagSize);
-      const py = ty + th + (i % 2 === 0 ? -zigzagDepth : 0);
-      ctx.lineTo(Math.max(px, tx), py);
+    // Left edge - zigzag (reversed)
+    for (let i = zigzagCountVertical; i >= 0; i--) {
+      const py = ty + (i * zigzagSize);
+      const px = tx + (i % 2 === 0 ? zigzagDepth : 0);
+      ctx.lineTo(px, Math.max(py, ty));
     }
 
-    // Left edge
-    ctx.lineTo(tx, ty + zigzagDepth);
     ctx.closePath();
 
     // Fill with pattern
@@ -197,10 +198,28 @@ function drawTapeGroup(ctx, group) {
 
   // Draw border when revealed (flashing indicator)
   if (revealed && fadeProgress >= 1) {
-    ctx.strokeStyle = group.borderColor || CONFIG.COLORS.FLASH_TAPE;
-    ctx.lineWidth = CONFIG.TAPE.BORDER_WIDTH;
-    ctx.setLineDash([8, 4]);
-    ctx.strokeRect(tx, ty, tw, th);
+    // Muted grayish color for tape border
+    ctx.strokeStyle = group.borderColor || "#888080";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 3]);
+    const borderRadius = 6;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(tx, ty, tw, th, borderRadius);
+    } else {
+      const r = Math.min(borderRadius, tw / 2, th / 2);
+      ctx.moveTo(tx + r, ty);
+      ctx.lineTo(tx + tw - r, ty);
+      ctx.quadraticCurveTo(tx + tw, ty, tx + tw, ty + r);
+      ctx.lineTo(tx + tw, ty + th - r);
+      ctx.quadraticCurveTo(tx + tw, ty + th, tx + tw - r, ty + th);
+      ctx.lineTo(tx + r, ty + th);
+      ctx.quadraticCurveTo(tx, ty + th, tx, ty + th - r);
+      ctx.lineTo(tx, ty + r);
+      ctx.quadraticCurveTo(tx, ty, tx + r, ty);
+      ctx.closePath();
+    }
+    ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -283,16 +302,32 @@ function drawSummaryNavButton(ctx, group) {
   ctx.restore();
 }
 
-function drawBox(box, color, label, dashed = false, drawctx = drawCtx) {
+function drawBox(box, color, label, dashed = false, drawctx = drawCtx, borderRadius = 6) {
     drawctx.save();
-    //liveCtx.clearRect(0, 0, canvas.width, canvas.height);
-    //drawctx.translate(-viewportOffset.x, -viewportOffset.y);
     drawctx.strokeStyle = color;
-    drawctx.setLineDash(dashed ? [6, 3] : []);
-    drawctx.strokeRect(box.x, box.y, box.w, box.h);
+    drawctx.lineWidth = 1;
+    drawctx.setLineDash(dashed ? [5, 3] : []);
+    drawctx.beginPath();
+    if (drawctx.roundRect) {
+        drawctx.roundRect(box.x, box.y, box.w, box.h, borderRadius);
+    } else {
+        // Fallback for browsers without roundRect
+        const r = Math.min(borderRadius, box.w / 2, box.h / 2);
+        drawctx.moveTo(box.x + r, box.y);
+        drawctx.lineTo(box.x + box.w - r, box.y);
+        drawctx.quadraticCurveTo(box.x + box.w, box.y, box.x + box.w, box.y + r);
+        drawctx.lineTo(box.x + box.w, box.y + box.h - r);
+        drawctx.quadraticCurveTo(box.x + box.w, box.y + box.h, box.x + box.w - r, box.y + box.h);
+        drawctx.lineTo(box.x + r, box.y + box.h);
+        drawctx.quadraticCurveTo(box.x, box.y + box.h, box.x, box.y + box.h - r);
+        drawctx.lineTo(box.x, box.y + r);
+        drawctx.quadraticCurveTo(box.x, box.y, box.x + r, box.y);
+        drawctx.closePath();
+    }
+    drawctx.stroke();
     drawctx.setLineDash([]);
     drawctx.fillStyle = color;
-    drawctx.font = '200 18px "Mali"'; // Weight 700
+    drawctx.font = '200 18px "Mali"';
     drawctx.fillText(label, box.x, box.y - 6);
     drawctx.restore();
 }
@@ -706,7 +741,7 @@ function reDrawMovement() {
             }
         });
         moveBBox = getBoundingBox(allPoints);
-        drawBox(moveBBox, 'lightgray', '', true, liveCtx);
+        drawBox(moveBBox, '#909090', '', true, liveCtx);
         for (const group of modifiedGroups.modifiedGroups) {
             if (group.type === 'text') {
                 drawTextGroup(liveCtx, group);
@@ -1666,13 +1701,31 @@ function reDrawAll(ctx) {
             const py = y - padding;
             const pw = w + padding * 2;
             const ph = h + padding * 2;
+            const borderRadius = 8;
 
             ctx.save();
 
-            ctx.strokeStyle = group.color || "#FFD700";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 3]);
-            ctx.strokeRect(px, py, pw, ph);
+            // Muted grayish color for sticky notes
+            ctx.strokeStyle = group.color || "#808078";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(px, py, pw, ph, borderRadius);
+            } else {
+                const r = Math.min(borderRadius, pw / 2, ph / 2);
+                ctx.moveTo(px + r, py);
+                ctx.lineTo(px + pw - r, py);
+                ctx.quadraticCurveTo(px + pw, py, px + pw, py + r);
+                ctx.lineTo(px + pw, py + ph - r);
+                ctx.quadraticCurveTo(px + pw, py + ph, px + pw - r, py + ph);
+                ctx.lineTo(px + r, py + ph);
+                ctx.quadraticCurveTo(px, py + ph, px, py + ph - r);
+                ctx.lineTo(px, py + r);
+                ctx.quadraticCurveTo(px, py, px + r, py);
+                ctx.closePath();
+            }
+            ctx.stroke();
             ctx.setLineDash([]);
 
             ctx.restore();
@@ -1685,18 +1738,35 @@ function reDrawAll(ctx) {
             const py = y - padding;
             const pw = w + padding * 2;
             const ph = h + padding * 2;
+            const borderRadius = 8;
 
             ctx.save();
 
-            // Blue color for embed link border
-            const borderColor = "#4a9eff";
-            const iconColor = "#4a9eff";
+            // Muted grayish blue color for embed link border
+            const borderColor = "#708090";
+            const iconColor = "#708090";
 
-            // --- Clickable box with subtle styling
+            // --- Clickable box with subtle styling and rounded corners
             ctx.strokeStyle = borderColor;
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 4]);
-            ctx.strokeRect(px, py, pw, ph);
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(px, py, pw, ph, borderRadius);
+            } else {
+                const r = Math.min(borderRadius, pw / 2, ph / 2);
+                ctx.moveTo(px + r, py);
+                ctx.lineTo(px + pw - r, py);
+                ctx.quadraticCurveTo(px + pw, py, px + pw, py + r);
+                ctx.lineTo(px + pw, py + ph - r);
+                ctx.quadraticCurveTo(px + pw, py + ph, px + pw - r, py + ph);
+                ctx.lineTo(px + r, py + ph);
+                ctx.quadraticCurveTo(px, py + ph, px, py + ph - r);
+                ctx.lineTo(px, py + r);
+                ctx.quadraticCurveTo(px, py, px + r, py);
+                ctx.closePath();
+            }
+            ctx.stroke();
             ctx.setLineDash([]);
 
             // --- Draw embed icon badge at top-left
@@ -2233,14 +2303,31 @@ function drawMediaSelection(ctx, group) {
   if (!selectedMedia || selectedMedia.id !== group.id) return;
 
   const { x, y, w, h } = group.bbox;
+  const borderRadius = 6;
 
   ctx.save();
 
-  // Draw selection border
-  ctx.strokeStyle = '#007aff';
-  ctx.lineWidth = 2 / scale;
-  ctx.setLineDash([6 / scale, 4 / scale]);
-  ctx.strokeRect(x, y, w, h);
+  // Draw selection border with rounded corners and muted grayish blue
+  ctx.strokeStyle = '#707888';
+  ctx.lineWidth = 1 / scale;
+  ctx.setLineDash([5 / scale, 3 / scale]);
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, borderRadius);
+  } else {
+    const r = Math.min(borderRadius, w / 2, h / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+  ctx.stroke();
   ctx.setLineDash([]);
 
   // Draw resize handles at corners
@@ -2263,8 +2350,8 @@ function drawMediaHandles(ctx, group) {
     { cx: x + w, cy: y + h }    // bottom-right
   ];
 
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#007aff';
+  ctx.fillStyle = '#d0d0d0';
+  ctx.strokeStyle = '#707888';
   ctx.lineWidth = 1 / scale;
 
   for (const corner of corners) {

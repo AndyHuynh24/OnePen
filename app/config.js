@@ -86,13 +86,13 @@ const CONFIG = Object.freeze({
   // MODIFIER DEFAULT COLORS
   // ─────────────────────────────────────────────────────────────────────────
   COLORS: Object.freeze({
-    BOX: 'rgba(255,182,255,1)',
-    CURLY: 'rgba(250,110,110,1)',
-    BOX_SHORTCUT: 'rgba(163,251,169,1)',
-    CURLY_SHORTCUT: 'rgba(116, 232, 256,1)',
-    FLASH_STICKY: '#FFD700',
-    FLASH_LINK: '#00b7ff',
-    FLASH_TAPE: '#ff69b4',
+    BOX: 'rgba(160,144,160,1)',
+    CURLY: 'rgba(160,128,128,1)',
+    BOX_SHORTCUT: 'rgba(128,152,128,1)',
+    CURLY_SHORTCUT: 'rgba(128,144,160,1)',
+    FLASH_STICKY: '#908878',
+    FLASH_LINK: '#708090',
+    FLASH_TAPE: '#908088',
   }),
 
   // ─────────────────────────────────────────────────────────────────────────

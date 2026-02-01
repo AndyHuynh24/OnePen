@@ -195,7 +195,7 @@ function drawPastePreview() {
       w: pasteBBox.w + padding * 2,
       h: pasteBBox.h + padding * 2
     };
-    drawBox(boxWithPadding, 'rgba(200, 200, 200, 0.8)', '', true, liveCtx);
+    drawBox(boxWithPadding, 'rgba(144, 144, 144, 0.7)', '', true, liveCtx);
 
     // Draw label within box width with text wrap
     const label = 'Hold and drag to move, click outside to paste';
@@ -487,15 +487,15 @@ const tapePatternCache = new Map();
 // -------------------- CONSTANTS (now in config.js) --------------------
 // TOOL_ID, TOOL_REGISTRY, PEN_TYPES are defined in config.js
 
-const DEFAULT_MODIFIERS = { 
+const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true }, 
-    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    box: { label: "Box", color: "#a090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    curly: { label: "Curly", color: "#a08080", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    squarebracket: { label: "Square Bracket", color: "#809880", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#8090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#a08890", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
-    syncBracketToolboxes: true, 
+    syncBracketToolboxes: true,
     syncStrokeSize: false,
 }; 
 
