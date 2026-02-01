@@ -515,7 +515,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.TITLE2, color: "#ff9a52", visibility: true, size: 3 },
     { id: TOOL_ID.TITLE3, color: "#ffbb8a", visibility: false, size: 2.8 },
     { id: TOOL_ID.HIGHLIGHT, color: "#fefe58", size: 2 },
-    { id: TOOL_ID.HIGHLIGHT, color: "#9095fe", size: 2 },
+    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "confetti" },
     { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
     { id: TOOL_ID.BOLD_CUSTOM, color: "#fa6e6e", visibility: true, size: 2 },
     { id: TOOL_ID.PEN, color: "#74d8ff", size: 2 }
@@ -535,7 +535,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.BOLD_CUSTOM, color: "#55ffd7ff", size: 4 },
     { id: TOOL_ID.PEN, color: "#ffffff", size: 2.5, visibility: false},
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stripes" },
-    { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stars" },
+    { id: TOOL_ID.REMINDER, color: "#ff6b6b", size: 2 },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "hearts" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "confetti" },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "zigzag" },

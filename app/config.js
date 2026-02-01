@@ -259,6 +259,7 @@ const TOOLBOX_SELECTION = {
     TAPE: "tape",
     COPY: "copy",
     PASTE: "paste",
+    REMINDER: "reminder",
   })
 }
 // ═══════════════════════════════════════════════════════════════════════════
