@@ -5004,10 +5004,10 @@ function summarizeNotes(options) {
 
       // Layout parameters
       const leftMargin = 40;
-      const baseSpacing = 25;
-      const sectionSpacing = 40;
+      const baseSpacing = 20;
+      const sectionSpacing = 10;
       const navButtonHeight = 28;
-      const heightThreshold = 150; // If gap between consecutive items exceeds this, start new section
+      const heightThreshold = 100; // If gap between consecutive items exceeds this, start new section
       let currentY = 80;
       const newGroups = [];
       let startID = Date.now();
