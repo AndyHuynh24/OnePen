@@ -1156,6 +1156,33 @@ input[type="range"] {
     margin: 0;
 }
 
+.reset-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #3a3a3a;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.reset-settings-btn:hover {
+    background-color: #4a4a4a;
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+}
+
+.reset-settings-btn i {
+    font-size: 18px;
+}
+
 .grid-row {
     display: flex;
     flex-wrap: wrap;

@@ -873,6 +873,79 @@ function updateTools() {
     });
 }
 
+/**
+ * Reset modifier styles to default settings
+ */
+function resetModifiersToDefault() {
+    if (!confirm("Are you sure you want to reset all Modifier Styles to default?\n\nThis will reset all modifier colors, sizes, and visibility settings. All your customizations will be lost.")) {
+        return;
+    }
+
+    // Reset modifiers to defaults (deep clone to avoid reference issues)
+    modifiers = structuredClone(DEFAULT_MODIFIERS);
+
+    // Reset sync settings
+    syncStrokeSizeEnabled = false;
+    const syncCheckbox = document.getElementById("syncStrokeSize");
+    if (syncCheckbox) syncCheckbox.checked = false;
+
+    // Apply background settings from defaults
+    const bgSettings = modifiers.backgroundCanvas;
+    backgroundColor = bgSettings.backgroundColor;
+    gridLineColor = bgSettings.gridLineColor;
+    gridStyle = bgSettings.gridStyle || "square";
+
+    // Update color pickers
+    backgroundColorPicker.value = bgSettings.backgroundColor;
+    gridLineColorPicker.value = bgSettings.gridLineColor;
+
+    // Update grid size
+    setGridSize(bgSettings.gridWidth);
+
+    // Update grid style buttons
+    const gridStyleLineBtn = document.getElementById("gridStyleLine");
+    const gridStyleSquareBtn = document.getElementById("gridStyleSquare");
+    if (gridStyle === "line") {
+        gridStyleLineBtn?.classList.add("active");
+        gridStyleSquareBtn?.classList.remove("active");
+    } else {
+        gridStyleLineBtn?.classList.remove("active");
+        gridStyleSquareBtn?.classList.add("active");
+    }
+
+    // Redraw the grid
+    drawGrid(backgroundCtx);
+
+    // Re-render the modifiers UI
+    renderModifiers(modifiers);
+
+    // Save the reset settings
+    updateTools();
+}
+
+/**
+ * Reset toolbox styles to default settings
+ */
+function resetToolboxToDefault() {
+    if (!confirm("Are you sure you want to reset all Toolbox Styles to default?\n\nThis will reset all tool colors, sizes, visibility, and tape presets in every toolbox. All your customizations will be lost.")) {
+        return;
+    }
+
+    // Reset toolbox layout to defaults (deep clone to avoid reference issues)
+    toolboxLayout = structuredClone(DEFAULT_TOOLBOX_LAYOUT);
+
+    // Reset sync bracket toolboxes setting
+    syncBracketToolboxesEnabled = true;
+    const syncBracketCheckbox = document.getElementById("syncBracketToolboxes");
+    if (syncBracketCheckbox) syncBracketCheckbox.checked = true;
+
+    // Re-render the toolboxes UI
+    renderTools();
+
+    // Save the reset settings
+    updateTools();
+}
+
 // -------------------- TOOLBOX --------------------
 function assignToolBox() {
   colorTools = toolboxLayout.color.map(t => ({
