@@ -130,7 +130,7 @@ let shapeStartX = null;
 let shapeStartY = null;
 let predictedShape = -1;
 
-const shortcutGroup = [STROKE_TYPE.BOXS, STROKE_TYPE.CURLYS, STROKE_TYPE.CIRCLES];
+const shortcutGroup = [STROKE_TYPE.SQUAREBRACKET, STROKE_TYPE.WAVYBRACKET, STROKE_TYPE.CIRCLEBRACKET];
 
 //parameters for tools/colors setting
 let defaultPenColor = CONFIG.DEFAULT_PEN_COLOR; // Can be changed at runtime
@@ -491,9 +491,9 @@ const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
     box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
     curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true }, 
-    boxshortcut: { label: "Box Shortcut", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    curlyshortcut: { label: "Curly Shortcut", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circleshortcut: { label: "Circle Shortcut", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
     syncBracketToolboxes: true, 
     syncStrokeSize: false,
@@ -1891,11 +1891,11 @@ const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
       // Determine which bracket toolbox to open
       let bracketToolbox = "squareBracket";
       if (!syncBracketToolboxesEnabled) {
-        if (modifiedGroups.predictedLabel === STROKE_TYPE.BOXS) {
+        if (modifiedGroups.predictedLabel === STROKE_TYPE.SQUAREBRACKET) {
           bracketToolbox = "squareBracket";
-        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.CURLYS) {
+        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.WAVYBRACKET) {
           bracketToolbox = "wavyBracket";
-        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.CIRCLES) {
+        } else if (modifiedGroups.predictedLabel === STROKE_TYPE.CIRCLEBRACKET) {
           bracketToolbox = "circleBracket";
         }
       }
@@ -2811,9 +2811,9 @@ window.onload = async () => {
     //     highlight3: {color: '#00ffff', visibility: true}, // blue
     //     box: {color: '#ffb6ff', visibility: true},
     //     curly: {color: '#fa6e6e', visibility: true},
-    //     boxshortcut: {color: '#a3fba9', visibility: false},
-    //     curlyshortcut: {color: '#74e8ff', visibility: false}, 
-    //     circleshortcut: {color: 'pink', visibility: false}, 
+    //     squarebracket: {color: '#a3fba9', visibility: false},
+    //     wavybracket: {color: '#74e8ff', visibility: false},
+    //     circlebracket: {color: 'pink', visibility: false}, 
     // }
 
     modifiers = await initModifiers();
@@ -4467,9 +4467,9 @@ function showSummarizePopup() {
   const title3Color = getToolColor(TOOL_ID.TITLE3, "#7adb13");
   const boxColor = modifiers?.box?.color || DEFAULT_MODIFIERS.box.color;
   const curlyColor = modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color;
-  const boxShortcutColor = modifiers?.boxshortcut?.color || DEFAULT_MODIFIERS.boxshortcut.color;
-  const curlyShortcutColor = modifiers?.curlyshortcut?.color || DEFAULT_MODIFIERS.curlyshortcut.color;
-  const circleShortcutColor = modifiers?.circleshortcut?.color || DEFAULT_MODIFIERS.circleshortcut.color;
+  const squareBracketColor = modifiers?.squarebracket?.color || DEFAULT_MODIFIERS.squarebracket.color;
+  const wavyBracketColor = modifiers?.wavybracket?.color || DEFAULT_MODIFIERS.wavybracket.color;
+  const circleBracketColor = modifiers?.circlebracket?.color || DEFAULT_MODIFIERS.circlebracket.color;
 
   const overlay = document.createElement("div");
   overlay.id = "summarizePopup";
@@ -4531,16 +4531,16 @@ function showSummarizePopup() {
         <span style="color:${curlyColor};">Curly Bracket</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkBoxShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${boxShortcutColor};">
-        <span style="color:${boxShortcutColor};">Square bracket</span>
+        <input id="chkSquareBracket" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${squareBracketColor};">
+        <span style="color:${squareBracketColor};">Square bracket</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkCurlyShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${curlyShortcutColor};">
-        <span style="color:${curlyShortcutColor};">Curly bracket </span>
+        <input id="chkWavyBracket" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${wavyBracketColor};">
+        <span style="color:${wavyBracketColor};">Wavy bracket</span>
       </label>
       <label style="display:block;margin:6px 0;padding-left:12px;">
-        <input id="chkCircleShortcut" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${circleShortcutColor};">
-        <span style="color:${circleShortcutColor};">Circle bracket</span>
+        <input id="chkCircleBracket" type="checkbox" style="transform:scale(1.2);margin-right:8px;accent-color:${circleBracketColor};">
+        <span style="color:${circleBracketColor};">Circle bracket</span>
       </label>
     </div>
 
@@ -4564,9 +4564,9 @@ function showSummarizePopup() {
       includeTitle3: document.getElementById("chkTitle3").checked,
       includeBox: document.getElementById("chkBox").checked,
       includeCurly: document.getElementById("chkCurly").checked,
-      includeBoxShortcut: document.getElementById("chkBoxShortcut").checked,
-      includeCurlyShortcut: document.getElementById("chkCurlyShortcut").checked,
-      includeCircleShortcut: document.getElementById("chkCircleShortcut").checked,
+      includeSquareBracket: document.getElementById("chkSquareBracket").checked,
+      includeWavyBracket: document.getElementById("chkWavyBracket").checked,
+      includeCircleBracket: document.getElementById("chkCircleBracket").checked,
     };
     overlay.remove();
 
@@ -4679,7 +4679,7 @@ function summarizeNotes(options) {
     summaryName = "summary",
     includeTitle1, includeTitle2, includeTitle3,
     includeBox, includeCurly,
-    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+    includeSquareBracket, includeWavyBracket, includeCircleBracket
   } = options;
 
   const summaryPath = `${selectedFolder}/${summaryName}.json`;
@@ -4886,9 +4886,9 @@ function summarizeNotes(options) {
           // First pass: collect all potential shortcuts with their children
           const potentialShortcuts = [];
           const shortcutTypes = [
-            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"], type: "boxshortcut" },
-            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"], type: "curlyshortcut" },
-            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"], type: "circleshortcut" }
+            { include: includeSquareBracket, labels: [STROKE_TYPE.SQUAREBRACKET, 4, "squarebracket"], type: "squarebracket" },
+            { include: includeWavyBracket, labels: [STROKE_TYPE.WAVYBRACKET, 5, "wavybracket"], type: "wavybracket" },
+            { include: includeCircleBracket, labels: [STROKE_TYPE.CIRCLEBRACKET, 6, "circlebracket"], type: "circlebracket" }
           ];
 
           shortcutTypes.forEach(({ include, labels, type }) => {
@@ -5125,7 +5125,7 @@ function summarizeNotes(options) {
         selectedOptions: {
           includeTitle1, includeTitle2, includeTitle3,
           includeBox, includeCurly,
-          includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+          includeSquareBracket, includeWavyBracket, includeCircleBracket
         }
       };
 
@@ -6251,9 +6251,9 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
         // First pass: collect all potential shortcuts with their children
         const potentialShortcuts = [];
         const shortcutTypes = [
-          { include: true, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"], type: "boxshortcut" },
-          { include: true, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"], type: "curlyshortcut" },
-          { include: true, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"], type: "circleshortcut" }
+          { include: true, labels: [STROKE_TYPE.SQUAREBRACKET, 4, "squarebracket"], type: "squarebracket" },
+          { include: true, labels: [STROKE_TYPE.WAVYBRACKET, 5, "wavybracket"], type: "wavybracket" },
+          { include: true, labels: [STROKE_TYPE.CIRCLEBRACKET, 6, "circlebracket"], type: "circlebracket" }
         ];
 
         shortcutTypes.forEach(({ include, labels, type }) => {
@@ -8242,38 +8242,38 @@ function endMediaDrag() {
   canvasGroup.style.cursor = 'default';
 }
 
-//======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-(function () {
-  const penOverlay = document.createElement("img");
-  penOverlay.src = "cursor.png"; // your 945×1396 image
-  penOverlay.alt = "pen cursor";
-  penOverlay.style.position = "fixed";
-  penOverlay.style.height = "260px"; // scaled height
-  penOverlay.style.pointerEvents = "none";
-  penOverlay.style.zIndex = "999999";
-  penOverlay.style.display = "block";
-  penOverlay.style.transition = "transform 0.25s ease";
-  penOverlay.style.transformOrigin = "top left";
-  penOverlay.style.zIndex = "100000000";
+// //======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
+// (function () {
+//   const penOverlay = document.createElement("img");
+//   penOverlay.src = "cursor.png"; // your 945×1396 image
+//   penOverlay.alt = "pen cursor";
+//   penOverlay.style.position = "fixed";
+//   penOverlay.style.height = "260px"; // scaled height
+//   penOverlay.style.pointerEvents = "none";
+//   penOverlay.style.zIndex = "999999";
+//   penOverlay.style.display = "block";
+//   penOverlay.style.transition = "transform 0.25s ease";
+//   penOverlay.style.transformOrigin = "top left";
+//   penOverlay.style.zIndex = "100000000";
 
-  // --- Top-left anchor: no transform needed ---
-  penOverlay.style.transform = "none";
-  document.body.appendChild(penOverlay);
+//   // --- Top-left anchor: no transform needed ---
+//   penOverlay.style.transform = "none";
+//   document.body.appendChild(penOverlay);
 
-  // --- Update position on move ---
-  const updateCursorPos = (e) => {
-    penOverlay.style.left = `${e.clientX}px`;
-    penOverlay.style.top = `${e.clientY}px`;
-  };
-  window.addEventListener("pointermove", updateCursorPos);
+//   // --- Update position on move ---
+//   const updateCursorPos = (e) => {
+//     penOverlay.style.left = `${e.clientX}px`;
+//     penOverlay.style.top = `${e.clientY}px`;
+//   };
+//   window.addEventListener("pointermove", updateCursorPos);
 
-  // --- Optional press feedback ---
-  window.addEventListener("pointerdown", () => {
-    penOverlay.style.transform = "scale(0.85)";
-    //penOverlay.style.opacity = 1;
-  });
-  window.addEventListener("pointerup", () => {
-    penOverlay.style.transform = "scale(1) rotateY(30deg)";
-    //penOverlay.style.opacity = 0;
-  });
-})();
+//   // --- Optional press feedback ---
+//   window.addEventListener("pointerdown", () => {
+//     penOverlay.style.transform = "scale(0.85)";
+//     //penOverlay.style.opacity = 1;
+//   });
+//   window.addEventListener("pointerup", () => {
+//     penOverlay.style.transform = "scale(1) rotateY(30deg)";
+//     //penOverlay.style.opacity = 0;
+//   });
+// })();

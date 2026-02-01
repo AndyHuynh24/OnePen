@@ -1,7 +1,7 @@
 {
   "modifiers": [
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 99,
@@ -361,7 +361,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 240,
@@ -666,7 +666,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 384,
@@ -1021,7 +1021,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 539,
@@ -1341,7 +1341,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 113,
@@ -1746,7 +1746,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 286,
@@ -2081,7 +2081,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 460,
@@ -2481,7 +2481,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 286,
@@ -2846,7 +2846,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 209,
@@ -3216,7 +3216,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 425,
@@ -3566,7 +3566,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 422,
@@ -3936,7 +3936,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 416,
@@ -4261,7 +4261,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 637,
@@ -4576,7 +4576,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 632,
@@ -4961,7 +4961,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 535,
@@ -5326,7 +5326,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 137,
@@ -5706,7 +5706,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 91,
@@ -6086,7 +6086,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 148,
@@ -6481,7 +6481,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 192,
@@ -6831,7 +6831,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 446,
@@ -7151,7 +7151,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 609,
@@ -7506,7 +7506,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 649,
@@ -7811,7 +7811,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 350,
@@ -8151,7 +8151,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 300,
@@ -8476,7 +8476,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 153,
@@ -8771,7 +8771,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 398,
@@ -9061,7 +9061,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 588,
@@ -9356,7 +9356,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 636,
@@ -9616,7 +9616,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 635,
@@ -9926,7 +9926,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 604,
@@ -10266,7 +10266,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 424,
@@ -10576,7 +10576,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 291,
@@ -10856,7 +10856,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 127,
@@ -11161,7 +11161,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 155,
@@ -11496,7 +11496,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 341,
@@ -11811,7 +11811,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 309,
@@ -12131,7 +12131,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 222,
@@ -12481,7 +12481,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 332,
@@ -12821,7 +12821,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 539,
@@ -13131,7 +13131,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 680,
@@ -13411,7 +13411,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 708,
@@ -13736,7 +13736,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 678,
@@ -14076,7 +14076,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 676,
@@ -14361,7 +14361,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 674,
@@ -14681,7 +14681,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 685,
@@ -14996,7 +14996,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 462,
@@ -15296,7 +15296,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 131,
@@ -15586,7 +15586,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 62,
@@ -15921,7 +15921,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 54,
@@ -16241,7 +16241,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 56,
@@ -16521,7 +16521,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 37,
@@ -16851,7 +16851,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 146,
@@ -17241,7 +17241,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 366,
@@ -17531,7 +17531,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 450,
@@ -17886,7 +17886,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 539,
@@ -18156,7 +18156,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 471,
@@ -18431,7 +18431,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 395,
@@ -18691,7 +18691,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 307,
@@ -18991,7 +18991,7 @@
       ]
     },
     {
-      "type": "boxshortcut",
+      "type": "squarebracket",
       "stroke": [
         {
           "x": 251,

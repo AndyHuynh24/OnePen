@@ -266,7 +266,7 @@ class TestModelInference:
         # Expected classes
         class_names = [
             "underline", "box", "curly", "delete",
-            "boxshortcut", "curlyshortcut", "circleshortcut", "none"
+            "squarebracket", "wavybracket", "circlebracket", "none"
         ]
         assert predicted_class < len(class_names)
 

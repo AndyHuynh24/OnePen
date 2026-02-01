@@ -11,9 +11,9 @@ classes:
   - box
   - curly
   - delete
-  - boxshortcut
-  - curlyshortcut
-  - circleshortcut
+  - squarebracket
+  - wavybracket
+  - circlebracket
   - none
 
 # Data configuration
@@ -40,7 +40,7 @@ augmentation:
   scale_y_range: [0.9, 1.1]
   flip_horizontal: true
   flip_exclude_types: []           # types to exclude from flipping
-  rotation_exclude_types: ["boxshortcut", "curlyshortcut", "circleshortcut"]
+  rotation_exclude_types: ["squarebracket", "wavybracket", "circlebracket"]
 
 # Feature engineering
 features:

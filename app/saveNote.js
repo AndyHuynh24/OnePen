@@ -650,7 +650,7 @@ function countImportantItems(folderName, options, callback) {
   const {
     includeTitle1, includeTitle2, includeTitle3,
     includeBox, includeCurly,
-    includeBoxShortcut, includeCurlyShortcut, includeCircleShortcut
+    includeSquareBracket, includeWavyBracket, includeCircleBracket
   } = options;
 
   listNotesInFolderWithDates(folderName, (notesWithDates) => {
@@ -708,9 +708,9 @@ function countImportantItems(folderName, options, callback) {
 
           // Count shortcuts (these have visibility=false but should still be counted)
           const shortcutTypes = [
-            { include: includeBoxShortcut, labels: [STROKE_TYPE.BOXS, 4, "boxshortcut"] },
-            { include: includeCurlyShortcut, labels: [STROKE_TYPE.CURLYS, 5, "curlyshortcut"] },
-            { include: includeCircleShortcut, labels: [STROKE_TYPE.CIRCLES, 6, "circleshortcut"] }
+            { include: includeSquareBracket, labels: [STROKE_TYPE.SQUAREBRACKET, 4, "squarebracket"] },
+            { include: includeWavyBracket, labels: [STROKE_TYPE.WAVYBRACKET, 5, "wavybracket"] },
+            { include: includeCircleBracket, labels: [STROKE_TYPE.CIRCLEBRACKET, 6, "circlebracket"] }
           ];
 
           shortcutTypes.forEach(({ include, labels }) => {

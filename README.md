@@ -1,245 +1,67 @@
 <p align="center">
-  <img src="app/icons/icon-512.png" alt="OnePen Logo" width="80" />
+  <img src="app/icons/icon-512.png" alt="OnePen Logo" width="120" />
 </p>
 
 <h1 align="center">OnePen</h1>
 
 <p align="center">
-  <strong>AI-Powered Gesture Recognition for Frictionless Handwritten Note-Taking</strong>
+  <b>AI-Powered Handwriting App with Real-Time Gesture Recognition</b>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/TensorFlow-2.20+-orange?logo=tensorflow" />
-  <img src="https://img.shields.io/badge/TensorFlow.js-Browser_ML-yellow?logo=tensorflow" />
-  <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" />
-  <img src="https://img.shields.io/badge/PWA-Offline_Ready-5A0FC8?logo=pwa" />
-  <img src="https://img.shields.io/badge/MLflow-Experiment_Tracking-0194E2?logo=mlflow" />
+  <a href="#demo">Demo</a> •
+  <a href="#features">Features</a> •
+  <a href="#project-structure">Structure</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#getting-started">Get Started</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/accuracy-99.89%25-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/inference-~20ms-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/model_size-2.5MB-orange?style=flat-square" />
+  <img src="https://img.shields.io/badge/PWA-offline_ready-5A0FC8?style=flat-square" />
+  <img src="https://img.shields.io/badge/🏆_HackUMASS_XII-Most_Novel_AI-gold?style=flat-square" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/TensorFlow-2.x-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
+  <img src="https://img.shields.io/badge/TensorFlow.js-Browser_ML-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/MLflow-Tracking-0194E2?style=flat-square&logo=mlflow&logoColor=white" />
 </p>
 
 ---
-## TL;DR  
 
-**OnePen** is the **first handwriting note-taking app** that lets users format and edit notes *without ever lifting their hand* or touching a toolbar.  
-By recognizing handwritten gestures in real time, it reduces hand movement and context switching—helping users **write up to 30% faster** and stay in flow.
+## The Problem
 
-I designed and deployed a **fully in-browser ML system** that recognizes gestures like underline, box, delete, and brackets using a **hybrid vision + geometry model**, achieving **99.89% accuracy** with **~20 ms latency** on-device.
+Handwritten note-taking apps force constant interruptions—switching tools, tapping buttons, navigating menus. Each micro-interaction breaks focus and slows you down.
 
----
+## The Solution
 
-🚀 **NOT A DEMO · NOT A PROTOTYPE**  
-⭐ **OnePen is a published app, used by real users, that measurably improves how people write.**
+**OnePen** eliminates toolbar dependency through real-time gesture recognition. Draw naturally, and ML interprets your intent—grouping content, applying styles, or triggering app features instantly.
 
-🏆 **Winner — “Most Novel Use of AI”**, HackUMASS XII
+<p align="center">
+  <img src="app/assets/box.png" width="80" alt="Box" />
+  <img src="app/assets/curly.png" width="80" alt="Curly" />
+  <img src="app/assets/delete.png" width="80" alt="Delete" />
+  <img src="app/assets/underline.png" width="80" alt="Underline" />
+  <img src="app/assets/squareBracket.png" width="80" alt="Box Shortcut" />
+  <img src="app/assets/wavyBracket.png" width="80" alt="Curly Shortcut" />
+  <img src="app/assets/circleBracket.png" width="80" alt="Circle Shortcut" />
+</p>
 
----
+<p align="center"><i>6 gesture modifiers recognized in real-time → instant formatting & actions</i></p>
 
-### Why it matters (real, practical impact)
-- Eliminates hundreds of micro-interruptions per session caused by tool switching  
-- Keeps users in a continuous writing flow → **less fatigue, faster note-taking**  
-- ML directly controls the UI, turning handwriting into beautiful styles flawlessly
-- Works **offline**, instantly, and privately (no server, no cloud)
-
----
-
-### What makes it novel
-- **First app** to replace toolbar-based formatting with real-time handwritten gesture recognition  
-- **Hybrid ML architecture**:  
-  CNN (MobileNetV3) for visual intent + 12 handcrafted geometric features to disambiguate similar strokes  
-- Designed around **human motor behavior**, not just classification accuracy
+**One pen. Zero interruptions. ~30% faster note-taking.**
 
 ---
 
-### Technical highlights
-- **Model**: MobileNetV3 + Squeeze-and-Excitation + 12D geometric feature fusion  
-- **Performance**: 99.89% accuracy · ~20 ms inference · 2.5 MB model  
-- **Deployment**: 100% client-side with TensorFlow.js (PWA, offline-first)  
-- **ML Ops**: MLflow-tracked experiments with reproducible pipelines  
+## Demo
 
----
+https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b
 
-### Stack
-**TensorFlow / Keras · TensorFlow.js · Python · MLflow · Canvas API · PWA**
-
----
-
-# 🔍 Deep Dive
-
----
-
-
-## 🚨 The Problem
-
-Handwritten note-taking is full of interruptions.  
-Changing colors, highlighting, erasing, or switching pens forces you to lift your hand, reach for a toolbar, then return to the page.
-
-These tiny actions add up—quietly breaking your flow and focus.
-
----
-
-## ✨ The Solution
-
-**OnePen** removes that friction.
-
-It’s a handwriting-first note-taking web app powered by **AI gesture recognition**, allowing you to write, format, and organize naturally—without ever touching a toolbar.
-
-- Circle content → **Highlight**
-- Underline text → **Bold or Title**
-- Draw brackets → **Change stroke color**
-
-**One pen. Zero interruptions.**
-
-🎥 **[Watch Demo →](https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b)**
-
----
-
-## 🚀 Key Features
-
-### ✍️ Gesture Recognition (ML-Powered)
-
-**Quick Draw** — Instantly styles strokes (fully customizable):
-
-| Gesture | Action |
-|-------|--------|
-| Box | Groups and styles enclosed content |
-| Wavy box | Groups content with alternative styling |
-| Strike-through | Deletes crossed strokes |
-| Box / Curly / Circle brackets | Styles child content within bracket height |
-
-**Draw + Hold** — Opens a radial tool dial  
-> 6 gestures × 8 tools = **48 quick-access tools**
-
-Draw any gesture (except delete), hold briefly, and select a tool—without lifting your pen.
-
----
-
-### 📚 Study Tools
-- **Tape Flashcards** — Mask content with decorative tape (6 styles). Click to reveal.
-- **Auto-Summaries** — Generate study sheets from titles, boxes, and highlights.
-- **Table of Contents** — Auto-generated from headings for instant navigation.
-
----
-
-### 🧠 Smart Notes
-- **Sticky Notes** — Attach floating notes with mini drawing canvases.
-- **Hyperlinks** — Draw regions to create clickable links.
-- **Math Solver** — Handwritten equations → LaTeX → solved (via Pix2Text).
-
----
-
-### 📦 Media & Export
-- Insert **images / PDFs** with resize, rotate, and opacity controls
-- **Google Drive sync** with auto-backup every 15 seconds
-- **Offline-first PWA** — Works without internet after first load
-- Share notebooks as portable **JSON files**
-
----
-
-## 🧩 Technical Overview
-
-### System Architecture
-![System Architecture](assets/architecture.png)
-
----
-
-### Model Architecture
-
-OnePen uses a **hybrid dual-input model** that fuses visual and geometric stroke features:
-
-```
-┌─────────────────┐     ┌─────────────────┐
-│  96×96 Image    │     │  12D Geometric  │
-│    (stroke)     │     │    Features     │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────┐     ┌─────────────────┐
-│  MobileNetV3    │     │   Dense 128→64  │
-│  + SE Attention │     │  + LayerNorm    │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         └──────────┬────────────┘
-                    ▼
-           ┌───────────────┐
-           │    Concat     │
-           │   384 → 192   │
-           │   + Dropout   │
-           └───────┬───────┘
-                   ▼
-           ┌───────────────┐
-           │   8 Classes   │
-           │   (softmax)   │
-           └───────────────┘
-```
-
-**Why hybrid?**  
-Image-only models struggled with visually similar gestures (box vs bracket, underline vs delete).  
-Adding geometric features improved accuracy by **~5–8%**.
-
----
-
-### The 12 Geometric Features
-
-| # | Feature | Why It Helps |
-|---|--------|--------------|
-| 1 | Closure ratio | Boxes form closed loops |
-| 2 | Compactness | Underlines are elongated |
-| 3 | Spread ratio | Underlines have low spread |
-| 4 | Aspect ratio | Distinguishes wide vs tall |
-| 5 | Edge fraction | Boxes cluster on edges |
-| 6 | Point count | Deletes use more points |
-| 7 | Height diff | Underlines stay below threshold |
-| 8 | Horizontal variance | Underlines vary in X |
-| 9 | Total path length | Wavy strokes are longer |
-| 10 | Perimeter ratio | Size-invariant metric |
-| 11 | Spine verticality | Deletes are diagonal |
-| 12 | Vertical variance | Underlines have low Y variance |
-
----
-
-### Model Performance
-
-| Model | Accuracy | Size | Inference |
-|------|---------|------|----------|
-| MobileNetV3-Large | 99.88% | 5 MB | 30 ms |
-| **MobileNetV3-Small (Chosen)** | **99.89%** | **2.5 MB** | **20 ms** |
-| EfficientNetV2-B0 | — | 7 MB | 60 ms |
-
-Chosen for **near-perfect accuracy** with **ultra-fast browser inference**.
-
----
-
-### Data Pipeline
-1. Custom data collection app (4 writers, varied styles)
-2. Augmentation: rotation, shear, scale, flip (6× data)
-3. Preprocessing: normalization, 96×96 rendering, feature extraction
-4. Full experiment tracking with **MLflow**
-
-![Stroke Samples](assets/sample_stroke.png)
-
-> Runs entirely **in-browser**. Optional Flask backend for math solving.
-
----
-
-## ⚡ Quick Start
-
-```bash
-git clone https://github.com/yourusername/OnePen.git
-cd OnePen
-
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-cd app
-python -m http.server 8000
-
-### Train Your Own Model
-
-```bash
-make dataset   # Preprocess collected data
-make train     # Train hybrid CNN (~200 epochs)
-make export    # Export to TensorFlow.js
-```
+> **[Try Live App →](https://onepen.app)** · Works offline after first load
 
 ---
 
@@ -247,28 +69,191 @@ make export    # Export to TensorFlow.js
 
 ```
 OnePen/
-├── app/                      # Progressive Web App
-│   ├── index.html           # Main interface
-│   ├── draw.js              # Canvas engine (zoom, pan, stylus)
-│   ├── predict.js           # TensorFlow.js inference
-│   ├── sw.js                # Service worker (offline)
-│   └── manifest.json        # PWA manifest
+├── app/                        # Progressive Web App (Frontend)
+│   ├── index.html             # Main interface
+│   ├── main.js                # Core app logic & gesture handling
+│   ├── draw.js                # Canvas rendering engine
+│   ├── predict.js             # TensorFlow.js inference
+│   ├── saveNote.js            # IndexedDB persistence
+│   ├── signin.js              # Google Drive authentication
+│   ├── feedbackCollector.js   # Implicit feedback for data flywheel
+│   ├── config.js              # App configuration
+│   ├── sw.js                  # Service worker (offline support)
+│   ├── tfjs/                  # Deployed TF.js model
+│   └── icons/                 # PWA icons
 │
-├── src/modifiers/           # ML Library
+├── src/modifiers/             # ML Training Pipeline
 │   ├── models/
-│   │   └── architecture.py  # Hybrid CNN definition
+│   │   ├── architecture.py    # Hybrid CNN + geometric model
+│   │   └── trainer.py         # Training loop with callbacks
 │   ├── features/
-│   │   └── geometric.py     # 12D feature extraction
-│   └── data/
-│       ├── loader.py        # Dataset loading
-│       └── augmenter.py     # Data augmentation
+│   │   └── geometric.py       # 12D feature extraction
+│   ├── data/
+│   │   ├── loader.py          # Dataset loading
+│   │   ├── augmenter.py       # Data augmentation
+│   │   └── preprocessor.py    # Image preprocessing
+│   └── utils/                 # Logging, config utilities
 │
-├── scripts/                 # CLI Tools
-│   ├── train.py            # Training script
-│   └── export.py           # TF.js export
+├── scripts/                   # CLI Tools
+│   ├── train.py              # Training with MLflow tracking
+│   ├── export.py             # TF.js model conversion
+│   └── dataset.py            # Data preprocessing pipeline
 │
-├── config/config.yaml       # Hyperparameters
-└── mlruns/                  # MLflow experiments
+├── data/
+│   ├── raw/                  # Raw stroke data by contributor
+│   └── processed/            # Preprocessed training data
+│
+├── models/tfjs/              # Exported browser-ready model
+├── config/                   # Training hyperparameters (YAML)
+├── tests/                    # pytest test suite
+└── assets/                   # Documentation images
+```
+
+---
+
+## Features
+
+<table>
+<tr>
+<td width="50%">
+
+### Gesture Recognition
+- **6 gesture types** recognized in real-time
+- **Draw + Hold** opens radial tool menu
+- 6 gestures × 8 tools = **48 quick actions**
+- Fully customizable gesture-to-action mapping
+
+</td>
+<td width="50%">
+
+### Study Tools
+- **Tape Flashcards** — Cover keywords with decorative tape for active recall; tap to reveal. Each tape becomes a reviewable flashcard.
+- **Auto-Summaries** — Generate study sheets from highlights
+- **Table of Contents** — Auto-built from headings
+- **Reminders** — Time-based notifications
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### Smart Notes
+- **Sticky Notes** — Floating annotations with mini canvas
+- **Embed Links** — Clickable web previews
+- **Math Solver** — Handwritten → LaTeX → solved
+
+</td>
+<td width="50%">
+
+### Export & Sync
+- **Google Drive** auto-backup
+- **PDF Export** with full fidelity
+- **Offline-first** PWA architecture
+- **Cross-device** via portable JSON
+
+</td>
+</tr>
+</table>
+
+---
+
+## Architecture
+
+### System Overview
+
+<p align="center">
+  <img src="assets/architecture.png" alt="System Architecture" width="800" />
+</p>
+
+### Model Architecture
+
+**Hybrid CNN + Geometric Features** — Combining visual and numerical inputs for robust gesture classification.
+
+```
+        Image Input (96×96)              Geometric Features (12D)
+              │                                   │
+              ▼                                   ▼
+    ┌───────────────────┐               ┌─────────────────┐
+    │   MobileNetV3     │               │   Dense 128→64  │
+    │  + SE Attention   │               │  + LayerNorm    │
+    └─────────┬─────────┘               └────────┬────────┘
+              │                                   │
+              └──────────────┬────────────────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │  Fusion Layer   │
+                    │   384 → 192     │
+                    └────────┬────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │   8 Classes     │
+                    │   (softmax)     │
+                    └─────────────────┘
+```
+
+<p align="center">
+  <img src="assets/sample_stroke.png" alt="Sample Strokes by Class" width="700" />
+</p>
+
+**Why hybrid?** Image-only models confused similar gestures (box vs bracket). Adding geometric features improved accuracy by **5-8%**.
+
+### Geometric Features
+
+| Feature | Purpose |
+|---------|---------|
+| Closure ratio | Detects closed loops (boxes) |
+| Aspect ratio | Distinguishes wide vs tall strokes |
+| Path length | Identifies wavy/complex strokes |
+| Verticality | Separates diagonal deletes from horizontal underlines |
+| Point density | Distinguishes quick strokes from deliberate ones |
+| + 7 more | Fine-grained disambiguation |
+
+### Performance
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 99.89% |
+| **Inference** | ~20ms |
+| **Model Size** | 2.5 MB |
+| **Classes** | 8 gesture types |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js (optional, for dev server)
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/AndyHuynh24/OnePen.git
+cd OnePen
+
+# Setup Python environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Run the app
+cd app && python -m http.server 8000
+# Open http://localhost:8000
+```
+
+### Train Your Own Model
+
+```bash
+# Preprocess data
+python scripts/dataset.py
+
+# Train (with MLflow tracking)
+python scripts/train.py --epochs 200 --backbone mobilenetv3_small
+
+# Export to TensorFlow.js
+python scripts/export.py --model outputs/run_*/stroke_classifier.keras --quantize uint16
 ```
 
 ---
@@ -276,21 +261,20 @@ OnePen/
 ## Tech Stack
 
 | Layer | Technologies |
-|-------|-------------|
-| **Frontend** | Canvas API, TensorFlow.js, IndexedDB, Service Workers |
-| **ML** | TensorFlow/Keras, MobileNetV3, Squeeze-and-Excitation |
-| **Backend** | Flask, Pix2Text (math), Google Drive API |
-| **DevOps** | MLflow, pytest, ruff, mypy |
+|-------|--------------|
+| **Frontend** | JavaScript (ES6+), HTML5 Canvas API, TensorFlow.js, IndexedDB, Web Workers |
+| **ML/AI** | TensorFlow, Keras, MobileNetV3, Squeeze-and-Excitation Networks, MLflow |
+| **Infrastructure** | Progressive Web App (PWA), Service Workers, Firebase Hosting, Google Drive API |
+| **Quality** | pytest, ruff, mypy, GitHub Actions CI/CD |
 
 ---
 
-## What I Learned
+## Key Learnings (This Project)
 
-- **Feature engineering matters** — Hand-crafted geometric features outperformed adding more CNN layers; however, not all features help, adding them even make the model worse.
-- **Augmentation** - Augmentation is very helpful, generating many more realistic data samples without manually collecting data. However, it is needed to be handled carefully or it would break the characteristics of the unique classes.
-- **Hybrid models** — Combining different input modalities (image + vector) requires careful normalization 
-- **Browser ML constraints** — Model size and inference speed directly impact UX; MobileNet's efficiency was key
-- **Data diversity** — Collecting from multiple handwriting styles prevented overfitting to my own gestures
+- **Feature engineering > more layers** — Hand-crafted geometric features outperformed deeper CNNs for this use case
+- **Augmentation requires care** — Aggressive transforms broke class-specific characteristics
+- **Browser constraints shape design** — Model size directly impacts UX; MobileNet's efficiency was essential
+- **Diverse training data prevents overfitting** — Collecting from multiple handwriting styles was critical
 
 ---
 
@@ -300,7 +284,6 @@ MIT
 
 ---
 
-## Author
-
-**Andy Huynh** — [GitHub](https://github.com/AndyHuynh24)
-
+<p align="center">
+  Built by <a href="https://github.com/AndyHuynh24">Andy Huynh</a>
+</p>

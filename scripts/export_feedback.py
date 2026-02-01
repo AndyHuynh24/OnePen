@@ -56,9 +56,9 @@ CLASSES = [
     "box",
     "curly",
     "delete",
-    "boxshortcut",
-    "curlyshortcut",
-    "circleshortcut",
+    "squarebracket",
+    "wavybracket",
+    "circlebracket",
     "none",
 ]
 
