@@ -1688,10 +1688,9 @@ function reDrawAll(ctx) {
 
             ctx.save();
 
-            // Determine color based on whether URL is set
-            const hasUrl = group.url && group.url.trim() !== "";
-            const borderColor = hasUrl ? "#666" : "#888";
-            const iconColor = hasUrl ? "#888" : "#666";
+            // Blue color for embed link border
+            const borderColor = "#4a9eff";
+            const iconColor = "#4a9eff";
 
             // --- Clickable box with subtle styling
             ctx.strokeStyle = borderColor;
