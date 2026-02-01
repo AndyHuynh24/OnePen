@@ -3860,6 +3860,219 @@ function toggleDetection() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ADMIN: FLAG MISCLASSIFIED STROKE POPUP
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showFlagMisclassifiedPopup() {
+    // Check if user is admin
+    if (typeof isAdmin === 'function' && !isAdmin()) {
+        console.warn('Not authorized to flag strokes');
+        return;
+    }
+
+    // Remove existing popup
+    const existing = document.getElementById('flagMisclassifiedPopup');
+    if (existing) existing.remove();
+
+    // Get recent strokes (exclude special types like media, text, stickynote, link, tape)
+    const recentStrokes = allGroups
+        .filter(g => g.stroke && g.stroke.length > 0 && !['media', 'text', 'stickynote', 'link', 'tape'].includes(g.type))
+        .slice(-10) // Get last 10 strokes
+        .reverse(); // Most recent first
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'flagMisclassifiedPopup';
+    overlay.className = 'flag-popup-overlay';
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'flag-popup';
+
+    // Build class options from STROKE_TYPE
+    const classOptions = Object.values(STROKE_TYPE)
+        .filter(v => v !== 'move' && v !== 'highlight')
+        .map(v => `<option value="${v}">${v.charAt(0).toUpperCase() + v.slice(1)}</option>`)
+        .join('');
+
+    modal.innerHTML = `
+        <h3><i class='bx bx-flag'></i> Flag Misclassified Stroke</h3>
+        <div class="flag-popup-preview">
+            ${recentStrokes.length > 0
+                ? `<canvas id="flagStrokePreview" width="280" height="150"></canvas>
+                   <div class="flag-popup-info">
+                       <span id="flagStrokeIndex">Stroke 1 of ${recentStrokes.length}</span>
+                       <span id="flagCurrentPrediction"></span>
+                   </div>
+                   <div style="display: flex; gap: 8px; margin-top: 8px;">
+                       <button id="flagPrevBtn" class="cancel-btn" style="padding: 6px 12px; font-size: 12px;">← Prev</button>
+                       <button id="flagNextBtn" class="cancel-btn" style="padding: 6px 12px; font-size: 12px;">Next →</button>
+                   </div>`
+                : `<div class="no-stroke">No recent strokes to flag</div>`
+            }
+        </div>
+        <div class="flag-popup-class-select">
+            <label>Correct classification:</label>
+            <select id="flagClassSelect" ${recentStrokes.length === 0 ? 'disabled' : ''}>
+                <option value="">-- Select class --</option>
+                ${classOptions}
+            </select>
+        </div>
+        <div class="flag-popup-actions">
+            <button class="cancel-btn" id="flagCancelBtn">Cancel</button>
+            <button class="submit-btn" id="flagSubmitBtn" disabled>Submit Flag</button>
+        </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // State
+    let currentStrokeIndex = 0;
+
+    // Draw stroke preview
+    function drawStrokePreview(index) {
+        if (recentStrokes.length === 0) return;
+
+        const canvas = document.getElementById('flagStrokePreview');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const stroke = recentStrokes[index];
+
+        // Clear canvas
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (!stroke || !stroke.stroke || stroke.stroke.length < 2) return;
+
+        // Calculate bounding box
+        const points = stroke.stroke;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        points.forEach(p => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        });
+
+        const strokeWidth = maxX - minX;
+        const strokeHeight = maxY - minY;
+        const padding = 20;
+
+        // Calculate scale to fit canvas
+        const scaleX = (canvas.width - padding * 2) / Math.max(strokeWidth, 1);
+        const scaleY = (canvas.height - padding * 2) / Math.max(strokeHeight, 1);
+        const drawScale = Math.min(scaleX, scaleY, 2); // Cap at 2x
+
+        // Center offset
+        const offsetX = (canvas.width - strokeWidth * drawScale) / 2 - minX * drawScale;
+        const offsetY = (canvas.height - strokeHeight * drawScale) / 2 - minY * drawScale;
+
+        // Draw stroke
+        ctx.beginPath();
+        ctx.strokeStyle = stroke.color || '#ffffff';
+        ctx.lineWidth = Math.max(1.5, (stroke.size || 2) * drawScale * 0.5);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        points.forEach((p, i) => {
+            const x = p.x * drawScale + offsetX;
+            const y = p.y * drawScale + offsetY;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Update info
+        const indexEl = document.getElementById('flagStrokeIndex');
+        const predEl = document.getElementById('flagCurrentPrediction');
+        if (indexEl) indexEl.textContent = `Stroke ${index + 1} of ${recentStrokes.length}`;
+        if (predEl) {
+            const pred = stroke.predictedLabel || 'none';
+            predEl.textContent = ` | Predicted: ${pred}`;
+        }
+
+        // Update nav buttons
+        const prevBtn = document.getElementById('flagPrevBtn');
+        const nextBtn = document.getElementById('flagNextBtn');
+        if (prevBtn) prevBtn.disabled = index === 0;
+        if (nextBtn) nextBtn.disabled = index === recentStrokes.length - 1;
+    }
+
+    // Initial draw
+    if (recentStrokes.length > 0) {
+        setTimeout(() => drawStrokePreview(0), 50);
+    }
+
+    // Event handlers
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    document.getElementById('flagCancelBtn')?.addEventListener('click', () => overlay.remove());
+
+    document.getElementById('flagPrevBtn')?.addEventListener('click', () => {
+        if (currentStrokeIndex > 0) {
+            currentStrokeIndex--;
+            drawStrokePreview(currentStrokeIndex);
+        }
+    });
+
+    document.getElementById('flagNextBtn')?.addEventListener('click', () => {
+        if (currentStrokeIndex < recentStrokes.length - 1) {
+            currentStrokeIndex++;
+            drawStrokePreview(currentStrokeIndex);
+        }
+    });
+
+    const classSelect = document.getElementById('flagClassSelect');
+    const submitBtn = document.getElementById('flagSubmitBtn');
+
+    classSelect?.addEventListener('change', () => {
+        if (submitBtn) submitBtn.disabled = !classSelect.value;
+    });
+
+    submitBtn?.addEventListener('click', async () => {
+        if (!classSelect?.value || recentStrokes.length === 0) return;
+
+        const stroke = recentStrokes[currentStrokeIndex];
+        const correctClass = classSelect.value;
+
+        // Prepare data for Firebase
+        const flagData = {
+            timestamp: Date.now(),
+            strokeId: stroke.id,
+            strokePoints: stroke.stroke.slice(0, 200), // Limit points
+            predictedLabel: stroke.predictedLabel || 'none',
+            correctLabel: correctClass,
+            flaggedBy: firebase.auth().currentUser?.email || 'unknown',
+            noteId: title || 'unknown',
+            bbox: stroke.bbox || null
+        };
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            // Save to Firebase Firestore
+            const db = firebase.firestore();
+            await db.collection('flagged_strokes').add(flagData);
+
+            console.log('[Admin] Flagged stroke saved:', flagData);
+
+            // Show success and close
+            submitBtn.textContent = 'Submitted!';
+            setTimeout(() => overlay.remove(), 800);
+        } catch (error) {
+            console.error('[Admin] Error saving flagged stroke:', error);
+            submitBtn.textContent = 'Error - Try Again';
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // UNIFIED EXPORT/SHARE POPUP
 // ═══════════════════════════════════════════════════════════════════════════
 

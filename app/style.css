@@ -1183,6 +1183,162 @@ input[type="range"] {
     font-size: 18px;
 }
 
+/* Admin Flag Button */
+.admin-flag-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 10px 16px;
+    background-color: #2a3a4a;
+    color: #7aa8c0;
+    border: 1px solid #4a5a6a;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.admin-flag-btn:hover {
+    background-color: #3a4a5a;
+    border-color: #7aa8c0;
+    color: #9ac8e0;
+}
+
+.admin-flag-btn i {
+    font-size: 18px;
+}
+
+/* Flag Misclassified Popup */
+.flag-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    backdrop-filter: blur(3px);
+}
+
+.flag-popup {
+    background: #1f1f1f;
+    color: #fff;
+    padding: 24px;
+    border-radius: 16px;
+    font-family: 'Mali', sans-serif;
+    min-width: 360px;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.flag-popup h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    color: #7aa8c0;
+}
+
+.flag-popup-preview {
+    background: #2a2a2a;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.flag-popup-preview canvas {
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #1a1a1a;
+}
+
+.flag-popup-preview .no-stroke {
+    color: #888;
+    font-style: italic;
+    padding: 40px;
+}
+
+.flag-popup-info {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+}
+
+.flag-popup-class-select {
+    margin-bottom: 16px;
+}
+
+.flag-popup-class-select label {
+    display: block;
+    margin-bottom: 8px;
+    color: #aaa;
+    font-size: 14px;
+}
+
+.flag-popup-class-select select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.flag-popup-class-select select:focus {
+    outline: none;
+    border-color: #7aa8c0;
+}
+
+.flag-popup-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.flag-popup-actions button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.flag-popup-actions .cancel-btn {
+    background: #3a3a3a;
+    color: #aaa;
+    border: 1px solid #555;
+}
+
+.flag-popup-actions .cancel-btn:hover {
+    background: #4a4a4a;
+    color: #fff;
+}
+
+.flag-popup-actions .submit-btn {
+    background: #2a5a7a;
+    color: #fff;
+    border: 1px solid #4a7a9a;
+}
+
+.flag-popup-actions .submit-btn:hover {
+    background: #3a6a8a;
+}
+
+.flag-popup-actions .submit-btn:disabled {
+    background: #2a2a2a;
+    color: #666;
+    border-color: #444;
+    cursor: not-allowed;
+}
+
 .grid-row {
     display: flex;
     flex-wrap: wrap;

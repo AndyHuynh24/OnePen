@@ -8,6 +8,20 @@ const BACKUP_FILENAME = 'onepen_backup.json';
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ADMIN CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+const ADMIN_EMAILS = [
+    'huy.b.huynh06@gmail.com',
+    // Add more admin emails here
+];
+
+function isAdmin() {
+    const user = firebase.auth().currentUser;
+    if (!user || !user.email) return false;
+    return ADMIN_EMAILS.includes(user.email.toLowerCase());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGEMENT - Using Firebase + localStorage for Drive token
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -139,6 +153,7 @@ function updateAuthUI() {
     const userEmail = document.getElementById('user-email-display');
     const userAvatar = document.getElementById('user-avatar');
     const driveGroup = document.getElementById('driveGroup');
+    const adminFlagBtn = document.getElementById('admin-flag-btn');
 
     if (!signinCard || !userCard) return;
 
@@ -159,11 +174,17 @@ function updateAuthUI() {
                 userAvatar.style.display = 'none';
             }
         }
+
+        // Show admin button only for admins
+        if (adminFlagBtn) {
+            adminFlagBtn.style.display = isAdmin() ? 'flex' : 'none';
+        }
     } else {
         // Not logged in
         signinCard.style.display = 'block';
         userCard.style.display = 'none';
         if (driveGroup) driveGroup.style.display = 'none';
+        if (adminFlagBtn) adminFlagBtn.style.display = 'none';
     }
 }
 
