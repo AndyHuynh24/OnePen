@@ -1305,36 +1305,56 @@ function markDirty() {
     invalidateTitleCache();
   }
 
-  if (!autosaveTimer) {
-    autosaveTimer = setTimeout(async () => {
-      if (!dirty || !title) {
-        console.log('[Autosave] markDirty timer: skipping (dirty:', dirty, ', title:', title, ')');
-        return;
-      }
-
-      console.log('[AutoSave] markDirty: saving locally...');
-
-      // Wait for save to complete before scanning flashcards
-      await saveNoteFast(title, allGroups);
-      dirty = false;
-      autosaveTimer = null;
-
-      // // Trigger Google Drive auto-sync (if signed in)
-      // if (typeof triggerAutoSync === 'function') {
-      //   console.log('[AutoSync] markDirty: calling triggerAutoSync()');
-      //   triggerAutoSync();
-      // } else {
-      //   console.log('[AutoSync] markDirty: triggerAutoSync not found!');
-      // }
-
-      // Now scan for flashcards after save is complete
-      if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
-        scanNotebookForFlashcards(selectedFolder).then(flashcards => {
-          if (typeof updateFlashcardButton === 'function') {
-            updateFlashcardButton(flashcards);
-          }
-        });
-      }
-    }, 500); // 300–1000ms sweet spot
+  // Clear existing timer and set a new one (debounce pattern)
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer);
   }
+
+  autosaveTimer = setTimeout(async () => {
+    autosaveTimer = null; // Reset timer first
+
+    if (!dirty || !title) {
+      console.log('[Autosave] skipping (dirty:', dirty, ', title:', title, ')');
+      return;
+    }
+
+    console.log('[AutoSave] saving locally...');
+
+    // Wait for save to complete before scanning flashcards
+    await saveNoteFast(title, allGroups);
+    dirty = false;
+
+    // Now scan for flashcards after save is complete
+    if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
+      scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+        if (typeof updateFlashcardButton === 'function') {
+          updateFlashcardButton(flashcards);
+        }
+      });
+    }
+  }, 500);
 }
+
+// Save immediately before page unload to prevent data loss
+window.addEventListener('beforeunload', (e) => {
+  if (dirty && title) {
+    // Clear pending timer
+    if (autosaveTimer) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+    // Synchronous save - use the non-promise version
+    console.log('[AutoSave] beforeunload: saving...');
+    saveNote(title, allGroups, null, { isSummaryNote: typeof currentNoteIsSummary !== 'undefined' ? currentNoteIsSummary : false });
+    dirty = false;
+  }
+});
+
+// Also save when tab loses visibility (user switches tabs)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && dirty && title) {
+    console.log('[AutoSave] visibilitychange: saving...');
+    saveNoteFast(title, allGroups);
+    dirty = false;
+  }
+});

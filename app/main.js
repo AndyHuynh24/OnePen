@@ -358,7 +358,17 @@ function removeTape(tape) {
 
     allGroups.splice(index, 1);
     reDrawAll(drawCtx);
-    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+    if (title) {
+      saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+      // Trigger flashcard scan after tape removal
+      if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
+        scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+          if (typeof updateFlashcardButton === 'function') {
+            updateFlashcardButton(flashcards);
+          }
+        });
+      }
+    }
   }
 }
 
@@ -3380,7 +3390,17 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         flashTape(tapeGroup);
         reDrawAll(drawCtx);
-        if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+        if (title) {
+            saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+            // Trigger flashcard scan after tape creation
+            if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
+                scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+                    if (typeof updateFlashcardButton === 'function') {
+                        updateFlashcardButton(flashcards);
+                    }
+                });
+            }
+        }
         return;
     }
 }
@@ -4986,7 +5006,7 @@ function summarizeNotes(options) {
       const baseSpacing = 25;
       const sectionSpacing = 40;
       const navButtonHeight = 28;
-      const heightThreshold = 85; // If gap between consecutive items exceeds this, start new section
+      const heightThreshold = 110; // If gap between consecutive items exceeds this, start new section
       let currentY = 80;
       const newGroups = [];
       let startID = Date.now();
@@ -8219,38 +8239,38 @@ function endMediaDrag() {
   canvasGroup.style.cursor = 'default';
 }
 
-// //======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-// (function () {
-//   const penOverlay = document.createElement("img");
-//   penOverlay.src = "cursor.png"; // your 945×1396 image
-//   penOverlay.alt = "pen cursor";
-//   penOverlay.style.position = "fixed";
-//   penOverlay.style.height = "260px"; // scaled height
-//   penOverlay.style.pointerEvents = "none";
-//   penOverlay.style.zIndex = "999999";
-//   penOverlay.style.display = "block";
-//   penOverlay.style.transition = "transform 0.25s ease";
-//   penOverlay.style.transformOrigin = "top left";
-//   penOverlay.style.zIndex = "100000000";
+//======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
+(function () {
+  const penOverlay = document.createElement("img");
+  penOverlay.src = "cursor.png"; // your 945×1396 image
+  penOverlay.alt = "pen cursor";
+  penOverlay.style.position = "fixed";
+  penOverlay.style.height = "260px"; // scaled height
+  penOverlay.style.pointerEvents = "none";
+  penOverlay.style.zIndex = "999999";
+  penOverlay.style.display = "block";
+  penOverlay.style.transition = "transform 0.25s ease";
+  penOverlay.style.transformOrigin = "top left";
+  penOverlay.style.zIndex = "100000000";
 
-//   // --- Top-left anchor: no transform needed ---
-//   penOverlay.style.transform = "none";
-//   document.body.appendChild(penOverlay);
+  // --- Top-left anchor: no transform needed ---
+  penOverlay.style.transform = "none";
+  document.body.appendChild(penOverlay);
 
-//   // --- Update position on move ---
-//   const updateCursorPos = (e) => {
-//     penOverlay.style.left = `${e.clientX}px`;
-//     penOverlay.style.top = `${e.clientY}px`;
-//   };
-//   window.addEventListener("pointermove", updateCursorPos);
+  // --- Update position on move ---
+  const updateCursorPos = (e) => {
+    penOverlay.style.left = `${e.clientX}px`;
+    penOverlay.style.top = `${e.clientY}px`;
+  };
+  window.addEventListener("pointermove", updateCursorPos);
 
-//   // --- Optional press feedback ---
-//   window.addEventListener("pointerdown", () => {
-//     penOverlay.style.transform = "scale(0.85)";
-//     //penOverlay.style.opacity = 1;
-//   });
-//   window.addEventListener("pointerup", () => {
-//     penOverlay.style.transform = "scale(1) rotateY(30deg)";
-//     //penOverlay.style.opacity = 0;
-//   });
-// })();
+  // --- Optional press feedback ---
+  window.addEventListener("pointerdown", () => {
+    penOverlay.style.transform = "scale(0.85)";
+    //penOverlay.style.opacity = 1;
+  });
+  window.addEventListener("pointerup", () => {
+    penOverlay.style.transform = "scale(1) rotateY(30deg)";
+    //penOverlay.style.opacity = 0;
+  });
+})();
