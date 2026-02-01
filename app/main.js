@@ -1522,13 +1522,52 @@ function isSBoxInLBox(sBox, lBox) {
             sBox.y + sBox.h <= lBox.y + lBox.h;
 }
 
-function isInside(stroke, modifier) {
-  const segmentBoxes = sliceStroke(modifier);
-  return stroke.every(point =>
-    segmentBoxes.some(box => isPointInBox(point, box))
-  );
+// Ray casting algorithm for point-in-polygon detection
+// Works correctly for any closed shape: rectangles, circles, L-shapes, etc.
+function isPointInPolygon(point, polygon) {
+  if (!polygon || polygon.length < 3) return false;
+
+  let inside = false;
+  const n = polygon.length;
+
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+
+    // Check if horizontal ray from point crosses this edge
+    if (((yi > point.y) !== (yj > point.y)) &&
+        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
 }
 
+// Check if a stroke is inside a modifier polygon
+// Uses ray casting for accurate detection with any closed shape
+function isInside(stroke, modifier) {
+  if (!stroke || stroke.length === 0 || !modifier || modifier.length < 3) {
+    return false;
+  }
+
+  // Quick bounding box check first (optimization)
+  const modifierBox = getBoundingBox(modifier);
+  const strokeBox = getBoundingBox(stroke);
+
+  // If stroke bbox is completely outside modifier bbox, definitely not inside
+  if (strokeBox.x + strokeBox.w < modifierBox.x ||
+      strokeBox.x > modifierBox.x + modifierBox.w ||
+      strokeBox.y + strokeBox.h < modifierBox.y ||
+      strokeBox.y > modifierBox.y + modifierBox.h) {
+    return false;
+  }
+
+  // Check if all points of the stroke are inside the modifier polygon
+  return stroke.every(point => isPointInPolygon(point, modifier));
+}
+
+// Legacy function kept for compatibility - slices stroke into horizontal bands
 function sliceStroke(stroke, sliceHeight = 25) {
     const box = getBoundingBox(stroke);
     const numSlices = Math.ceil(box.h / sliceHeight);
@@ -1540,13 +1579,12 @@ function sliceStroke(stroke, sliceHeight = 25) {
         if (slicePoints.length === 0) continue;
         const xs = slicePoints.map(p => p.x);
         const sliceBox = {
-            x: Math.min(...xs), 
-            y: top, 
-            w: Math.max(...xs) - Math.min(...xs), 
+            x: Math.min(...xs),
+            y: top,
+            w: Math.max(...xs) - Math.min(...xs),
             h: bottom - top,
         }
         slices.push({ x: Math.min(...xs), y: top, w: Math.max(...xs) - Math.min(...xs), h: bottom - top });
-        //drawBox(sliceBox, 'rgba(255, 0, 0, 0.5)', "test", false, backgroundCtx);
     }
   return slices;
 }

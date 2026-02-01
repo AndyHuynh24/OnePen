@@ -33,12 +33,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--quantize",
-        action="store_true",
-        help="Quantize weights for smaller model size",
+        type=str,
+        choices=["none", "uint8", "uint16"],
+        default="none",
+        help="Quantization type: none (no quantization), uint16 (recommended), uint8 (smallest but may hurt accuracy)",
     )
     return parser.parse_args()
 
-def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -> bool:
+def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: str = "none") -> bool:
     """Convert Keras model to TensorFlow.js GraphModel format.
     """
     import os
@@ -86,10 +88,22 @@ def convert_to_tfjs(keras_path: Path, tfjs_path: Path, quantize: bool = False) -
         tfjs_path.mkdir(parents=True, exist_ok=True)
         
         logger.info("Converting SavedModel to TensorFlow.js format...")
+
+        # Set quantization based on option
+        quant_map = None
+        if quantize == "uint8":
+            quant_map = {"uint8": "*"}
+            logger.info("Using uint8 quantization (smallest size, may affect accuracy)")
+        elif quantize == "uint16":
+            quant_map = {"uint16": "*"}
+            logger.info("Using uint16 quantization (good balance of size and accuracy)")
+        else:
+            logger.info("No quantization (best accuracy, larger size)")
+
         convert_tf_saved_model(
             saved_model_dir=str(saved_model_path),
             output_dir=str(tfjs_path),
-            quantization_dtype_map={"uint8": "*"} if quantize else None,
+            quantization_dtype_map=quant_map,
         )
 
         # SCleanup 
@@ -138,7 +152,7 @@ def main() -> int:
     logger.info("TensorFlow.js Model Export")
     logger.info(f"Input: {args.model}")
     logger.info(f"Output: {output_dir}")
-    logger.info(f"Quantize: {args.quantize}")
+    logger.info(f"Quantization: {args.quantize}")
     logger.info("=" * 60)
 
     # Convert directly to TFJS using Python API
