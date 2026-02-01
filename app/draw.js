@@ -1214,21 +1214,19 @@ function setupEmbedDrag(frame, header) {
   let isDragging = false;
   let startX, startY, startLeft, startTop;
 
-  header.addEventListener("mousedown", (e) => {
-    if (e.target.tagName === "BUTTON") return;
+  function startDrag(clientX, clientY) {
     isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = clientX;
+    startY = clientY;
     startLeft = parseInt(frame.style.left) || 0;
     startTop = parseInt(frame.style.top) || 0;
     frame.style.cursor = "grabbing";
-    e.preventDefault();
-  });
+  }
 
-  document.addEventListener("mousemove", (e) => {
+  function moveDrag(clientX, clientY) {
     if (!isDragging) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+    const dx = clientX - startX;
+    const dy = clientY - startY;
 
     // Get canvas bounds for constraint
     const canvas = document.getElementById("canvasGroup");
@@ -1243,36 +1241,60 @@ function setupEmbedDrag(frame, header) {
                                 Math.min(canvasRect.right - minVisible, newLeft)) + "px";
     frame.style.top = Math.max(canvasRect.top - frame.offsetHeight + minVisible,
                                Math.min(canvasRect.bottom - minVisible, newTop)) + "px";
-  });
+  }
 
-  document.addEventListener("mouseup", () => {
+  function endDrag() {
     if (isDragging) {
       isDragging = false;
       frame.style.cursor = "";
     }
+  }
+
+  // Mouse events
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.tagName === "BUTTON") return;
+    startDrag(e.clientX, e.clientY);
+    e.preventDefault();
   });
+
+  document.addEventListener("mousemove", (e) => moveDrag(e.clientX, e.clientY));
+  document.addEventListener("mouseup", endDrag);
+
+  // Touch events
+  header.addEventListener("touchstart", (e) => {
+    if (e.target.tagName === "BUTTON") return;
+    const touch = e.touches[0];
+    startDrag(touch.clientX, touch.clientY);
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    moveDrag(touch.clientX, touch.clientY);
+  }, { passive: true });
+
+  document.addEventListener("touchend", endDrag);
 }
 
 function setupEmbedResize(frame, handle, iframe) {
   let isResizing = false;
   let startX, startY, startW, startH;
 
-  handle.addEventListener("mousedown", (e) => {
+  function startResize(clientX, clientY) {
     isResizing = true;
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = clientX;
+    startY = clientY;
     startW = frame.offsetWidth;
     startH = frame.offsetHeight;
     // Disable iframe pointer events during resize
     iframe.style.pointerEvents = "none";
-    e.preventDefault();
-    e.stopPropagation();
-  });
+  }
 
-  document.addEventListener("mousemove", (e) => {
+  function moveResize(clientX, clientY) {
     if (!isResizing) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+    const dx = clientX - startX;
+    const dy = clientY - startY;
     const newW = Math.max(280, Math.min(window.innerWidth - 20, startW + dx));
     const newH = Math.max(200, Math.min(window.innerHeight - 50, startH + dy));
     frame.style.width = newW + "px";
@@ -1280,14 +1302,40 @@ function setupEmbedResize(frame, handle, iframe) {
     // Update stored size
     embedFrameState.currentSize.width = newW;
     embedFrameState.currentSize.height = newH;
-  });
+  }
 
-  document.addEventListener("mouseup", () => {
+  function endResize() {
     if (isResizing) {
       isResizing = false;
       iframe.style.pointerEvents = "auto";
     }
+  }
+
+  // Mouse events
+  handle.addEventListener("mousedown", (e) => {
+    startResize(e.clientX, e.clientY);
+    e.preventDefault();
+    e.stopPropagation();
   });
+
+  document.addEventListener("mousemove", (e) => moveResize(e.clientX, e.clientY));
+  document.addEventListener("mouseup", endResize);
+
+  // Touch events
+  handle.addEventListener("touchstart", (e) => {
+    const touch = e.touches[0];
+    startResize(touch.clientX, touch.clientY);
+    e.preventDefault();
+    e.stopPropagation();
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (e) => {
+    if (!isResizing) return;
+    const touch = e.touches[0];
+    moveResize(touch.clientX, touch.clientY);
+  }, { passive: true });
+
+  document.addEventListener("touchend", endResize);
 }
 
 function closeEmbedFrame() {
