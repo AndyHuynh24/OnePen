@@ -1262,7 +1262,9 @@ function setupEmbedDrag(frame, header) {
 
   // Touch events
   header.addEventListener("touchstart", (e) => {
-    if (e.target.tagName === "BUTTON") return;
+    // Don't intercept button taps or their children (icons)
+    const target = e.target;
+    if (target.tagName === "BUTTON" || target.closest("button")) return;
     const touch = e.touches[0];
     startDrag(touch.clientX, touch.clientY);
     e.preventDefault();
