@@ -1785,7 +1785,8 @@ async function classifyStroke(stroke, hold = false) {
     else {
         modifiedGroups = [];
         for (const group of allGroups) {
-            if (!group.bbox || !intersect(group.bbox, screenBox)) continue;
+            // Skip hidden groups (visibility=false) - these are shortcut markers and shouldn't be deleted
+            if (group.visibility == false || !group.bbox || !intersect(group.bbox, screenBox)) continue;
             const box = group.bbox;
             const insideNewBox = isSBoxInLBox(box, newBox);
             if (insideNewBox || intersect(box, newBox)){
@@ -6387,7 +6388,9 @@ function updateFlashcardButton(flashcards) {
     if (flashcards.length > 0) {
         btn.style.display = 'flex';
         btnText.textContent = `${flashcards.length} Flashcard${flashcards.length !== 1 ? 's' : ''} Ready`;
-        generatedFlashcards = flashcards;
+        // Reverse order so oldest flashcard displays first, latest displays last
+        // (flashcards are collected newest-first for deduplication, but should display oldest-first)
+        generatedFlashcards = flashcards.slice().reverse();
     } else {
         btn.style.display = 'none';
         generatedFlashcards = [];

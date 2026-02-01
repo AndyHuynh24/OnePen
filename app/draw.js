@@ -1660,18 +1660,32 @@ function reDrawAll(ctx) {
 
         if (group.type === "stickynote") {
             const { x, y, w, h } = group.bbox;
+            // Add padding so border doesn't cover stroke content
+            const padding = 6;
+            const px = x - padding;
+            const py = y - padding;
+            const pw = w + padding * 2;
+            const ph = h + padding * 2;
+
             ctx.save();
 
             ctx.strokeStyle = group.color || "#FFD700";
             ctx.lineWidth = 2;
             ctx.setLineDash([6, 3]);
-            ctx.strokeRect(x, y, w, h);
+            ctx.strokeRect(px, py, pw, ph);
             ctx.setLineDash([]);
 
             ctx.restore();
             return;
         } else if (group.type === "link") {
             const { x, y, w, h } = group.bbox;
+            // Add padding so border doesn't cover stroke content
+            const padding = 6;
+            const px = x - padding;
+            const py = y - padding;
+            const pw = w + padding * 2;
+            const ph = h + padding * 2;
+
             ctx.save();
 
             // Determine color based on whether URL is set
@@ -1683,7 +1697,7 @@ function reDrawAll(ctx) {
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = 1.5;
             ctx.setLineDash([4, 4]);
-            ctx.strokeRect(x, y, w, h);
+            ctx.strokeRect(px, py, pw, ph);
             ctx.setLineDash([]);
 
             // --- Draw embed icon badge at top-left
