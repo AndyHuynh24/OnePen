@@ -107,7 +107,7 @@ class StrokePreprocessor:
             x_min, x_max, y_min, y_max = get_bounding_box(stroke)
             width = x_max - x_min
 
-            #Clean any unrealistic stroke (no stroke should be created with just 2 data poitns, which may be caused by accident)
+            # Skip invalid strokes: too few points, unknown type, or too narrow
             if len(stroke) <= 2 or item["type"] not in class_to_idx or width <= 8: 
                 logger.info("Skip 1 item due to few stroke points")
                 skipping_count += 1

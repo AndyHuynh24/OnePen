@@ -5229,10 +5229,8 @@ function summarizeNotes(options) {
             });
           });
 
-          // Second pass: deduplicate by processing most recent shortcuts first
-          // This ensures if user draws a wrong shortcut then corrects it,
-          // only the most recent (correct) shortcut claims the strokes
-          // Note: uses the shared claimedStrokeIds set from above (titles, box, curly already claimed their strokes)
+          // Deduplicate: newest shortcuts claim strokes first
+          // (if user corrects a shortcut, the newer one wins)
 
           // Sort by groupIndex descending (most recent shortcut first)
           potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
@@ -6613,10 +6611,8 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
           });
         });
 
-        // Second pass: deduplicate by processing most recent shortcuts first
-        // This ensures if user draws a wrong shortcut then corrects it,
-        // only the most recent (correct) shortcut claims the strokes
-        // Note: uses the shared claimedStrokeIds set from above (titles, box, curly already claimed their strokes)
+        // Deduplicate: newest shortcuts claim strokes first
+        // (if user corrects a shortcut, the newer one wins)
 
         // Sort by groupIndex descending (most recent shortcut first)
         potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);

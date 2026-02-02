@@ -161,6 +161,86 @@ def build_hybrid_model(
     return model
 
 
+def build_image_only_model(
+    input_shape: tuple[int, int, int] = (136, 136, 3),
+    num_classes: int = 10,
+    learning_rate: float = 2e-4,
+    backbone_trainable: bool = False,
+    use_se_attention: bool = True,
+    fusion_units: list[int] | None = None,
+    backbone: str = "mobilenetv3_large",
+) -> Model:
+    """Build image-only CNN model (no geometric features).
+
+    This is the baseline model for comparison with the hybrid model.
+    Used to validate the improvement from adding geometric features.
+
+    Args:
+        input_shape: Shape of input images (H, W, C).
+        num_classes: Number of output classes.
+        learning_rate: Learning rate for Adam optimizer.
+        backbone_trainable: Whether to train the backbone.
+        use_se_attention: Whether to use Squeeze-and-Excitation attention.
+        fusion_units: Hidden units for classifier layers.
+        backbone: Which backbone to use.
+
+    Returns:
+        Compiled Keras Model.
+    """
+    if fusion_units is None:
+        fusion_units = [256, 128]
+
+    # ========== Image Branch ==========
+    img_input = Input(shape=input_shape, name="img_input")
+
+    x = _build_backbone(img_input, backbone, backbone_trainable)
+
+    # Squeeze-and-Excitation attention
+    if use_se_attention:
+        channels = x.shape[-1]
+        se = GlobalAveragePooling2D()(x)
+        se = Dense(channels // 8, activation="relu")(se)
+        se = Dense(channels, activation="sigmoid")(se)
+        se = Reshape((1, 1, channels))(se)
+        x = Multiply()([x, se])
+
+    x = GlobalAveragePooling2D()(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.25)(x)
+
+    # ========== Classifier Head ==========
+    for i, units in enumerate(fusion_units):
+        x = Dense(units, activation="relu")(x)
+        x = BatchNormalization()(x)
+        dropout_rate = 0.35 if i == 0 else 0.25
+        x = Dropout(dropout_rate)(x)
+
+    # ========== Output ==========
+    output = Dense(num_classes, activation="softmax", name="classifier")(x)
+
+    # ========== Build Model ==========
+    model = Model(
+        inputs=img_input,
+        outputs=output,
+        name=f"image_only_{backbone}",
+    )
+
+    # ========== Compile ==========
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate),
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+
+    logger.info(f"Built image-only model with backbone: {backbone}")
+    logger.info(f"  Image input: {input_shape}")
+    logger.info(f"  Output classes: {num_classes}")
+    logger.info(f"  Backbone trainable: {backbone_trainable}")
+    logger.info(f"  Total params: {model.count_params():,}")
+
+    return model
+
+
 class HybridStrokeClassifier:
     """Wrapper class for the hybrid stroke classifier."""
 

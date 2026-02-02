@@ -227,6 +227,6 @@ class StrokeAugmenter:
     def __repr__(self) -> str:
         return (
             f"StrokeAugmenter(num_augmentations={self.num_augmentations}, "
-            f"rotation={self.rotation_range}, flip={self.flip_horizontal})"
-            f"rotate_exclude_types= {self.rotation_exclude_types}"
+            f"rotation={self.rotation_range}, flip={self.flip_horizontal}, "
+            f"rotation_exclude={self.rotation_exclude_types})"
         )

@@ -138,7 +138,6 @@ class StrokeModelTrainer:
         logger.info(f"  Validation samples: {len(y_val)}")
         logger.info(f"  Batch size: {batch_size}")
 
-        # Train with numpy arrays directly (like HandKey)
         self.history = self.model.fit(
             x_train,
             y_train,

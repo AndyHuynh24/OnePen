@@ -60,12 +60,16 @@ features:
 model:
   name: "modifiers_classifer"
 
-  # Backbone options: mobilenetv3_large, mobilenetv3_small, efficientnetv2, custom_cnn
+  # Model type: "hybrid" or "image_only"
+  # - hybrid: CNN backbone + 12 geometric features (recommended)
+  # - image_only: CNN backbone only (baseline for comparison)
+  model_type: "hybrid"
+
+  # Backbone options: mobilenetv3_large, mobilenetv3_small, efficientnetv2
   # - mobilenetv3_large: Default, ~5MB, ImageNet pretrained
   # - mobilenetv3_small: Lighter, ~2.5MB, ImageNet pretrained
   # - efficientnetv2: Modern efficient architecture, ~7MB
-  # - custom_cnn: Lightweight custom CNN, ~1MB, no pretrained weights
-  backbone: "mobilenetv3_small" 
+  backbone: "mobilenetv3_large"
 
   backbone_trainable: false        # freeze backbone for stable training
   #input_shape: [136, 136, 3] #specify using image size from features instead  

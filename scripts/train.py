@@ -3,11 +3,15 @@
 OnePen Training Script
 ======================
 
-Train the hybrid CNN + geometric feature stroke classifier.
+Train the stroke classifier with two model architectures:
+- hybrid: CNN backbone + 12 geometric features (default, recommended)
+- image_only: CNN backbone only (baseline for comparison)
 
 Usage:
     python scripts/train.py
     python scripts/train.py --epochs 100 --backbone mobilenetv3_small
+    python scripts/train.py --model-type image_only  # baseline comparison
+    python scripts/train.py --model-type hybrid      # with geometric features
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 from modifiers.utils.config import load_config
 from modifiers.utils.logging import setup_logging, get_logger
-from modifiers.models.architecture import build_hybrid_model
+from modifiers.models.architecture import build_hybrid_model, build_image_only_model
 from modifiers.models.trainer import StrokeModelTrainer
 
 
@@ -38,6 +42,9 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--backbone", type=str, default=None,
                         choices=["mobilenetv3_large", "mobilenetv3_small", "efficientnetv2"])
+    parser.add_argument("--model-type", type=str, default=None,
+                        choices=["hybrid", "image_only"],
+                        help="Model type: 'hybrid' (CNN + geometric features) or 'image_only' (CNN baseline)")
     parser.add_argument("--resume", type=Path, default=None)
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow")
     return parser.parse_args()
@@ -158,26 +165,50 @@ def main() -> int:
 
     logger.info(f"Data split: {len(train_idx)} train / {len(val_idx)} val / {len(test_idx)} test")
 
-    # Prepare data dicts
-    x_train = {"img_input": images[train_idx], "feature_input": features[train_idx]}
-    y_train = labels[train_idx]
-    x_val = {"img_input": images[val_idx], "feature_input": features[val_idx]}
-    y_val = labels[val_idx]
-    x_test = {"img_input": images[test_idx], "feature_input": features[test_idx]}
-    y_test = labels[test_idx]
-
     # ==========================================================================
     # 3. Build Model
     # ==========================================================================
     backbone_name = args.backbone or getattr(config.model, "backbone", "mobilenetv3_small")
+    model_type = args.model_type or getattr(config.model, "model_type", "hybrid")
     epochs = args.epochs or config.training.epochs
     batch_size = args.batch_size or config.training.batch_size
+
+    # Prepare data based on model type
+    if model_type == "image_only":
+        # Image-only model: just pass images array
+        x_train = images[train_idx]
+        y_train = labels[train_idx]
+        x_val = images[val_idx]
+        y_val = labels[val_idx]
+        x_test = images[test_idx]
+        y_test = labels[test_idx]
+        logger.info("Using image-only model (baseline for comparison)")
+    else:
+        # Hybrid model: pass dict with images and features
+        x_train = {"img_input": images[train_idx], "feature_input": features[train_idx]}
+        y_train = labels[train_idx]
+        x_val = {"img_input": images[val_idx], "feature_input": features[val_idx]}
+        y_val = labels[val_idx]
+        x_test = {"img_input": images[test_idx], "feature_input": features[test_idx]}
+        y_test = labels[test_idx]
+        logger.info("Using hybrid model (CNN + geometric features)")
 
     if args.resume:
         logger.info(f"Resuming from: {args.resume}")
         model = keras.models.load_model(str(args.resume))
+    elif model_type == "image_only":
+        logger.info(f"Building image-only model with backbone: {backbone_name}")
+        model = build_image_only_model(
+            input_shape=[config.features.image_size, config.features.image_size, 3],
+            num_classes=config.num_classes,
+            learning_rate=config.training.learning_rate,
+            backbone_trainable=config.model.backbone_trainable,
+            use_se_attention=config.model.use_se_attention,
+            fusion_units=config.model.fusion_units,
+            backbone=backbone_name,
+        )
     else:
-        logger.info(f"Building model with backbone: {backbone_name}")
+        logger.info(f"Building hybrid model with backbone: {backbone_name}")
         model = build_hybrid_model(
             input_shape=[config.features.image_size, config.features.image_size, 3],
             num_classes=config.num_classes,
@@ -258,6 +289,7 @@ def main() -> int:
                 # Log all config parameters
                 mlflow.log_params({
                     # Model config
+                    "model/type": model_type,
                     "model/backbone": backbone_name,
                     "model/backbone_trainable": config.model.backbone_trainable,
                     "model/use_se_attention": config.model.use_se_attention,
@@ -332,6 +364,8 @@ def main() -> int:
     # ==========================================================================
     logger.info("=" * 60)
     logger.info("Training Complete!")
+    logger.info(f"  Model Type: {model_type}")
+    logger.info(f"  Backbone: {backbone_name}")
     logger.info(f"  Best Val Accuracy: {best_metrics['best_val_accuracy']:.4f}")
     logger.info(f"  Test Accuracy: {test_metrics['test_accuracy']:.4f}")
     logger.info(f"  Macro F1: {report['macro avg']['f1-score']:.4f}")
