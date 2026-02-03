@@ -282,7 +282,7 @@ def main() -> int:
     if not args.no_mlflow:
         try:
             import mlflow
-            mlflow.set_tracking_uri("sqlite:///mlruns.db")
+            mlflow.set_tracking_uri("mlruns")
             mlflow.set_experiment(config.mlflow.experiment_name)
 
             with mlflow.start_run(run_name=f"train_{timestamp}"):

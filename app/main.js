@@ -8524,38 +8524,38 @@ function endMediaDrag() {
   canvasGroup.style.cursor = 'default';
 }
 
-// //======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-// (function () {
-//   const penOverlay = document.createElement("img");
-//   penOverlay.src = "cursor.png"; // your 945×1396 image
-//   penOverlay.alt = "pen cursor";
-//   penOverlay.style.position = "fixed";
-//   penOverlay.style.height = "260px"; // scaled height
-//   penOverlay.style.pointerEvents = "none";
-//   penOverlay.style.zIndex = "999999";
-//   penOverlay.style.display = "block";
-//   penOverlay.style.transition = "transform 0.25s ease";
-//   penOverlay.style.transformOrigin = "top left";
-//   penOverlay.style.zIndex = "100000000";
+////======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
+(function () {
+  const penOverlay = document.createElement("img");
+  penOverlay.src = "cursor.png"; // your 945×1396 image
+  penOverlay.alt = "pen cursor";
+  penOverlay.style.position = "fixed";
+  penOverlay.style.height = "260px"; // scaled height
+  penOverlay.style.pointerEvents = "none";
+  penOverlay.style.zIndex = "999999";
+  penOverlay.style.display = "block";
+  penOverlay.style.transition = "transform 0.25s ease";
+  penOverlay.style.transformOrigin = "top left";
+  penOverlay.style.zIndex = "100000000";
 
-//   // --- Top-left anchor: no transform needed ---
-//   penOverlay.style.transform = "none";
-//   document.body.appendChild(penOverlay);
+  // --- Top-left anchor: no transform needed ---
+  penOverlay.style.transform = "none";
+  document.body.appendChild(penOverlay);
 
-//   // --- Update position on move ---
-//   const updateCursorPos = (e) => {
-//     penOverlay.style.left = `${e.clientX}px`;
-//     penOverlay.style.top = `${e.clientY}px`;
-//   };
-//   window.addEventListener("pointermove", updateCursorPos);
+  // --- Update position on move ---
+  const updateCursorPos = (e) => {
+    penOverlay.style.left = `${e.clientX}px`;
+    penOverlay.style.top = `${e.clientY}px`;
+  };
+  window.addEventListener("pointermove", updateCursorPos);
 
-//   // --- Optional press feedback ---
-//   window.addEventListener("pointerdown", () => {
-//     penOverlay.style.transform = "scale(0.85)";
-//     //penOverlay.style.opacity = 1;
-//   });
-//   window.addEventListener("pointerup", () => {
-//     penOverlay.style.transform = "scale(1) rotateY(30deg)";
-//     //penOverlay.style.opacity = 0;
-//   });
-// })();
+  // --- Optional press feedback ---
+  window.addEventListener("pointerdown", () => {
+    penOverlay.style.transform = "scale(0.85)";
+    //penOverlay.style.opacity = 1;
+  });
+  window.addEventListener("pointerup", () => {
+    penOverlay.style.transform = "scale(1) rotateY(30deg)";
+    //penOverlay.style.opacity = 0;
+  });
+})();
