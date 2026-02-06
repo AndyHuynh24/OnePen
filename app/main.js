@@ -2120,6 +2120,25 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
+    // === Prevent all default browser behaviors on the canvas ===
+    // Block text selection drag (blue highlight) on all devices
+    canvasGroup.addEventListener("selectstart", (e) => {
+        e.preventDefault();
+    });
+
+    // Block drag-and-drop ghost images on pen/touch
+    canvasGroup.addEventListener("dragstart", (e) => {
+        e.preventDefault();
+    });
+
+    // Prevent default touch behaviors (scroll, zoom, callout) for single-touch/pen.
+    // Allow 2-finger gestures (pinch zoom) to still work via our custom handler.
+    canvasGroup.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
     canvasGroup.addEventListener("pointerdown", (e) => {
         const pos = toCanvasCoords(e);
 
@@ -2552,6 +2571,7 @@ window.onload = async () => {
             reDrawMovement();
         }
         else if (drawing && e.pointerType !== "touch") {
+            e.preventDefault();
             const pos = toCanvasCoords(e);
             currentStroke.push({ x: pos.x, y: pos.y });
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
@@ -2567,6 +2587,7 @@ window.onload = async () => {
     });
 
     canvasGroup.addEventListener("pointerup", (e) => {
+        e.preventDefault();
         markDirty();
         cancelMediaLongPress(); // Cancel any pending media long press
 
@@ -2681,7 +2702,7 @@ window.onload = async () => {
         else if (e.pointerType !== "touch") {
             drawing = false;
             canvasGroup.style.cursor = "default";
-            drawCanvas.releasePointerCapture(e.pointerId);
+            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
             // Draw the final stroke
             if (currentStroke.length > 1) {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
@@ -2772,40 +2793,7 @@ window.onload = async () => {
         return false;
     }
 
-    // --- 1-finger double tap for AI toggle ---
-    let singleFingerTap = {
-        lastTapTime: 0,
-        lastTapX: 0,
-        lastTapY: 0
-    };
-
-    canvasGroup.addEventListener("touchend", function(e) {
-        // Only process if no fingers remain and it was a single finger
-        if (e.touches.length === 0 && e.changedTouches.length === 1) {
-            const touch = e.changedTouches[0];
-
-            // Palm rejection check (with touch info for size/position)
-            if (shouldIgnoreTouchGesture(touch)) return;
-
-            const now = Date.now();
-            const timeSinceLastTap = now - singleFingerTap.lastTapTime;
-            const dx = Math.abs(touch.clientX - singleFingerTap.lastTapX);
-            const dy = Math.abs(touch.clientY - singleFingerTap.lastTapY);
-
-            // Check for double tap (quick, same spot)
-            if (timeSinceLastTap < DOUBLE_TAP_GAP && dx < MOVE_THRESHOLD && dy < MOVE_THRESHOLD) {
-                // === 1-FINGER DOUBLE TAP: toggle AI ===
-                toggleDetection();
-                document.getElementById('aiToggleInput').checked = isDetectionOn;
-                singleFingerTap.lastTapTime = 0; // Reset to prevent triple-tap
-            } else {
-                // Record this tap for potential double tap
-                singleFingerTap.lastTapTime = now;
-                singleFingerTap.lastTapX = touch.clientX;
-                singleFingerTap.lastTapY = touch.clientY;
-            }
-        }
-    }, { passive: true });
+    // (1-finger double tap AI toggle removed)
 
     // --- 2-finger single tap for undo ---
     let twoFingerTap = {
@@ -8525,37 +8513,37 @@ function endMediaDrag() {
 }
 
 ////======== Floating Pointer Overlay (Pen Image, Top-Left Anchor, Scaled) ========
-(function () {
-  const penOverlay = document.createElement("img");
-  penOverlay.src = "cursor.png"; // your 945×1396 image
-  penOverlay.alt = "pen cursor";
-  penOverlay.style.position = "fixed";
-  penOverlay.style.height = "260px"; // scaled height
-  penOverlay.style.pointerEvents = "none";
-  penOverlay.style.zIndex = "999999";
-  penOverlay.style.display = "block";
-  penOverlay.style.transition = "transform 0.25s ease";
-  penOverlay.style.transformOrigin = "top left";
-  penOverlay.style.zIndex = "100000000";
+// (function () {
+//   const penOverlay = document.createElement("img");
+//   penOverlay.src = "cursor.png"; // your 945×1396 image
+//   penOverlay.alt = "pen cursor";
+//   penOverlay.style.position = "fixed";
+//   penOverlay.style.height = "260px"; // scaled height
+//   penOverlay.style.pointerEvents = "none";
+//   penOverlay.style.zIndex = "999999";
+//   penOverlay.style.display = "block";
+//   penOverlay.style.transition = "transform 0.25s ease";
+//   penOverlay.style.transformOrigin = "top left";
+//   penOverlay.style.zIndex = "100000000";
 
-  // --- Top-left anchor: no transform needed ---
-  penOverlay.style.transform = "none";
-  document.body.appendChild(penOverlay);
+//   // --- Top-left anchor: no transform needed ---
+//   penOverlay.style.transform = "none";
+//   document.body.appendChild(penOverlay);
 
-  // --- Update position on move ---
-  const updateCursorPos = (e) => {
-    penOverlay.style.left = `${e.clientX}px`;
-    penOverlay.style.top = `${e.clientY}px`;
-  };
-  window.addEventListener("pointermove", updateCursorPos);
+//   // --- Update position on move ---
+//   const updateCursorPos = (e) => {
+//     penOverlay.style.left = `${e.clientX}px`;
+//     penOverlay.style.top = `${e.clientY}px`;
+//   };
+//   window.addEventListener("pointermove", updateCursorPos);
 
-  // --- Optional press feedback ---
-  window.addEventListener("pointerdown", () => {
-    penOverlay.style.transform = "scale(0.85)";
-    //penOverlay.style.opacity = 1;
-  });
-  window.addEventListener("pointerup", () => {
-    penOverlay.style.transform = "scale(1) rotateY(30deg)";
-    //penOverlay.style.opacity = 0;
-  });
-})();
+//   // --- Optional press feedback ---
+//   window.addEventListener("pointerdown", () => {
+//     penOverlay.style.transform = "scale(0.85)";
+//     //penOverlay.style.opacity = 1;
+//   });
+//   window.addEventListener("pointerup", () => {
+//     penOverlay.style.transform = "scale(1) rotateY(30deg)";
+//     //penOverlay.style.opacity = 0;
+//   });
+// })();
