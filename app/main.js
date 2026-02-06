@@ -2793,7 +2793,40 @@ window.onload = async () => {
         return false;
     }
 
-    // (1-finger double tap AI toggle removed)
+    // --- 1-finger double tap for AI toggle ---
+    let singleFingerTap = {
+        lastTapTime: 0,
+        lastTapX: 0,
+        lastTapY: 0
+    };
+
+    canvasGroup.addEventListener("touchend", function(e) {
+        // Only process if no fingers remain and it was a single finger
+        if (e.touches.length === 0 && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+
+            // Palm rejection check (with touch info for size/position)
+            if (shouldIgnoreTouchGesture(touch)) return;
+
+            const now = Date.now();
+            const timeSinceLastTap = now - singleFingerTap.lastTapTime;
+            const dx = Math.abs(touch.clientX - singleFingerTap.lastTapX);
+            const dy = Math.abs(touch.clientY - singleFingerTap.lastTapY);
+
+            // Check for double tap (quick, same spot)
+            if (timeSinceLastTap < DOUBLE_TAP_GAP && dx < MOVE_THRESHOLD && dy < MOVE_THRESHOLD) {
+                // === 1-FINGER DOUBLE TAP: toggle AI ===
+                toggleDetection();
+                document.getElementById('aiToggleInput').checked = isDetectionOn;
+                singleFingerTap.lastTapTime = 0; // Reset to prevent triple-tap
+            } else {
+                // Record this tap for potential double tap
+                singleFingerTap.lastTapTime = now;
+                singleFingerTap.lastTapX = touch.clientX;
+                singleFingerTap.lastTapY = touch.clientY;
+            }
+        }
+    }, { passive: true });
 
     // --- 2-finger single tap for undo ---
     let twoFingerTap = {
