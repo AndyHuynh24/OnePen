@@ -2131,19 +2131,39 @@ window.onload = async () => {
         e.preventDefault();
     });
 
-    // Prevent default touch behaviors (scroll, zoom, callout) for single-touch/pen.
-    // Allow 2-finger gestures (pinch zoom) to still work via our custom handler.
-    canvasGroup.addEventListener("touchstart", (e) => {
-        if (e.touches.length === 1) {
-            e.preventDefault();
+    // Track active pen pointer to reject palm touches during pen drawing
+    let activePenPointerId = null;
+
+    // Clean up drawing state when browser cancels a pointer (palm rejection, gesture takeover)
+    canvasGroup.addEventListener("pointercancel", (e) => {
+        if (e.pointerId === activePenPointerId) {
+            activePenPointerId = null;
         }
-    }, { passive: false });
+        if (drawing) {
+            drawing = false;
+            currentStroke = [];
+            liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
+        }
+        isPanning = false;
+        erasing = false;
+        canvasGroup.style.cursor = "default";
+    });
 
     canvasGroup.addEventListener("pointerdown", (e) => {
-        const pos = toCanvasCoords(e);
+        e.preventDefault();
+
+        // === Palm rejection: ignore touch input while pen is active ===
+        if (e.pointerType === "touch" && activePenPointerId !== null) {
+            return; // Ignore palm/finger touches during pen drawing
+        }
+
+        // Track pen pointer
+        if (e.pointerType === "pen") {
+            activePenPointerId = e.pointerId;
+        }
 
         currentStroke = [];
-        e.preventDefault();
 
         // === Clean up panning state when pen input starts ===
         if (e.pointerType === "pen" && isPanning) {
@@ -2588,6 +2608,12 @@ window.onload = async () => {
 
     canvasGroup.addEventListener("pointerup", (e) => {
         e.preventDefault();
+
+        // Clear active pen tracking
+        if (e.pointerId === activePenPointerId) {
+            activePenPointerId = null;
+        }
+
         markDirty();
         cancelMediaLongPress(); // Cancel any pending media long press
 
