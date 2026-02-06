@@ -1,4 +1,5 @@
 //Draw function
+const DRAW_VERSION = "v3-smooth";
 //increase hiDPI canvas support
 const dpr = window.devicePixelRatio || 1;
 function setupHiDPICanvas(canvas) {
