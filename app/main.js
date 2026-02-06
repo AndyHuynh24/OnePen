@@ -2327,8 +2327,8 @@ window.onload = async () => {
             moveStartY = e.offsetY / scale;
         } else if (eraserMode) {
             erasing = true; 
-            eraserBox.x = (e.offsetX+viewportOffset.x)/scale - eraserSize / 2;
-            eraserBox.y = (e.offsetY+viewportOffset.y)/scale - eraserSize / 2;
+            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
+            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
             eraseStrokes();
         }
         else {
@@ -2342,9 +2342,11 @@ window.onload = async () => {
 
     });
 
-    const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
+    // Use pointermove for all devices (works on iPad Safari, Samsung, etc.)
+    // On Chromium browsers, also listen to pointerrawupdate for lower-latency drawing.
+    const hasRawUpdate = "onpointerrawupdate" in window;
 
-    canvasGroup.addEventListener(moveEvent, (e) => {
+    function handlePointerMove(e) {
         // Check if the pointer has moved significantly
         const movementDx = e.offsetX/scale - lastPointerX;
         const movementDy = e.offsetY/scale - lastPointerY;
@@ -2562,8 +2564,8 @@ window.onload = async () => {
             reDrawMovement();        
         }
         else if (eraserMode) {
-            eraserBox.x = (e.offsetX + viewportOffset.x)/scale - eraserSize / 2;
-            eraserBox.y = (e.offsetY + viewportOffset.y)/scale - eraserSize / 2;
+            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
+            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
 
             if (erasing) {
                 eraseStrokes();
@@ -2572,8 +2574,14 @@ window.onload = async () => {
         }
         else if (drawing && e.pointerType !== "touch") {
             e.preventDefault();
-            const pos = toCanvasCoords(e);
-            currentStroke.push({ x: pos.x, y: pos.y });
+            // Use coalesced events for smoother strokes (iPad, Samsung tablets, etc.)
+            const events = (e.getCoalescedEvents && e.getCoalescedEvents().length > 0)
+                ? e.getCoalescedEvents()
+                : [e];
+            for (const ce of events) {
+                const pos = toCanvasCoords(ce);
+                currentStroke.push({ x: pos.x, y: pos.y });
+            }
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
@@ -2584,7 +2592,33 @@ window.onload = async () => {
                 holdController.start(e); // Restart hold detection
             }
         }
+    }
+
+    // Always listen to pointermove (works everywhere including iPad Safari)
+    canvasGroup.addEventListener("pointermove", (e) => {
+        // On Chromium, skip drawing in pointermove since pointerrawupdate handles it
+        if (hasRawUpdate && drawing && e.pointerType !== "touch") {
+            // Still run non-drawing logic (movement tracking, media hover, panning, etc.)
+            // but skip the actual stroke drawing — pointerrawupdate handles that
+            const movementDx = e.offsetX/scale - lastPointerX;
+            const movementDy = e.offsetY/scale - lastPointerY;
+            totalMovement += Math.sqrt(movementDx * movementDx + movementDy * movementDy);
+            lastPointerX = e.offsetX/scale;
+            lastPointerY = e.offsetY/scale;
+            if (totalMovement > CONFIG.MOVEMENT_THRESHOLD) {
+                holdController.cancel();
+                cancelMediaLongPress();
+                totalMovement = 0;
+            }
+            return;
+        }
+        handlePointerMove(e);
     });
+
+    // On Chromium, also listen to pointerrawupdate for lower-latency pen input
+    if (hasRawUpdate) {
+        canvasGroup.addEventListener("pointerrawupdate", handlePointerMove);
+    }
 
     canvasGroup.addEventListener("pointerup", (e) => {
         e.preventDefault();
