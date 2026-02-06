@@ -489,11 +489,11 @@ const tapePatternCache = new Map();
 
 const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#a090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    curly: { label: "Curly", color: "#a08080", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    squarebracket: { label: "Square Bracket", color: "#809880", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    wavybracket: { label: "Wavy Bracket", color: "#8090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circlebracket: { label: "Circle Bracket", color: "#a08890", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
     syncBracketToolboxes: true,
     syncStrokeSize: false,
@@ -2120,7 +2120,6 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
-    // === Prevent all default browser behaviors on the canvas ===
     // Block text selection drag (blue highlight) on all devices
     canvasGroup.addEventListener("selectstart", (e) => {
         e.preventDefault();
@@ -2130,14 +2129,6 @@ window.onload = async () => {
     canvasGroup.addEventListener("dragstart", (e) => {
         e.preventDefault();
     });
-
-    // Prevent default touch behaviors (scroll, zoom, callout) for single-touch/pen.
-    // Allow 2-finger gestures (pinch zoom) to still work via our custom handler.
-    canvasGroup.addEventListener("touchstart", (e) => {
-        if (e.touches.length === 1) {
-            e.preventDefault();
-        }
-    }, { passive: false });
 
     canvasGroup.addEventListener("pointerdown", (e) => {
         const pos = toCanvasCoords(e);
@@ -2342,11 +2333,9 @@ window.onload = async () => {
 
     });
 
-    // Use pointermove for all devices (works on iPad Safari, Samsung, etc.)
-    // On Chromium browsers, also listen to pointerrawupdate for lower-latency drawing.
-    const hasRawUpdate = "onpointerrawupdate" in window;
+    const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
 
-    function handlePointerMove(e) {
+    canvasGroup.addEventListener(moveEvent, (e) => {
         // Check if the pointer has moved significantly
         const movementDx = e.offsetX/scale - lastPointerX;
         const movementDy = e.offsetY/scale - lastPointerY;
@@ -2574,14 +2563,8 @@ window.onload = async () => {
         }
         else if (drawing && e.pointerType !== "touch") {
             e.preventDefault();
-            // Use coalesced events for smoother strokes (iPad, Samsung tablets, etc.)
-            const events = (e.getCoalescedEvents && e.getCoalescedEvents().length > 0)
-                ? e.getCoalescedEvents()
-                : [e];
-            for (const ce of events) {
-                const pos = toCanvasCoords(ce);
-                currentStroke.push({ x: pos.x, y: pos.y });
-            }
+            const pos = toCanvasCoords(e);
+            currentStroke.push({ x: pos.x, y: pos.y });
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
@@ -2592,33 +2575,7 @@ window.onload = async () => {
                 holdController.start(e); // Restart hold detection
             }
         }
-    }
-
-    // Always listen to pointermove (works everywhere including iPad Safari)
-    canvasGroup.addEventListener("pointermove", (e) => {
-        // On Chromium, skip drawing in pointermove since pointerrawupdate handles it
-        if (hasRawUpdate && drawing && e.pointerType !== "touch") {
-            // Still run non-drawing logic (movement tracking, media hover, panning, etc.)
-            // but skip the actual stroke drawing — pointerrawupdate handles that
-            const movementDx = e.offsetX/scale - lastPointerX;
-            const movementDy = e.offsetY/scale - lastPointerY;
-            totalMovement += Math.sqrt(movementDx * movementDx + movementDy * movementDy);
-            lastPointerX = e.offsetX/scale;
-            lastPointerY = e.offsetY/scale;
-            if (totalMovement > CONFIG.MOVEMENT_THRESHOLD) {
-                holdController.cancel();
-                cancelMediaLongPress();
-                totalMovement = 0;
-            }
-            return;
-        }
-        handlePointerMove(e);
     });
-
-    // On Chromium, also listen to pointerrawupdate for lower-latency pen input
-    if (hasRawUpdate) {
-        canvasGroup.addEventListener("pointerrawupdate", handlePointerMove);
-    }
 
     canvasGroup.addEventListener("pointerup", (e) => {
         e.preventDefault();
