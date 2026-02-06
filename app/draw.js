@@ -19,8 +19,8 @@ function setupHiDPICanvas(canvas) {
 //get draw coordinates according to viewport offset and scale
 function toCanvasCoords(e) {
     return {
-        x: e.offsetX / scale + viewportOffset.x,
-        y: e.offsetY / scale + viewportOffset.y,
+        x: (e.offsetX + viewportOffset.x) / scale,
+        y: (e.offsetY + viewportOffset.y) / scale,
     };
 }
 //Drawgrid grid

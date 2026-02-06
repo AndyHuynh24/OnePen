@@ -489,11 +489,11 @@ const tapePatternCache = new Map();
 
 const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    box: { label: "Box", color: "#a090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    curly: { label: "Curly", color: "#a08080", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    squarebracket: { label: "Square Bracket", color: "#809880", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#8090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#a08890", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
     syncBracketToolboxes: true,
     syncStrokeSize: false,
@@ -2120,6 +2120,7 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
+    // === Prevent all default browser behaviors on the canvas ===
     // Block text selection drag (blue highlight) on all devices
     canvasGroup.addEventListener("selectstart", (e) => {
         e.preventDefault();
@@ -2129,6 +2130,14 @@ window.onload = async () => {
     canvasGroup.addEventListener("dragstart", (e) => {
         e.preventDefault();
     });
+
+    // Prevent default touch behaviors (scroll, zoom, callout) for single-touch/pen.
+    // Allow 2-finger gestures (pinch zoom) to still work via our custom handler.
+    canvasGroup.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+        }
+    }, { passive: false });
 
     canvasGroup.addEventListener("pointerdown", (e) => {
         const pos = toCanvasCoords(e);
@@ -2318,14 +2327,15 @@ window.onload = async () => {
             moveStartY = e.offsetY / scale;
         } else if (eraserMode) {
             erasing = true; 
-            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
-            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
+            eraserBox.x = (e.offsetX+viewportOffset.x)/scale - eraserSize / 2;
+            eraserBox.y = (e.offsetY+viewportOffset.y)/scale - eraserSize / 2;
             eraseStrokes();
         }
         else {
             if (drawingLock) {
                 drawing = true;
             }
+            canvasGroup.setPointerCapture(e.pointerId);
             const pos = toCanvasCoords(e);
             currentStroke = [{ x: pos.x, y: pos.y }];
         }
@@ -2552,8 +2562,8 @@ window.onload = async () => {
             reDrawMovement();        
         }
         else if (eraserMode) {
-            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
-            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
+            eraserBox.x = (e.offsetX + viewportOffset.x)/scale - eraserSize / 2;
+            eraserBox.y = (e.offsetY + viewportOffset.y)/scale - eraserSize / 2;
 
             if (erasing) {
                 eraseStrokes();
@@ -2574,20 +2584,6 @@ window.onload = async () => {
                 holdController.start(e); // Restart hold detection
             }
         }
-    });
-
-    // Handle pointercancel — iPad fires this during palm rejection, pen hover-off,
-    // or when the system interrupts the gesture. Without this, drawing state goes stale
-    // and subsequent strokes fail or split.
-    canvasGroup.addEventListener("pointercancel", (e) => {
-        drawing = false;
-        isPanning = false;
-        erasing = false;
-        currentStroke = [];
-        liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-        cancelMediaLongPress();
-        if (isResizingMedia) endMediaResize();
-        if (isDraggingMedia) endMediaDrag();
     });
 
     canvasGroup.addEventListener("pointerup", (e) => {
@@ -2706,6 +2702,7 @@ window.onload = async () => {
         else if (e.pointerType !== "touch") {
             drawing = false;
             canvasGroup.style.cursor = "default";
+            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
             // Draw the final stroke
             if (currentStroke.length > 1) {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
