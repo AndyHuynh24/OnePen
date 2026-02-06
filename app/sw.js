@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onepen-v2';
+const CACHE_NAME = 'onepen-v3';
 
 // Core app files to cache
 const CORE_ASSETS = [
