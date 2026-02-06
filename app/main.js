@@ -2326,7 +2326,6 @@ window.onload = async () => {
             if (drawingLock) {
                 drawing = true;
             }
-            canvasGroup.setPointerCapture(e.pointerId);
             const pos = toCanvasCoords(e);
             currentStroke = [{ x: pos.x, y: pos.y }];
         }
@@ -2577,6 +2576,20 @@ window.onload = async () => {
         }
     });
 
+    // Handle pointercancel — iPad fires this during palm rejection, pen hover-off,
+    // or when the system interrupts the gesture. Without this, drawing state goes stale
+    // and subsequent strokes fail or split.
+    canvasGroup.addEventListener("pointercancel", (e) => {
+        drawing = false;
+        isPanning = false;
+        erasing = false;
+        currentStroke = [];
+        liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+        cancelMediaLongPress();
+        if (isResizingMedia) endMediaResize();
+        if (isDraggingMedia) endMediaDrag();
+    });
+
     canvasGroup.addEventListener("pointerup", (e) => {
         e.preventDefault();
         markDirty();
@@ -2693,7 +2706,6 @@ window.onload = async () => {
         else if (e.pointerType !== "touch") {
             drawing = false;
             canvasGroup.style.cursor = "default";
-            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
             // Draw the final stroke
             if (currentStroke.length > 1) {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
