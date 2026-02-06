@@ -489,11 +489,11 @@ const tapePatternCache = new Map();
 
 const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#a090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    curly: { label: "Curly", color: "#a08080", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    squarebracket: { label: "Square Bracket", color: "#809880", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    wavybracket: { label: "Wavy Bracket", color: "#8090a0", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circlebracket: { label: "Circle Bracket", color: "#a08890", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
     syncBracketToolboxes: true,
     syncStrokeSize: false,
@@ -1945,7 +1945,7 @@ async function classifyStroke(stroke, hold = false) {
     }
 }
 
-const holdController = detectPointerHold(canvasGroup, 400, async (e) => {
+const holdController = detectPointerHold(canvasGroup, 300, async (e) => {
     if (e.pointerType == 'touch') return;
     modifiedGroups = await classifyStroke(currentStroke, true);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
@@ -2120,16 +2120,30 @@ window.onload = async () => {
         reDrawAll(drawCtx);
     });
 
-    // === Prevent all default browser behaviors on the canvas ===
-    // Block text selection drag (blue highlight) on all devices
-    canvasGroup.addEventListener("selectstart", (e) => {
-        e.preventDefault();
-    });
+    // === Prevent ALL default browser behaviors on the canvas ===
+    // These targeted handlers kill defaults WITHOUT using e.preventDefault()
+    // on pointer events, which can break pen input on some browsers/devices.
 
-    // Block drag-and-drop ghost images on pen/touch
-    canvasGroup.addEventListener("dragstart", (e) => {
-        e.preventDefault();
-    });
+    // Block text selection drag (blue highlight)
+    canvasGroup.addEventListener("selectstart", (e) => e.preventDefault());
+
+    // Block drag-and-drop ghost images
+    canvasGroup.addEventListener("dragstart", (e) => e.preventDefault());
+
+    // Block default touch behaviors (scroll, zoom, Scribble, etc.)
+    // This is critical - prevents the browser from "stealing" pen/touch input
+    canvasGroup.addEventListener("touchstart", (e) => {
+        // Allow multi-touch for pinch zoom, but prevent single-touch defaults
+        if (e.touches.length === 1) e.preventDefault();
+    }, { passive: false });
+
+    // Block Safari gesture events (pinch/rotate recognition)
+    canvasGroup.addEventListener("gesturestart", (e) => e.preventDefault());
+    canvasGroup.addEventListener("gesturechange", (e) => e.preventDefault());
+    canvasGroup.addEventListener("gestureend", (e) => e.preventDefault());
+
+    // Block default mousedown behaviors (text caret, focus stealing, etc.)
+    canvasGroup.addEventListener("mousedown", (e) => e.preventDefault());
 
     // Track active pen pointer to reject palm touches during pen drawing
     let activePenPointerId = null;
@@ -2143,7 +2157,6 @@ window.onload = async () => {
             drawing = false;
             currentStroke = [];
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
         }
         isPanning = false;
         erasing = false;
@@ -2151,7 +2164,10 @@ window.onload = async () => {
     });
 
     canvasGroup.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
+        // NOTE: Do NOT call e.preventDefault() here - it interferes with
+        // the browser's pointer tracking and can cause alternating strokes
+        // to be swallowed. All defaults are handled via CSS and targeted
+        // event handlers (touchstart, mousedown, selectstart, dragstart).
 
         // === Palm rejection: ignore touch input while pen is active ===
         if (e.pointerType === "touch" && activePenPointerId !== null) {
@@ -2355,7 +2371,9 @@ window.onload = async () => {
             if (drawingLock) {
                 drawing = true;
             }
-            canvasGroup.setPointerCapture(e.pointerId);
+            // NOTE: Do NOT call setPointerCapture here - it can cause the
+            // browser to swallow every other pen stroke on some devices.
+            // Events already bubble from child elements to canvasGroup.
             const pos = toCanvasCoords(e);
             currentStroke = [{ x: pos.x, y: pos.y }];
         }
@@ -2591,9 +2609,20 @@ window.onload = async () => {
             reDrawMovement();
         }
         else if (drawing && e.pointerType !== "touch") {
-            e.preventDefault();
-            const pos = toCanvasCoords(e);
-            currentStroke.push({ x: pos.x, y: pos.y });
+            // Collect all intermediate pen points via getCoalescedEvents().
+            // Uses clientX/Y (not offsetX) since coalesced events can have
+            // unreliable offsetX on iPad Safari.
+            const rect = canvasGroup.getBoundingClientRect();
+            const coalescedList = (e.getCoalescedEvents && e.getCoalescedEvents().length > 0)
+                ? e.getCoalescedEvents() : [e];
+            for (const ce of coalescedList) {
+                const ox = ce.clientX - rect.left;
+                const oy = ce.clientY - rect.top;
+                currentStroke.push({
+                    x: (ox + viewportOffset.x) / scale,
+                    y: (oy + viewportOffset.y) / scale
+                });
+            }
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
@@ -2607,7 +2636,7 @@ window.onload = async () => {
     });
 
     canvasGroup.addEventListener("pointerup", (e) => {
-        e.preventDefault();
+        // NOTE: Do NOT call e.preventDefault() on pointer events - see pointerdown note.
 
         // Clear active pen tracking
         if (e.pointerId === activePenPointerId) {
@@ -2728,7 +2757,6 @@ window.onload = async () => {
         else if (e.pointerType !== "touch") {
             drawing = false;
             canvasGroup.style.cursor = "default";
-            try { canvasGroup.releasePointerCapture(e.pointerId); } catch(_) {}
             // Draw the final stroke
             if (currentStroke.length > 1) {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
