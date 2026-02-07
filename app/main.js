@@ -2609,12 +2609,13 @@ window.onload = async () => {
             reDrawMovement();
         }
         else if (drawing && e.pointerType !== "touch") {
-            // Collect all intermediate pen points via getCoalescedEvents().
-            // Uses clientX/Y (not offsetX) since coalesced events can have
-            // unreliable offsetX on iPad Safari.
             const rect = canvasGroup.getBoundingClientRect();
-            const coalescedList = (e.getCoalescedEvents && e.getCoalescedEvents().length > 0)
-                ? e.getCoalescedEvents() : [e];
+            const hasCoalesced = !!(e.getCoalescedEvents && e.getCoalescedEvents().length > 0);
+            const coalescedList = hasCoalesced ? e.getCoalescedEvents() : [e];
+            // Log once per stroke on the 5th move event
+            if (currentStroke.length === 5) {
+                console.log(`[DIAG] coalesced: ${hasCoalesced}, perEvent: ${coalescedList.length}, event: ${e.type}, scale: ${scale}, dpr: ${window.devicePixelRatio}, canvasW: ${liveCanvas.width}, cssW: ${liveCanvas.clientWidth}`);
+            }
             for (const ce of coalescedList) {
                 const ox = ce.clientX - rect.left;
                 const oy = ce.clientY - rect.top;
@@ -2757,6 +2758,16 @@ window.onload = async () => {
         else if (e.pointerType !== "touch") {
             drawing = false;
             canvasGroup.style.cursor = "default";
+            // Diagnostic: compare local vs Firebase stroke quality
+            if (currentStroke.length > 1) {
+                let totalDist = 0;
+                for (let i = 1; i < currentStroke.length; i++) {
+                    const dx = currentStroke[i].x - currentStroke[i-1].x;
+                    const dy = currentStroke[i].y - currentStroke[i-1].y;
+                    totalDist += Math.sqrt(dx*dx + dy*dy);
+                }
+                console.log(`[STROKE] points: ${currentStroke.length}, avgGap: ${(totalDist/(currentStroke.length-1)).toFixed(2)}, scale: ${scale}, dpr: ${window.devicePixelRatio}`);
+            }
             // Draw the final stroke
             if (currentStroke.length > 1) {
                 liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);

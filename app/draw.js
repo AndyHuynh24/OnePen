@@ -1,5 +1,5 @@
 //Draw function
-const DRAW_VERSION = "v3-smooth";
+const DRAW_VERSION = "v4-catmullrom";
 //increase hiDPI canvas support
 const dpr = window.devicePixelRatio || 1;
 function setupHiDPICanvas(canvas) {
