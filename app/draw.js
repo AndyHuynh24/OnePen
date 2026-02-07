@@ -571,21 +571,26 @@ function drawFinalLine(ctx, bbox, color, directX, directY, lineWidth = 1.7) {
 }
 
 // --------draw stroke --------------------
-// Laplacian smoothing: moves each interior point toward the average of its
-// neighbors.  Endpoints are preserved.  Returns a new array.
+// Laplacian smoothing with endpoint taper: full smoothing in the middle,
+// fades to zero near start/end to prevent hook artifacts on pen lift.
 function smoothStrokePoints(pts, iterations, alpha) {
     if (pts.length < 3) return pts;
     let src = pts;
+    const fadeZone = Math.min(4, Math.floor(pts.length / 4));
     for (let iter = 0; iter < iterations; iter++) {
         const out = new Array(src.length);
         out[0] = src[0];
         out[src.length - 1] = src[src.length - 1];
         for (let i = 1; i < src.length - 1; i++) {
+            const distFromEnd = Math.min(i, src.length - 1 - i);
+            const taper = fadeZone > 0 && distFromEnd < fadeZone
+                ? distFromEnd / fadeZone : 1;
+            const a = alpha * taper;
             const avg_x = (src[i - 1].x + src[i + 1].x) / 2;
             const avg_y = (src[i - 1].y + src[i + 1].y) / 2;
             out[i] = {
-                x: src[i].x * (1 - alpha) + avg_x * alpha,
-                y: src[i].y * (1 - alpha) + avg_y * alpha
+                x: src[i].x * (1 - a) + avg_x * a,
+                y: src[i].y * (1 - a) + avg_y * a
             };
         }
         src = out;
@@ -622,30 +627,15 @@ function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash 
         ctx.setLineDash([2, 5]);
     }
 
+    // Smooth sparse input (iPad ~60Hz) — no subdivision, no extra points,
+    // same rendering as Windows = identical thickness.
     let pts = stroke;
-
-    if (stroke.length >= 4) {
-        // Measure average gap to detect sparse input (iPad ~60Hz vs Windows ~240Hz).
-        let totalDist = 0;
-        for (let i = 1; i < stroke.length; i++) {
-            const dx = stroke[i].x - stroke[i - 1].x;
-            const dy = stroke[i].y - stroke[i - 1].y;
-            totalDist += Math.sqrt(dx * dx + dy * dy);
-        }
-        const avgGap = totalDist / (stroke.length - 1);
-
-        if (avgGap > 3) {
-            // Sparse input (iPad): subdivide to double resolution, then smooth.
-            pts = subdividePoints(stroke);
-            pts = smoothStrokePoints(pts, 6, 0.55);
-        } else {
-            // Dense input (Windows pointerrawupdate): light smoothing only.
-            pts = smoothStrokePoints(stroke, 2, 0.4);
-        }
+    if (!("onpointerrawupdate" in window) && stroke.length >= 4) {
+        pts = smoothStrokePoints(stroke, 2, 0.3);
     }
 
+    // Same midpoint quadratic bezier rendering for both paths.
     ctx.moveTo(pts[0].x, pts[0].y);
-
     for (let i = 1; i < pts.length - 1; i++) {
         const curr = pts[i];
         const next = pts[i + 1];
@@ -653,9 +643,7 @@ function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash 
         const midY = (curr.y + next.y) / 2;
         ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
     }
-
-    const last = pts[pts.length - 1];
-    ctx.lineTo(last.x, last.y);
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
     ctx.stroke();
     ctx.setLineDash([]);

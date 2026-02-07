@@ -489,7 +489,7 @@ const tapePatternCache = new Map();
 
 const DEFAULT_MODIFIERS = {
     defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#fff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
     curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
     squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
     wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
@@ -2381,6 +2381,7 @@ window.onload = async () => {
     });
 
     const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
+    window._hasRawPointer = moveEvent === "pointerrawupdate";
 
     canvasGroup.addEventListener(moveEvent, (e) => {
         // Check if the pointer has moved significantly
@@ -2609,13 +2610,8 @@ window.onload = async () => {
             reDrawMovement();
         }
         else if (drawing && e.pointerType !== "touch") {
-            const rect = canvasGroup.getBoundingClientRect();
-            const ox = e.clientX - rect.left;
-            const oy = e.clientY - rect.top;
-            currentStroke.push({
-                x: (ox + viewportOffset.x) / scale,
-                y: (oy + viewportOffset.y) / scale
-            });
+            const pos = toCanvasCoords(e);
+            currentStroke.push({ x: pos.x, y: pos.y });
             liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             liveCtx.save();
             liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
