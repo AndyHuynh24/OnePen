@@ -59,9 +59,9 @@ Handwritten note-taking apps force constant interruptions—switching tools, tap
 
 ## Demo
 
-https://github.com/user-attachments/assets/841e0054-ee6b-4bc9-9c63-4c769e01642b
+https://github.com/user-attachments/assets/a4335d94-51ff-4345-89c7-b58fddd72268
 
-> **[Try Live App →](https://onepen.app)** · Works offline after first load
+> **[Try Live App →](https://onepen-notes.web.app)** · Works offline after first load
 
 ---
 
