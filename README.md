@@ -118,9 +118,9 @@ OnePen/
 <td width="50%">
 
 ### Gesture Recognition
-- **6 gesture types** recognized in real-time
+- **7 gesture types** recognized in real-time
 - **Draw + Hold** opens radial tool menu
-- 6 gestures × 8 tools = **48 quick actions**
+- 1 delete gestures + 6 raw auto-style getures + 6 gestures + hold x 8 tools = **55 quick actions**
 - Fully customizable gesture-to-action mapping
 
 </td>
@@ -262,7 +262,7 @@ python scripts/export.py --model outputs/run_*/stroke_classifier.keras --quantiz
 
 | Layer | Technologies |
 |-------|--------------|
-| **Frontend** | JavaScript (ES6+), HTML5 Canvas API, TensorFlow.js, IndexedDB, Web Workers |
+| **Frontend** | JavaScript, HTML5 Canvas API, TensorFlow.js, IndexedDB, Web Workers |
 | **ML/AI** | TensorFlow, Keras, MobileNetV3, Squeeze-and-Excitation Networks, MLflow |
 | **Infrastructure** | Progressive Web App (PWA), Service Workers, Firebase Hosting, Google Drive API |
 | **Quality** | pytest, ruff, mypy, GitHub Actions CI/CD |
