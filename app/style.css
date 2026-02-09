@@ -273,7 +273,7 @@ html {
 .zoom-indicator {
     position: fixed;
     top: 10px;
-    left: 180px;
+    left: 250px;
     display: flex;
     align-items: center;
     gap: 6px;
