@@ -634,23 +634,16 @@ function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash 
         pts = smoothStrokePoints(stroke, 2, 0.3);
     }
 
+    // Midpoint quadratic bezier rendering for all devices
     ctx.moveTo(pts[0].x, pts[0].y);
-    if ("onpointerrawupdate" in window) {
-        // Raw high-frequency input — draw straight segments, no curve smoothing
-        for (let i = 1; i < pts.length; i++) {
-            ctx.lineTo(pts[i].x, pts[i].y);
-        }
-    } else {
-        // Sparse input — midpoint quadratic bezier for visual smoothness
-        for (let i = 1; i < pts.length - 1; i++) {
-            const curr = pts[i];
-            const next = pts[i + 1];
-            const midX = (curr.x + next.x) / 2;
-            const midY = (curr.y + next.y) / 2;
-            ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
-        }
-        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+        const curr = pts[i];
+        const next = pts[i + 1];
+        const midX = (curr.x + next.x) / 2;
+        const midY = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
     }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
     ctx.stroke();
     ctx.setLineDash([]);
