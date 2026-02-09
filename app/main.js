@@ -2363,8 +2363,8 @@ window.onload = async () => {
             moveStartY = e.offsetY / scale;
         } else if (eraserMode) {
             erasing = true; 
-            eraserBox.x = (e.offsetX+viewportOffset.x)/scale - eraserSize / 2;
-            eraserBox.y = (e.offsetY+viewportOffset.y)/scale - eraserSize / 2;
+            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
+            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
             eraseStrokes();
         }
         else {
@@ -2381,6 +2381,7 @@ window.onload = async () => {
     });
 
     const moveEvent = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
+    console.log("moveevent", moveEvent);
     window._hasRawPointer = moveEvent === "pointerrawupdate";
 
     canvasGroup.addEventListener(moveEvent, (e) => {
@@ -2601,8 +2602,8 @@ window.onload = async () => {
             reDrawMovement();        
         }
         else if (eraserMode) {
-            eraserBox.x = (e.offsetX + viewportOffset.x)/scale - eraserSize / 2;
-            eraserBox.y = (e.offsetY + viewportOffset.y)/scale - eraserSize / 2;
+            eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
+            eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
 
             if (erasing) {
                 eraseStrokes();

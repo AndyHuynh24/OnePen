@@ -20,8 +20,8 @@ function setupHiDPICanvas(canvas) {
 //get draw coordinates according to viewport offset and scale
 function toCanvasCoords(e) {
     return {
-        x: (e.offsetX + viewportOffset.x) / scale,
-        y: (e.offsetY + viewportOffset.y) / scale,
+        x: e.offsetX / scale + viewportOffset.x,
+        y: e.offsetY / scale + viewportOffset.y,
     };
 }
 //Drawgrid grid
@@ -507,8 +507,8 @@ function drawLine(ctx, x, y, color, lineWidth = 1.7) {
 }
 function drawShape(ctx, e) {
     let shape;
-    x = (e.offsetX + viewportOffset.x) /scale;
-    y = (e.offsetY + viewportOffset.y) /scale
+    x = e.offsetX / scale + viewportOffset.x;
+    y = e.offsetY / scale + viewportOffset.y
     if (predictedShape == 0) {
         shape = drawLine(ctx, x,y, defaultPenColor);
     } else if (predictedShape == 1) {
@@ -634,16 +634,23 @@ function drawStroke(ctx, stroke, color=defaultPenColor, widthFactor = 1.7, dash 
         pts = smoothStrokePoints(stroke, 2, 0.3);
     }
 
-    // Same midpoint quadratic bezier rendering for both paths.
     ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length - 1; i++) {
-        const curr = pts[i];
-        const next = pts[i + 1];
-        const midX = (curr.x + next.x) / 2;
-        const midY = (curr.y + next.y) / 2;
-        ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+    if ("onpointerrawupdate" in window) {
+        // Raw high-frequency input — draw straight segments, no curve smoothing
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+        }
+    } else {
+        // Sparse input — midpoint quadratic bezier for visual smoothness
+        for (let i = 1; i < pts.length - 1; i++) {
+            const curr = pts[i];
+            const next = pts[i + 1];
+            const midX = (curr.x + next.x) / 2;
+            const midY = (curr.y + next.y) / 2;
+            ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+        }
+        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
     }
-    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
     ctx.stroke();
     ctx.setLineDash([]);
