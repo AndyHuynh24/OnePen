@@ -116,12 +116,12 @@ export:
   tfjs_quantization: false          # quantize for smaller size
   tfjs_weight_shard_size: 4194304   # 4MB shards
 
-# MLflow configuration
-mlflow:
-  tracking_uri: "mlruns"
-  experiment_name: "onepen-stroke-classifier"
-  log_models: true
-  log_artifacts: true
+# Weights & Biases configuration
+wandb:
+  enabled: true
+  project: "onepen-stroke-classifier"
+  entity: null
+  log_model: true
 
 # Logging
 logging:

@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/TensorFlow-2.x-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
   <img src="https://img.shields.io/badge/TensorFlow.js-Browser_ML-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/MLflow-Tracking-0194E2?style=flat-square&logo=mlflow&logoColor=white" />
+  <img src="https://img.shields.io/badge/W%26B-Tracking-FFBE00?style=flat-square&logo=weightsandbiases&logoColor=black" />
 </p>
 
 ---
@@ -95,7 +95,7 @@ OnePen/
 │   └── utils/                 # Logging, config utilities
 │
 ├── scripts/                   # CLI Tools
-│   ├── train.py              # Training with MLflow tracking
+│   ├── train.py              # Training with W&B tracking
 │   ├── export.py             # TF.js model conversion
 │   └── dataset.py            # Data preprocessing pipeline
 │
@@ -249,7 +249,7 @@ cd app && python -m http.server 8000
 # Preprocess data
 python scripts/dataset.py
 
-# Train (with MLflow tracking)
+# Train (with W&B tracking)
 python scripts/train.py --epochs 200 --backbone mobilenetv3_small
 
 # Export to TensorFlow.js
@@ -263,7 +263,7 @@ python scripts/export.py --model outputs/run_*/stroke_classifier.keras --quantiz
 | Layer | Technologies |
 |-------|--------------|
 | **Frontend** | JavaScript, HTML5 Canvas API, TensorFlow.js, IndexedDB, Web Workers |
-| **ML/AI** | TensorFlow, Keras, MobileNetV3, Squeeze-and-Excitation Networks, MLflow |
+| **ML/AI** | TensorFlow, Keras, MobileNetV3, Squeeze-and-Excitation Networks, Weights & Biases |
 | **Infrastructure** | Progressive Web App (PWA), Service Workers, Firebase Hosting, Google Drive API |
 | **Quality** | pytest, ruff, mypy, GitHub Actions CI/CD |
 

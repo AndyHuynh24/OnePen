@@ -217,9 +217,6 @@ print(f"New accepted samples: {len(accepted)}")
 ```bash
 # Run training with augmented data
 python scripts/train.py --config config/config.yaml
-
-# Or use MLflow
-mlflow run . -P config=config/config.yaml
 ```
 
 ### Step 4: Export and Deploy

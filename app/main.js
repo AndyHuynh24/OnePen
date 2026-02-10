@@ -2122,7 +2122,8 @@ window.onload = async () => {
                 }
             });
             setTimeout(() => {
-                document.getElementById(lastSaveNote.path.replace('/','_').replace('.json','')).classList.toggle('noteSelected');
+                const noteEl = document.getElementById(lastSaveNote.path.replace('/','_').replace('.json',''));
+                if (noteEl) noteEl.classList.toggle('noteSelected');
                 drawingLock = true;
 
                 if (allGroups.length > 0) {

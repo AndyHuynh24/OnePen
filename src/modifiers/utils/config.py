@@ -119,12 +119,12 @@ class ExportConfig(BaseModel):
     tfjs_weight_shard_size: int = 4194304
 
 
-class MLflowConfig(BaseModel):
-    """MLflow tracking configuration."""
-    tracking_uri: str = "mlruns"
-    experiment_name: str = "onepen-stroke-classifier"
-    log_models: bool = True
-    log_artifacts: bool = True
+class WandbConfig(BaseModel):
+    """Weights & Biases tracking configuration."""
+    enabled: bool = True
+    project: str = "onepen-stroke-classifier"
+    entity: str | None = None
+    log_model: bool = True
 
 
 class LoggingConfig(BaseModel):
@@ -144,7 +144,7 @@ class Config(BaseModel):
     model: ModelArchConfig
     training: TrainingConfig
     export: ExportConfig
-    mlflow: MLflowConfig
+    wandb: WandbConfig
     logging: LoggingConfig
 
     @property

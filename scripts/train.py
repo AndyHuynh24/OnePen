@@ -46,7 +46,7 @@ def parse_args():
                         choices=["hybrid", "image_only"],
                         help="Model type: 'hybrid' (CNN + geometric features) or 'image_only' (CNN baseline)")
     parser.add_argument("--resume", type=Path, default=None)
-    parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow")
+    parser.add_argument("--no-wandb", action="store_true", help="Disable Weights & Biases tracking")
     return parser.parse_args()
 
 
@@ -277,17 +277,17 @@ def main() -> int:
     }
 
     # ==========================================================================
-    # 8. MLflow Logging
+    # 8. Weights & Biases Logging
     # ==========================================================================
-    if not args.no_mlflow:
+    if not args.no_wandb and config.wandb.enabled:
         try:
-            import mlflow
-            mlflow.set_tracking_uri("mlruns")
-            mlflow.set_experiment(config.mlflow.experiment_name)
+            import wandb
 
-            with mlflow.start_run(run_name=f"train_{timestamp}"):
-                # Log all config parameters
-                mlflow.log_params({
+            run = wandb.init(
+                project=config.wandb.project,
+                entity=config.wandb.entity,
+                name=f"train_{timestamp}",
+                config={
                     # Model config
                     "model/type": model_type,
                     "model/backbone": backbone_name,
@@ -312,52 +312,70 @@ def main() -> int:
                     "data/test_samples": len(test_idx),
                     "data/image_size": config.features.image_size,
                     "data/feature_dim": features.shape[1],
+                },
+            )
 
-                    # Features config
-                    "features/image_size": config.features.image_size,
-                })
+            # Log metrics
+            wandb.log({
+                # Test metrics
+                "test_accuracy": test_metrics["test_accuracy"],
+                "test_loss": test_metrics["test_loss"],
 
-                # Log all metrics
-                mlflow.log_metrics({
-                    # Test metrics
-                    "test_accuracy": test_metrics["test_accuracy"],
-                    "test_loss": test_metrics["test_loss"],
+                # Best validation metrics
+                "best_val_accuracy": best_metrics["best_val_accuracy"],
+                "best_val_loss": best_metrics["best_val_loss"],
 
-                    # Best validation metrics
-                    "best_val_accuracy": best_metrics["best_val_accuracy"],
-                    "best_val_loss": best_metrics["best_val_loss"],
+                # Final training metrics
+                "final_train_accuracy": best_metrics["final_train_accuracy"],
+                "final_train_loss": best_metrics["final_train_loss"],
+                "epochs_trained": best_metrics["epochs_trained"],
 
-                    # Final training metrics
-                    "final_train_accuracy": best_metrics["final_train_accuracy"],
-                    "final_train_loss": best_metrics["final_train_loss"],
-                    "epochs_trained": best_metrics["epochs_trained"],
+                # Aggregate metrics
+                "macro_f1": report["macro avg"]["f1-score"],
+                "macro_precision": report["macro avg"]["precision"],
+                "macro_recall": report["macro avg"]["recall"],
+                "weighted_f1": report["weighted avg"]["f1-score"],
+                "weighted_precision": report["weighted avg"]["precision"],
+                "weighted_recall": report["weighted avg"]["recall"],
+            })
 
-                    # Per-class metrics
-                    "macro_f1": report["macro avg"]["f1-score"],
-                    "macro_precision": report["macro avg"]["precision"],
-                    "macro_recall": report["macro avg"]["recall"],
-                    "weighted_f1": report["weighted avg"]["f1-score"],
-                    "weighted_precision": report["weighted avg"]["precision"],
-                    "weighted_recall": report["weighted avg"]["recall"],
-                })
+            # Log per-class metrics
+            for class_name in config.classes:
+                if class_name in report:
+                    wandb.log({
+                        f"class_{class_name}_f1": report[class_name]["f1-score"],
+                        f"class_{class_name}_precision": report[class_name]["precision"],
+                        f"class_{class_name}_recall": report[class_name]["recall"],
+                    })
 
-                # Log per-class accuracy
-                for class_name in config.classes:
-                    if class_name in report:
-                        mlflow.log_metric(f"class_{class_name}_f1", report[class_name]["f1-score"])
-                        mlflow.log_metric(f"class_{class_name}_precision", report[class_name]["precision"])
-                        mlflow.log_metric(f"class_{class_name}_recall", report[class_name]["recall"])
+            # Log confusion matrix
+            y_true_names = [config.classes[i] for i in y_true]
+            y_pred_names = [config.classes[i] for i in y_pred]
+            wandb.log({
+                "confusion_matrix": wandb.plot.confusion_matrix(
+                    probs=None,
+                    y_true=y_true_names,
+                    preds=y_pred_names,
+                    class_names=config.classes,
+                )
+            })
 
-                # Log artifacts
-                mlflow.log_artifacts(str(output_dir))
+            # Log output artifacts
+            artifact = wandb.Artifact(f"train_{timestamp}", type="output")
+            artifact.add_dir(str(output_dir))
+            run.log_artifact(artifact)
 
-                # Log model
-                mlflow.keras.log_model(model, "model")
+            # Log model artifact
+            if config.wandb.log_model:
+                model_artifact = wandb.Artifact(f"model_{timestamp}", type="model")
+                model_artifact.add_file(str(model_path))
+                run.log_artifact(model_artifact)
 
-            logger.info("MLflow run logged successfully")
+            run.finish()
+            logger.info("W&B run logged successfully")
 
         except Exception as e:
-            logger.warning(f"MLflow logging failed: {e}")
+            logger.warning(f"W&B logging failed: {e}")
 
     # ==========================================================================
     # 9. Summary

@@ -195,7 +195,6 @@ Before committing large files, ask:
 ### 3. ML Training Artifacts (~100MB-10GB+)
 ```
 ❌ IGNORE:
-├── mlruns/                # MLflow experiment tracking
 ├── outputs/               # Training outputs
 ├── checkpoints/           # Model checkpoints
 ├── wandb/                 # Weights & Biases

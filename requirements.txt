@@ -18,7 +18,7 @@ pydantic-settings>=2.0.0
 pyyaml>=6.0
 
 # Experiment tracking
-mlflow>=2.9.0
+wandb>=0.16.0
 
 # Visualization
 matplotlib>=3.7.0

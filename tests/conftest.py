@@ -131,11 +131,11 @@ def sample_config_dict():
             "tfjs_quantization": False,
             "tfjs_weight_shard_size": 4194304
         },
-        "mlflow": {
-            "tracking_uri": "mlruns",
-            "experiment_name": "test-experiment",
-            "log_models": True,
-            "log_artifacts": True
+        "wandb": {
+            "enabled": False,
+            "project": "test-experiment",
+            "entity": None,
+            "log_model": False
         },
         "logging": {
             "level": "INFO",
