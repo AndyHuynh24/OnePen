@@ -372,6 +372,42 @@ function removeTape(tape) {
   }
 }
 
+// Sync tape stored copies with current state of covered groups
+function syncTapeCoveredData() {
+  allGroups.forEach(tape => {
+    if (tape.type !== "tape" || !tape.coveredGroupIds) return;
+
+    // Rebuild stroke and text copies from the original covered groups
+    const newStrokes = [];
+    const newTextBlocks = [];
+
+    tape.coveredGroupIds.forEach(id => {
+      const original = allGroups.find(g => g.id === id);
+      if (!original) return;
+
+      if (original.type === 'text') {
+        newTextBlocks.push({
+          text: original.text,
+          fontFamily: original.fontFamily,
+          fontSize: original.fontSize,
+          color: original.color,
+          bbox: { ...original.bbox },
+          opacity: original.opacity
+        });
+      } else if (original.stroke && original.stroke.length >= 2) {
+        newStrokes.push({
+          path: original.stroke,
+          color: original.color,
+          size: original.size || 2
+        });
+      }
+    });
+
+    tape.stroke = newStrokes;
+    tape.textBlocks = newTextBlocks;
+  });
+}
+
 // Generate pattern canvas for tape preset
 function generateTapePattern(preset, size = CONFIG.TAPE.PATTERN_SIZE) {
   const canvas = document.createElement('canvas');
@@ -1914,13 +1950,15 @@ async function classifyStroke(stroke, hold = false) {
         if (predictedLabel === STROKE_TYPE.DELETE && group.type != 'media' && defaultPenType != PEN_TYPES.HIGHLIGHTER) {
             allGroups.splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
-            if (group.predictedLabel != STROKE_TYPE.HIGHLIGHT && group.predictedLabel != PEN_TYPES.HIGHLIGHTER) {
-                group.color = color;   
-                group.size = modifiers[predictedLabel]?.size ?? group.size; 
+            const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
+            if (!isHighlight) {
+                group.color = color;
+                group.size = modifiers[predictedLabel]?.size ?? group.size;
             }
         }
     }
 
+    syncTapeCoveredData();
     reDrawAll(drawCtx);
 
     // Record prediction for feedback collection (ML improvement)
@@ -2798,7 +2836,6 @@ window.onload = async () => {
     // 2. Touch size - palms have larger contact area than fingertips
     // ═══════════════════════════════════════════════════════════════════════
     const TAP_THRESHOLD = 250;      // Max duration for a tap
-    const DOUBLE_TAP_GAP = 300;     // Max gap between double taps
     const MOVE_THRESHOLD = 20;      // Max movement for a tap
     const PEN_COOLDOWN = 600;       // Ignore touch gestures for this long after pen use
     const MAX_TOUCH_RADIUS = 35;    // Max touch radius for valid finger tap (palms are larger)
@@ -3122,9 +3159,13 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         if (toolBox != "press") {
             modifiedGroups.modifiedGroups.forEach(group => {
-                group.color = toolColor;
-                group.size = toolSize;
+                const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
+                if (!isHighlight) {
+                    group.color = toolColor;
+                    group.size = toolSize;
+                }
             });
+            syncTapeCoveredData();
         }
         else {
             defaultPenColor = toolColor;
@@ -3183,6 +3224,8 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         modifiedGroups.modifiedGroups.forEach(group => {
             if (group.id === modifierId) return;
+            const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
+            if (isHighlight) return;
             group.size = parseInt(group.size, 10) + 2;
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
@@ -3190,6 +3233,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
                 group.color = toolColor;
             }
         });
+        syncTapeCoveredData();
 
         // Track for undo - unified styling format
         pastGroups.push({

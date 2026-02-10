@@ -2132,12 +2132,16 @@ function selectTitle(titleColor, visibility, level=0, size) {
 
     modifiedGroups.modifiedGroups.forEach(group => {
         //if (group.id === modifierId) return;
+        const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
         group.titleStatus = true;
         group.titleLevel = level;
-        group.color = titleColor;
+        if (!isHighlight) {
+            group.color = titleColor;
+        }
         group.size = size;
         group.titleGroupId = titleGroupId;
     });
+    syncTapeCoveredData();
 
     // Track for undo - unified styling format
     const change = {
