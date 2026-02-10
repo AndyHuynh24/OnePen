@@ -3374,6 +3374,24 @@ input[type="range"] {
   background: #3a3a3a !important;
 }
 
+/* Embed address bar */
+.embed-address-bar {
+  transition: border-color 0.15s;
+}
+
+.embed-address-bar:hover {
+  border-color: #555 !important;
+}
+
+.embed-address-bar:focus-within {
+  border-color: #666 !important;
+  background: #222 !important;
+}
+
+.embed-address-bar input {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 /* Embed URL input popup */
 .embed-url-popup input:focus {
   outline: none;

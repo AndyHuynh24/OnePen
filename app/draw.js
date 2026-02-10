@@ -901,7 +901,7 @@ function showUrlInputPopup(link) {
   embedBtn.onclick = () => {
     let url = input.value.trim();
     if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    if (!/^(https?|file):\/\//i.test(url)) url = "https://" + url;
     link.url = url;
     popup.remove();
     showEmbedFrame(link);
@@ -926,9 +926,45 @@ function showUrlInputPopup(link) {
     if (e.key === "Escape") popup.remove();
   });
 
+  // Open file button
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".pdf,.html,.htm,.txt,.png,.jpg,.jpeg,.gif,.svg,.webp,.mp4,.webm";
+  fileInput.style.display = "none";
+  fileInput.onchange = (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    link._objectUrl = objectUrl;
+    link._displayName = file.name;
+    link.url = file.name;
+    popup.remove();
+    showEmbedFrame(link);
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+  };
+
+  const fileBtn = document.createElement("button");
+  fileBtn.innerHTML = "<i class='bx bx-folder-open'></i> Open file";
+  fileBtn.style.cssText = `
+    padding: 6px 14px;
+    background: #555;
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-family: 'Mali', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  `;
+  fileBtn.onclick = () => fileInput.click();
+
+  btnRow.appendChild(fileBtn);
   btnRow.appendChild(embedBtn);
   btnRow.appendChild(cancelBtn);
   popup.appendChild(input);
+  popup.appendChild(fileInput);
   popup.appendChild(btnRow);
   document.body.appendChild(popup);
   input.focus();
@@ -978,101 +1014,192 @@ function showEmbedFrame(link) {
     overflow: hidden;
   `;
 
-  // Header bar
+  // Hidden file input for local file picking (PDF, images, etc.)
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".pdf,.html,.htm,.txt,.png,.jpg,.jpeg,.gif,.svg,.webp,.mp4,.webm";
+  fileInput.style.display = "none";
+
+  // === BROWSER-STYLE HEADER ===
   const header = document.createElement("div");
   header.className = "embed-frame-header";
   header.style.cssText = `
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    padding: 6px 8px;
     background: #2a2a2a;
     border-bottom: 1px solid #444;
     cursor: move;
     flex-shrink: 0;
+    gap: 4px;
   `;
 
-  // URL display
-  const urlDisplay = document.createElement("div");
-  urlDisplay.className = "embed-url-display";
-  urlDisplay.style.cssText = `
-    flex: 1;
-    font-size: 11px;
-    color: #888;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-right: 10px;
-    font-family: monospace;
-  `;
-  try {
-    const urlObj = new URL(link.url);
-    urlDisplay.textContent = urlObj.hostname + urlObj.pathname.substring(0, 30) + (urlObj.pathname.length > 30 ? "..." : "");
-  } catch {
-    urlDisplay.textContent = link.url.substring(0, 40) + "...";
-  }
-
-  // Header buttons
-  const headerBtns = document.createElement("div");
-  headerBtns.style.cssText = "display: flex; gap: 6px;";
-
-  // Edit URL button
-  const editBtn = document.createElement("button");
-  editBtn.innerHTML = "<i class='bx bx-edit-alt'></i>";
-  editBtn.title = "Edit URL";
-  editBtn.style.cssText = `
-    padding: 4px 8px;
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    border-radius: 4px;
-  `;
-  editBtn.onmouseenter = () => editBtn.style.background = "#3a3a3a";
-  editBtn.onmouseleave = () => editBtn.style.background = "transparent";
-  editBtn.onclick = () => {
-    closeEmbedFrame();
-    link.url = ""; // Clear to show input
-    showUrlInputPopup(link);
+  const makeHeaderBtn = (icon, titleText, onclick) => {
+    const btn = document.createElement("button");
+    btn.innerHTML = "<i class='bx " + icon + "' style='font-size: 16px;'></i>";
+    btn.title = titleText;
+    btn.style.cssText = `
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; color: #888;
+      cursor: pointer; border-radius: 50%; flex-shrink: 0; padding: 0;
+    `;
+    btn.onmouseenter = () => btn.style.background = "#3a3a3a";
+    btn.onmouseleave = () => btn.style.background = "transparent";
+    btn.onclick = onclick;
+    return btn;
   };
 
-  // Open in new tab button
-  const openBtn = document.createElement("button");
-  openBtn.innerHTML = "<i class='bx bx-link-external'></i>";
-  openBtn.title = "Open in new tab";
-  openBtn.style.cssText = `
-    padding: 4px 8px;
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    border-radius: 4px;
-  `;
-  openBtn.onmouseenter = () => openBtn.style.background = "#3a3a3a";
-  openBtn.onmouseleave = () => openBtn.style.background = "transparent";
-  openBtn.onclick = () => window.open(link.url, "_blank", "noopener,noreferrer");
+  // Navigation buttons
+  const backBtn = makeHeaderBtn("bx-chevron-left", "Back", () => {
+    const ifr = frame.querySelector("iframe");
+    if (ifr) try { ifr.contentWindow.history.back(); } catch(e) {}
+  });
+  const fwdBtn = makeHeaderBtn("bx-chevron-right", "Forward", () => {
+    const ifr = frame.querySelector("iframe");
+    if (ifr) try { ifr.contentWindow.history.forward(); } catch(e) {}
+  });
+  const refreshBtn = makeHeaderBtn("bx-refresh", "Refresh", () => {
+    const ifr = frame.querySelector("iframe");
+    if (ifr) ifr.src = ifr.src;
+  });
 
-  // Close button
-  const closeBtn = document.createElement("button");
-  closeBtn.innerHTML = "<i class='bx bx-x'></i>";
-  closeBtn.title = "Close";
-  closeBtn.style.cssText = `
-    padding: 4px 8px;
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    border-radius: 4px;
+  // Address bar
+  const addressBar = document.createElement("div");
+  addressBar.className = "embed-address-bar";
+  addressBar.style.cssText = `
+    flex: 1; display: flex; align-items: center;
+    background: #1a1a1a; border: 1px solid #3a3a3a;
+    border-radius: 18px; padding: 4px 10px; gap: 6px;
+    min-width: 0; height: 28px; box-sizing: border-box;
+    cursor: text;
   `;
-  closeBtn.onmouseenter = () => closeBtn.style.background = "#3a3a3a";
-  closeBtn.onmouseleave = () => closeBtn.style.background = "transparent";
-  closeBtn.onclick = closeEmbedFrame;
 
-  headerBtns.appendChild(editBtn);
-  headerBtns.appendChild(openBtn);
-  headerBtns.appendChild(closeBtn);
-  header.appendChild(urlDisplay);
-  header.appendChild(headerBtns);
+  const isSecure = link.url.startsWith("https://");
+  const isFileUrl = /^(file:\/\/|blob:)/i.test(link.url) || link._objectUrl;
+  const lockIcon = document.createElement("i");
+  lockIcon.className = isFileUrl ? "bx bx-file" : (isSecure ? "bx bx-lock-alt" : "bx bx-globe");
+  lockIcon.style.cssText = "font-size: 12px; color: " + (isFileUrl ? "#888" : (isSecure ? "#8bc34a" : "#888")) + "; flex-shrink: 0;";
+
+  const urlText = document.createElement("div");
+  urlText.className = "embed-url-text";
+  urlText.style.cssText = `
+    flex: 1; font-size: 12px; color: #aaa;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1;
+  `;
+  urlText.textContent = link._displayName || link.url;
+
+  // Make address bar editable on click
+  let isEditingUrl = false;
+  addressBar.addEventListener("click", (e) => {
+    if (isEditingUrl || e.target.tagName === "INPUT") return;
+    isEditingUrl = true;
+    const addrInput = document.createElement("input");
+    addrInput.type = "text";
+    addrInput.value = link.url;
+    addrInput.style.cssText = `
+      flex: 1; background: transparent; border: none; outline: none;
+      color: #ddd; font-size: 12px; padding: 0; margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      width: 100%;
+    `;
+    urlText.style.display = "none";
+    addressBar.insertBefore(addrInput, urlText.nextSibling);
+    addrInput.focus();
+    addrInput.select();
+
+    const commitUrl = () => {
+      if (!isEditingUrl) return;
+      isEditingUrl = false;
+      let newUrl = addrInput.value.trim();
+      addrInput.remove();
+      urlText.style.display = "";
+      if (!newUrl || newUrl === link.url) return;
+      if (!/^(https?|file):\/\//i.test(newUrl)) newUrl = "https://" + newUrl;
+      link.url = newUrl;
+      link._displayName = null;
+      link._objectUrl = null;
+      urlText.textContent = newUrl;
+
+      // Update lock icon
+      const s = newUrl.startsWith("https://");
+      const f = /^file:\/\//i.test(newUrl);
+      lockIcon.className = f ? "bx bx-file" : (s ? "bx bx-lock-alt" : "bx bx-globe");
+      lockIcon.style.color = f ? "#888" : (s ? "#8bc34a" : "#888");
+
+      if (f) {
+        handleFileUrl(newUrl);
+      } else {
+        const ifr = frame.querySelector("iframe");
+        if (ifr) {
+          loader.style.display = "flex";
+          errorDiv.style.display = "none";
+          ifr.style.display = "";
+          // PDFs need no sandbox for Chrome's PDF viewer
+          if (/\.pdf(\?.*)?$/i.test(newUrl)) {
+            ifr.removeAttribute("sandbox");
+          } else {
+            ifr.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
+          }
+          ifr.src = /\.pdf(\?.*)?$/i.test(newUrl) ? newUrl : getEmbedUrl(newUrl);
+        }
+      }
+      if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+    };
+
+    addrInput.onkeydown = (ev) => {
+      ev.stopPropagation();
+      if (ev.key === "Enter") addrInput.blur();
+      if (ev.key === "Escape") { isEditingUrl = false; addrInput.remove(); urlText.style.display = ""; }
+    };
+    addrInput.onblur = commitUrl;
+  });
+
+  addressBar.appendChild(lockIcon);
+  addressBar.appendChild(urlText);
+
+  // File picker handler - loads local files via object URL (works offline)
+  fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    link._objectUrl = objectUrl;
+    link._displayName = file.name;
+    link.url = file.name;
+    urlText.textContent = file.name;
+    lockIcon.className = "bx bx-file";
+    lockIcon.style.color = "#888";
+    const ifr = frame.querySelector("iframe");
+    if (ifr) {
+      ifr.removeAttribute("sandbox");
+      errorDiv.style.display = "none";
+      loader.style.display = "none";
+      ifr.style.display = "";
+      ifr.src = objectUrl;
+    }
+    // Reset so the same file can be picked again
+    fileInput.value = "";
+    if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+  };
+
+  // Right-side buttons
+  const fileBtn = makeHeaderBtn("bx-folder-open", "Open local file", () => fileInput.click());
+  const openTabBtn = makeHeaderBtn("bx-link-external", "Open in new tab", () => {
+    window.open(link._objectUrl || link.url, "_blank", "noopener,noreferrer");
+  });
+  const closeBtn = makeHeaderBtn("bx-x", "Close", closeEmbedFrame);
+
+  // Assemble header
+  header.appendChild(backBtn);
+  header.appendChild(fwdBtn);
+  header.appendChild(refreshBtn);
+  header.appendChild(addressBar);
+  header.appendChild(fileInput);
+  header.appendChild(fileBtn);
+  header.appendChild(openTabBtn);
+  header.appendChild(closeBtn);
 
   // Iframe container
   const iframeContainer = document.createElement("div");
@@ -1101,7 +1228,7 @@ function showEmbedFrame(link) {
     border: none;
     background: #fff;
   `;
-  iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
+  // Sandbox set conditionally below based on URL type
 
   // Error fallback
   const errorDiv = document.createElement("div");
@@ -1243,8 +1370,34 @@ function showEmbedFrame(link) {
     iframe.style.display = "none";
     errorDiv.style.display = "flex";
     errorDiv.querySelector("#embedErrorOpenBtn").onclick = () => {
-      window.open(link.url, "_blank", "noopener,noreferrer");
+      window.open(link._objectUrl || link.url, "_blank", "noopener,noreferrer");
     };
+  }
+
+  // Handle file:// URLs - can't load in iframe, prompt file picker
+  function handleFileUrl(fileUrl) {
+    loader.style.display = "none";
+    iframe.style.display = "none";
+    errorDiv.innerHTML = `
+      <i class='bx bx-file' style='font-size: 48px; color: #555; margin-bottom: 12px;'></i>
+      <div style="font-size: 14px; margin-bottom: 8px;">Local files can't be embedded via file:// URL</div>
+      <div style="font-size: 11px; color: #666; margin-bottom: 16px;">Use the file picker to open a local file (works offline)</div>
+      <div style="display: flex; gap: 8px;">
+        <button id="embedFilePickBtn" style="
+          padding: 8px 16px; background: #444; border: none; border-radius: 6px;
+          color: #ddd; cursor: pointer; font-family: 'Mali', sans-serif;
+          display: flex; align-items: center; gap: 6px;
+        "><i class='bx bx-folder-open'></i> Browse files</button>
+        <button id="embedFileOpenBtn" style="
+          padding: 8px 16px; background: #333; border: none; border-radius: 6px;
+          color: #aaa; cursor: pointer; font-family: 'Mali', sans-serif;
+          display: flex; align-items: center; gap: 6px;
+        "><i class='bx bx-link-external'></i> Open in tab</button>
+      </div>
+    `;
+    errorDiv.style.display = "flex";
+    errorDiv.querySelector("#embedFilePickBtn").onclick = () => fileInput.click();
+    errorDiv.querySelector("#embedFileOpenBtn").onclick = () => window.open(fileUrl, "_blank");
   }
 
   // Longer timeout - only show error if nothing loads at all
@@ -1254,9 +1407,24 @@ function showEmbedFrame(link) {
     }
   }, 15000);
 
-  // Set iframe src with converted embed URL
-  const embedUrl = getEmbedUrl(link.url);
-  iframe.src = embedUrl;
+  // Load content based on URL type
+  const isInitialFile = /^file:\/\//i.test(link.url);
+  const isPdf = /\.pdf(\?.*)?$/i.test(link.url);
+  if (link._objectUrl) {
+    // Local file loaded via file picker (works offline) - no sandbox needed
+    iframe.src = link._objectUrl;
+  } else if (isInitialFile) {
+    // file:// URL can't be embedded - show picker prompt
+    handleFileUrl(link.url);
+  } else if (isPdf) {
+    // PDFs need full browser permissions for Chrome's PDF viewer - no sandbox
+    iframe.src = link.url;
+  } else {
+    // Regular web page - apply sandbox for security
+    iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
+    const embedUrl = getEmbedUrl(link.url);
+    iframe.src = embedUrl;
+  }
 
   iframeContainer.appendChild(loader);
   iframeContainer.appendChild(iframe);
@@ -1333,7 +1501,7 @@ function setupEmbedDrag(frame, header) {
 
   // Mouse events
   header.addEventListener("mousedown", (e) => {
-    if (e.target.tagName === "BUTTON") return;
+    if (e.target.closest("button") || e.target.closest(".embed-address-bar")) return;
     startDrag(e.clientX, e.clientY);
     e.preventDefault();
   });
@@ -1343,9 +1511,9 @@ function setupEmbedDrag(frame, header) {
 
   // Touch events
   header.addEventListener("touchstart", (e) => {
-    // Don't intercept button taps or their children (icons)
+    // Don't intercept button taps, icons, or address bar
     const target = e.target;
-    if (target.tagName === "BUTTON" || target.closest("button")) return;
+    if (target.closest("button") || target.closest(".embed-address-bar")) return;
     const touch = e.touches[0];
     startDrag(touch.clientX, touch.clientY);
     e.preventDefault();
