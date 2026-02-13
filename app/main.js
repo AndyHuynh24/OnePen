@@ -2413,6 +2413,7 @@ window.onload = async () => {
             // NOTE: Do NOT call setPointerCapture here - it can cause the
             // browser to swallow every other pen stroke on some devices.
             // Events already bubble from child elements to canvasGroup.
+            liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
             const pos = toCanvasCoords(e);
             currentStroke = [{ x: pos.x, y: pos.y }];
         }
@@ -2652,11 +2653,37 @@ window.onload = async () => {
         else if (drawing && e.pointerType !== "touch") {
             const pos = toCanvasCoords(e);
             currentStroke.push({ x: pos.x, y: pos.y });
-            liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-            liveCtx.save();
-            liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
-            drawStroke(liveCtx, currentStroke, defaultPenColor, penSize);
-            liveCtx.restore();
+
+            // Incremental draw: only render the new segment instead of full stroke
+            const len = currentStroke.length;
+            if (len >= 2) {
+                liveCtx.save();
+                liveCtx.translate(-viewportOffset.x, -viewportOffset.y);
+                liveCtx.beginPath();
+                liveCtx.strokeStyle = defaultPenColor;
+                liveCtx.lineWidth = penSize;
+                liveCtx.lineCap = "round";
+                liveCtx.lineJoin = "round";
+
+                if (len === 2) {
+                    // First segment: simple line
+                    liveCtx.moveTo(currentStroke[0].x, currentStroke[0].y);
+                    liveCtx.lineTo(currentStroke[1].x, currentStroke[1].y);
+                } else {
+                    // Use quadratic bezier for smooth continuation
+                    const prev2 = currentStroke[len - 3];
+                    const prev1 = currentStroke[len - 2];
+                    const curr  = currentStroke[len - 1];
+                    const prevMidX = (prev2.x + prev1.x) / 2;
+                    const prevMidY = (prev2.y + prev1.y) / 2;
+                    const currMidX = (prev1.x + curr.x) / 2;
+                    const currMidY = (prev1.y + curr.y) / 2;
+                    liveCtx.moveTo(prevMidX, prevMidY);
+                    liveCtx.quadraticCurveTo(prev1.x, prev1.y, currMidX, currMidY);
+                }
+                liveCtx.stroke();
+                liveCtx.restore();
+            }
 
             if (totalMovement == 0) {
                 holdController.start(e); // Restart hold detection

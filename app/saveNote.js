@@ -1313,6 +1313,13 @@ function markDirty() {
   autosaveTimer = setTimeout(async () => {
     autosaveTimer = null; // Reset timer first
 
+    // Defer autosave while actively drawing to avoid blocking pointer events
+    if (typeof drawing !== 'undefined' && drawing) {
+      // Re-schedule after a short delay
+      markDirty();
+      return;
+    }
+
     if (!dirty || !title) {
       console.log('[Autosave] skipping (dirty:', dirty, ', title:', title, ')');
       return;
