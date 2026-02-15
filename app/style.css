@@ -275,7 +275,7 @@ html {
     top: 10px;
     left: 250px;
     display: flex;
-    align-items: center;
+    align-items: center; 
     gap: 6px;
     padding: 6px 14px;
     background: linear-gradient(135deg, #3a3a3a 0%, #2d2d2d 100%);
@@ -612,7 +612,7 @@ html {
     justify-content: center;
 }
 .nav-content span a i::after {
-    content: attr(data-label);
+    content: attr(data-display);
     position: absolute;
     bottom: -30px;
     left: 50%;
@@ -628,6 +628,100 @@ html {
     opacity: 1;
 }
 
+
+/* ------------ Custom Color Panel -------------- */
+.custom-color-panel {
+    position: fixed;
+    width: 200px;
+    border-radius: 12px;
+    padding: 14px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    z-index: 100001;
+    font-family: 'Mali', sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.custom-color-panel .ccp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #444;
+}
+.custom-color-panel .ccp-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+.custom-color-panel .ccp-close-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+}
+.custom-color-panel .ccp-close-btn:hover {
+    color: #fff;
+}
+.custom-color-panel .ccp-section label {
+    font-size: 11px;
+    color: #888;
+    display: block;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.custom-color-panel #ccpColorPicker {
+    width: 100%;
+    height: 40px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #3a3a3a;
+    cursor: pointer;
+    padding: 3px;
+}
+.custom-color-panel .ccp-color-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.custom-color-panel .ccp-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.custom-color-panel .ccp-swatch:hover {
+    transform: scale(1.15);
+    border-color: #ccc;
+}
+.custom-color-panel .ccp-swatch.selected {
+    border-color: #fff;
+    transform: scale(1.15);
+}
+.custom-color-panel .ccp-apply-btn {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    background: #4a90d9;
+    color: white;
+    font-size: 14px;
+    font-family: 'Mali', sans-serif;
+    cursor: pointer;
+    margin-top: 2px;
+    transition: background 0.15s ease;
+}
+.custom-color-panel .ccp-apply-btn:hover {
+    background: #5aa0e9;
+}
 
 /* ------------note navbar style -------------- */
 #openNavBtn {

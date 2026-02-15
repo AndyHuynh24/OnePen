@@ -90,6 +90,7 @@ const toggleBtn = nav.querySelector(".toggle-btn");
 
 let toolLinks = nav.querySelectorAll("span a");
 let pointerDownForToolbox = false;
+let currentToolboxType = null;
 
 //parameters for detecting holds/movement
 let lastPointerX = null;
@@ -540,10 +541,10 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.ERASER, color: "#ffffff", size: 2},
     { id: TOOL_ID.PEN, color: "#ffffff", size: 2},
     { id: TOOL_ID.PEN, color: "#a3fba9", size: 3 },
-    { id: TOOL_ID.PEN, color: "#ff9a52", size: 2 },
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2 },
     { id: TOOL_ID.HIGHLIGHT, color: "#9095fe", size: 30 },
     { id: TOOL_ID.HIGHLIGHT, color: "#fefe58", size: 30},
-    { id: TOOL_ID.MEDIA, color: "#ffffff", size: 2},
+    { id: TOOL_ID.DEFAULT_PEN, color: "#ffffff", size: 2},
     { id: TOOL_ID.PASTE, color: "#ffffff", size: 2 },
   ],
   underline: [
@@ -584,7 +585,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2.5 },
     { id: TOOL_ID.TITLE1, color: "#f4c64a", size: 3},
     { id: TOOL_ID.COPY, color: "#ffffff", size: 2},
-    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2 },
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2 },
   ],
   wavyBracket: [
     { id: TOOL_ID.PEN, color: "#ff0000", size: 2.5},
@@ -594,7 +595,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "#000dff", size: 2.5},
     { id: TOOL_ID.PEN, color: "#6200ff", size: 2.5 },
     { id: TOOL_ID.PEN, color: "#bf00ff", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#ff3a51", size: 2.5 },
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.5 },
   ],
   circleBracket: [
     { id: TOOL_ID.ERASER, color: "#ffffff", size: 2.5},
@@ -604,7 +605,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.PEN, color: "#92ffa6", size: 2.5 },
     { id: TOOL_ID.TITLE3, color: "#91f6ff", size: 2.5},
     { id: TOOL_ID.COPY, color: "#ffb1de", size: 2.5},
-    { id: TOOL_ID.DELETE, color: "#ffffff", size: 2.5 },
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.5 },
   ],
 };
 // -------------------- GLOBAL STATE --------------------
@@ -613,6 +614,8 @@ let toolboxLayout = {};
 let colorTools = [];
 let underlineTools = [];
 let boxTools = [];
+let recentColors = [];
+const MAX_RECENT_COLORS = 12;
 
 // -------------------- STROKE SIZE PRESETS --------------------
 const STROKE_SIZE_PRESETS = [
@@ -1488,6 +1491,11 @@ async function initModifiers() {
     toolboxLayout = structuredClone(DEFAULT_TOOLBOX_LAYOUT);
   }
 
+  const savedRecentColors = await loadSetting("recentColors");
+  if (Array.isArray(savedRecentColors)) {
+    recentColors = savedRecentColors;
+  }
+
   // Load sync stroke size setting
   syncStrokeSizeEnabled = modifiers?.syncStrokeSize ?? false;
   const syncToggle = document.getElementById("syncStrokeSize");
@@ -1610,6 +1618,11 @@ function doLinesIntersect(a1, a2, b1, b2) {
     const gamma = ((a1.y - a2.y) * (b2.x - a1.x) + (a2.x - a1.x) * (b2.y - a1.y)) / det;
 
     return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+}
+
+function isColorProtectedGroup(group) {
+    const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
+    return isHighlight || group.type === "stickynote" || group.type === "tape";
 }
 
 function strokesIntersect(strokeA, strokeB) {
@@ -1950,8 +1963,7 @@ async function classifyStroke(stroke, hold = false) {
         if (predictedLabel === STROKE_TYPE.DELETE && group.type != 'media' && defaultPenType != PEN_TYPES.HIGHLIGHTER) {
             allGroups.splice(allGroups.indexOf(group), 1);
         } else if (predictedLabel == STROKE_TYPE.BOX || predictedLabel == STROKE_TYPE.CURLY || shortcutGroup.includes(predictedLabel)) {
-            const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
-            if (!isHighlight) {
+            if (!isColorProtectedGroup(group)) {
                 group.color = color;
                 group.size = modifiers[predictedLabel]?.size ?? group.size;
             }
@@ -1988,9 +2000,11 @@ const holdController = detectPointerHold(canvasGroup, 300, async (e) => {
     modifiedGroups = await classifyStroke(currentStroke, true);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     drawing = false;
+    currentStroke = [];
 
     if (modifiedGroups.predictedLabel == STROKE_TYPE.NONE) {
         allGroups.pop();
+        reDrawAll(drawCtx);
         showToolbox(e.offsetX, e.offsetY, "press");
     } 
     else if (modifiedGroups.predictedLabel == STROKE_TYPE.CURLY) {
@@ -2645,7 +2659,7 @@ window.onload = async () => {
             eraserBox.x = e.offsetX / scale + viewportOffset.x - eraserSize / 2;
             eraserBox.y = e.offsetY / scale + viewportOffset.y - eraserSize / 2;
 
-            if (erasing) {
+            if (erasing && e.pressure > 0) {
                 eraseStrokes();
             }
             reDrawMovement();
@@ -2794,8 +2808,12 @@ window.onload = async () => {
                 const toolIndex = icon?.getAttribute('data-toolIndex') || null;
 
                 //delete tool
-                executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, toolTapePreset, toolIndex);
-            } else {
+                const keepOpen = executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox, toolTapePreset, toolIndex);
+                if (keepOpen) {
+                    reDrawAll(drawCtx);
+                    return;
+                }
+            } else if (currentToolboxType !== "press") {
                 allGroups.pop();
             }
             hideToolbox();
@@ -3187,8 +3205,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         if (toolBox != "press") {
             modifiedGroups.modifiedGroups.forEach(group => {
-                const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
-                if (!isHighlight) {
+                if (!isColorProtectedGroup(group)) {
                     group.color = toolColor;
                     group.size = toolSize;
                 }
@@ -3252,8 +3269,7 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
 
         modifiedGroups.modifiedGroups.forEach(group => {
             if (group.id === modifierId) return;
-            const isHighlight = group.type === STROKE_TYPE.HIGHLIGHT || group.predictedLabel === STROKE_TYPE.HIGHLIGHT || group.type === TOOL_ID.HIGHLIGHT || group.predictedLabel === PEN_TYPES.HIGHLIGHTER;
-            if (isHighlight) return;
+            if (isColorProtectedGroup(group)) return;
             group.size = parseInt(group.size, 10) + 2;
             if (selectedTool == "bold") {
                 group.color = alterRgbaBrightness(group.color);
@@ -3331,11 +3347,12 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         return;
     }
     else if (selectedTool == "paste") {
-        // Skip pop if last group is already hidden (shortcut marker for summary)
-        if (allGroups[allGroups.length - 1]?.visibility !== false) {
-            allGroups.pop();
+        if (toolBox !== "press") {
+            if (allGroups[allGroups.length - 1]?.visibility !== false) {
+                allGroups.pop();
+            }
+            modifiedGroups.modifiedGroups.pop();
         }
-        modifiedGroups.modifiedGroups.pop();
 
         if (!clipboard || clipboard.length === 0) {
             reDrawAll(drawCtx);
@@ -3578,6 +3595,124 @@ function executeTool(selectedTool, toolColor, toolVisibility, toolSize, toolBox,
         }
         return;
     }
+    else if (selectedTool === "defaultPen") {
+        defaultPenColor = modifiers.defaultPen?.color || DEFAULT_MODIFIERS.defaultPen.color;
+        penSize = modifiers.defaultPen?.size || DEFAULT_MODIFIERS.defaultPen.size;
+        defaultPenType = STROKE_TYPE.NONE;
+        eraserMode = false;
+    }
+    else if (selectedTool === "customColor") {
+        showCustomColorPanel(toolBox);
+        return true;
+    }
+}
+
+function showCustomColorPanel(toolBox) {
+    const existing = document.getElementById("customColorPanel");
+    if (existing) existing.remove();
+    hideToolbox();
+
+    const panel = document.createElement("div");
+    panel.id = "customColorPanel";
+    panel.className = "custom-color-panel";
+
+    const modifierColors = [];
+    for (const [key, mod] of Object.entries(modifiers)) {
+        if (mod.color && !mod.canvasSetting && key !== "backgroundCanvas" && typeof mod === "object") {
+            modifierColors.push({ label: mod.label || key, color: mod.color });
+        }
+    }
+
+    panel.innerHTML = `
+        <div class="ccp-header">
+            <span class="ccp-title">Custom Color</span>
+            <button class="ccp-close-btn" id="ccpCloseBtn">&times;</button>
+        </div>
+        <div class="ccp-section">
+            <input type="color" id="ccpColorPicker" value="#ffffff">
+        </div>
+        <div class="ccp-section">
+            <label>Modifiers</label>
+            <div class="ccp-color-grid" id="ccpModifierColors">
+                ${modifierColors.map(mc =>
+                    `<div class="ccp-swatch" data-color="${mc.color}" style="background-color: ${mc.color}" title="${mc.label}"></div>`
+                ).join("")}
+            </div>
+        </div>
+        ${recentColors.length > 0 ? `
+        <div class="ccp-section">
+            <label>Recent</label>
+            <div class="ccp-color-grid" id="ccpRecentColors">
+                ${recentColors.map(c =>
+                    `<div class="ccp-swatch" data-color="${c}" style="background-color: ${c}"></div>`
+                ).join("")}
+            </div>
+        </div>` : ''}
+        <button class="ccp-apply-btn" id="ccpApplyBtn">Apply</button>
+    `;
+
+    document.body.appendChild(panel);
+
+    const pw = 200;
+    const ph = panel.offsetHeight;
+    panel.style.left = `${Math.max(8, (window.innerWidth - pw) / 2)}px`;
+    panel.style.top = `${Math.max(8, (window.innerHeight - ph) / 2)}px`;
+
+    const colorPicker = panel.querySelector("#ccpColorPicker");
+    const applyBtn = panel.querySelector("#ccpApplyBtn");
+    const closeBtn = panel.querySelector("#ccpCloseBtn");
+
+    panel.querySelectorAll(".ccp-swatch").forEach(swatch => {
+        swatch.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            colorPicker.value = swatch.dataset.color;
+            panel.querySelectorAll(".ccp-swatch").forEach(s => s.classList.remove("selected"));
+            swatch.classList.add("selected");
+        });
+    });
+
+    applyBtn.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        const chosenColor = colorPicker.value;
+        addRecentColor(chosenColor);
+
+        if (toolBox === "press") {
+            defaultPenColor = chosenColor;
+            defaultPenType = STROKE_TYPE.NONE;
+        } else {
+            modifiedGroups.modifiedGroups.forEach(group => {
+                if (!isColorProtectedGroup(group)) {
+                    group.color = chosenColor;
+                }
+            });
+            syncTapeCoveredData();
+        }
+
+        panel.remove();
+        reDrawAll(drawCtx);
+    });
+
+    closeBtn.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        panel.remove();
+        if (toolBox !== "press") {
+            allGroups.pop();
+        }
+        reDrawAll(drawCtx);
+    });
+
+    panel.addEventListener("pointerdown", e => e.stopPropagation());
+    panel.addEventListener("pointermove", e => e.stopPropagation());
+    panel.addEventListener("pointerup", e => e.stopPropagation());
+}
+
+function addRecentColor(color) {
+    recentColors = recentColors.filter(c => c !== color);
+    recentColors.unshift(color);
+    if (recentColors.length > MAX_RECENT_COLORS) {
+        recentColors = recentColors.slice(0, MAX_RECENT_COLORS);
+    }
+    saveSetting("recentColors", recentColors);
 }
 
 function undo() {
@@ -5096,12 +5231,8 @@ function summarizeNotes(options) {
           const groups = note.content;
           const noteCreatedAt = noteInfo.created_at || new Date(0).toISOString();
 
-          // ========== GLOBAL DEDUPLICATION ==========
-          // Track claimed stroke IDs across ALL modifier types to prevent duplicates
-          // Priority order: Titles > Box > Curly > Shortcuts (most recent shortcut wins within shortcuts)
           const claimedStrokeIds = new Set();
 
-          // ========== COLLECT TITLES (grouped by titleGroupId) ==========
           if (includeTitle1 || includeTitle2 || includeTitle3) {
             const titleGroupsMap = new Map(); // titleGroupId -> { level, strokes, bbox }
 
@@ -5138,9 +5269,7 @@ function summarizeNotes(options) {
               }
             });
 
-            // Convert title groups to summary items and claim their stroke IDs
             titleGroupsMap.forEach((titleGroup, groupId) => {
-              // Claim all stroke IDs in this title group
               titleGroup.strokeIds.forEach(id => claimedStrokeIds.add(id));
 
               const combinedBbox = {
@@ -5165,9 +5294,7 @@ function summarizeNotes(options) {
             });
           }
 
-          // ========== COLLECT BOX MODIFIERS ==========
           if (includeBox) {
-            // Get the expected box modifier color from settings
             const boxModifierColor = normalizeColor(modifiers?.box?.color || DEFAULT_MODIFIERS.box.color);
 
             groups.forEach(group => {
@@ -5182,10 +5309,8 @@ function summarizeNotes(options) {
                 const boxClone = structuredClone(group);
                 const children = [];
 
-                // Collect strokes inside the box (only unclaimed ones WITH matching color)
                 groups.forEach(other => {
                   if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
-                    // Check if stroke color matches the box modifier color
                     const strokeColor = normalizeColor(other.color);
                     const colorMatches = strokeColor === boxModifierColor;
 
@@ -5195,9 +5320,7 @@ function summarizeNotes(options) {
                   }
                 });
 
-                // Only add if there are unclaimed children with matching color
                 if (children.length > 0) {
-                  // Claim these stroke IDs
                   children.forEach(c => claimedStrokeIds.add(c.id));
 
                   allSummaryItems.push({
@@ -5217,9 +5340,7 @@ function summarizeNotes(options) {
             });
           }
 
-          // ========== COLLECT CURLY MODIFIERS ==========
           if (includeCurly) {
-            // Get the expected curly modifier color from settings
             const curlyModifierColor = normalizeColor(modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color);
 
             groups.forEach(group => {
@@ -5234,10 +5355,8 @@ function summarizeNotes(options) {
                 const curlyClone = structuredClone(group);
                 const children = [];
 
-                // Collect strokes inside the curly (only unclaimed ones WITH matching color)
                 groups.forEach(other => {
                   if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
-                    // Check if stroke color matches the curly modifier color
                     const strokeColor = normalizeColor(other.color);
                     const colorMatches = strokeColor === curlyModifierColor;
 
@@ -5247,9 +5366,7 @@ function summarizeNotes(options) {
                   }
                 });
 
-                // Only add if there are unclaimed children with matching color
                 if (children.length > 0) {
-                  // Claim these stroke IDs
                   children.forEach(c => claimedStrokeIds.add(c.id));
 
                   allSummaryItems.push({
@@ -5269,8 +5386,6 @@ function summarizeNotes(options) {
             });
           }
 
-          // ========== COLLECT SHORTCUTS (box, curly, circle) ==========
-          // First pass: collect all potential shortcuts with their children
           const potentialShortcuts = [];
           const shortcutTypes = [
             { include: includeSquareBracket, labels: [STROKE_TYPE.SQUAREBRACKET, 4, "squarebracket"], type: "squarebracket" },
@@ -5281,7 +5396,6 @@ function summarizeNotes(options) {
           shortcutTypes.forEach(({ include, labels, type }) => {
             if (!include) return;
 
-            // Get the expected shortcut modifier color from settings
             const shortcutModifierColor = normalizeColor(modifiers?.[type]?.color || DEFAULT_MODIFIERS[type]?.color);
 
             groups.forEach((group, groupIndex) => {
@@ -5296,26 +5410,20 @@ function summarizeNotes(options) {
                 const children = [];
                 const shortcutBox = group.bbox;
 
-                // Collect strokes within Y bounds (how shortcuts select - see classifyStroke)
-                // Exclude the shortcut modifier itself - only collect content strokes WITH matching color
                 groups.forEach(other => {
                   if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
                     const otherBox = other.bbox;
-                    // Match classifyStroke logic: bbox.y > newBox.y && (bbox.y + bbox.h) < (newBox.y + newBox.h)
                     const isWithinYBounds = otherBox.y > shortcutBox.y &&
                                            (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
 
-                    // Check if stroke color matches the shortcut modifier color
                     const strokeColor = normalizeColor(other.color);
                     const colorMatches = strokeColor === shortcutModifierColor;
-
                     if (isWithinYBounds && colorMatches) {
                       children.push(structuredClone(other));
                     }
                   }
                 });
 
-                // Store potential shortcut with its groupIndex for sorting
                 if (children.length > 0) {
                   potentialShortcuts.push({
                     groupIndex,
@@ -5330,22 +5438,15 @@ function summarizeNotes(options) {
             });
           });
 
-          // Deduplicate: newest shortcuts claim strokes first
-          // (if user corrects a shortcut, the newer one wins)
-
-          // Sort by groupIndex descending (most recent shortcut first)
+          // newest shortcuts claim strokes first
           potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
 
           potentialShortcuts.forEach(item => {
-            // Filter children to only those not claimed by a more recent shortcut
             const unclaimedChildren = item.children.filter(c => !claimedStrokeIds.has(c.id));
+            if (unclaimedChildren.length === 0) return;
 
-            if (unclaimedChildren.length === 0) return; // Skip - all children already claimed
-
-            // Claim these stroke IDs
             unclaimedChildren.forEach(c => claimedStrokeIds.add(c.id));
 
-            // Calculate bounding box from unclaimed children only
             const childBboxes = unclaimedChildren.map(c => c.bbox);
             const combinedBbox = {
               x: Math.min(...childBboxes.map(b => b.x)),
@@ -5577,6 +5678,7 @@ function autoOpenSummaryNote(summaryPath) {
 
       title = summaryPath;
       allGroups = note.content || [];
+      currentNoteIsSummary = true;
       syncGroupIds(allGroups);
       reDrawAll(drawCtx);
       drawGrid(backgroundCtx);
@@ -6451,9 +6553,6 @@ function extractFlashcardsFromNoteOld(notePath, content, folderName) {
 
 // Find strokes that are spatially related to the tape (the "info" or "answer" part)
 function extractFlashcardsFromNote(notePath, content, folderName) {
-       // ========== GLOBAL DEDUPLICATION ==========
-        // Track claimed stroke IDs across ALL modifier types to prevent duplicates
-        // Priority order: Titles > Box > Curly > Shortcuts (most recent shortcut wins within shortcuts)
         let allSummaryItems = [];
         const flashcards = [];
         const keywords = {};
@@ -6488,8 +6587,6 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
           keywords[tape.id] = keywordStrokes;
         });
 
-        // ========== COLLECT BOX MODIFIERS ==========
-        // Get the expected box modifier color from settings
         const boxModifierColor = normalizeColor(modifiers?.box?.color || DEFAULT_MODIFIERS.box.color);
 
         content.forEach(group => {
@@ -6504,10 +6601,8 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
             const boxClone = structuredClone(group);
             const children = [];
 
-            // Collect strokes inside the box (only unclaimed ones WITH matching color)
             content.forEach(other => {
               if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
-                // Check if stroke color matches the box modifier color
                 const strokeColor = normalizeColor(other.color);
                 const colorMatches = strokeColor === boxModifierColor;
 
@@ -6538,7 +6633,6 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
             }
 
             if (children.length > 0 && matchResult) {
-              // Claim these stroke IDs
               children.forEach(c => claimedStrokeIds.add(c.id));
               
               flashcards.push({
@@ -6555,8 +6649,6 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
           }
         });
   
-        // ========== COLLECT CURLY MODIFIERS ==========
-        // Get the expected curly modifier color from settings
         const curlyModifierColor = normalizeColor(modifiers?.curly?.color || DEFAULT_MODIFIERS.curly.color);
 
         content.forEach(group => {
@@ -6570,10 +6662,8 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
           if (isCurly) {
             const children = [];
 
-            // Collect strokes inside the curly (only unclaimed ones WITH matching color)
             content.forEach(other => {
               if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
-                // Check if stroke color matches the curly modifier color
                 const strokeColor = normalizeColor(other.color);
                 const colorMatches = strokeColor === curlyModifierColor;
 
@@ -6603,12 +6693,9 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
               }
             }
 
-            // Only add if there are unclaimed children with matching color
             if (children.length > 0 && matchResult) {
-              // Claim these stroke IDs
               children.forEach(c => claimedStrokeIds.add(c.id));
 
-              // Calculate combined bbox from children
               const childBboxes = children.map(c => c.bbox);
               const combinedBbox = {
                 x: Math.min(...childBboxes.map(b => b.x)),
@@ -6632,8 +6719,6 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
         });
         
 
-        // ========== COLLECT SHORTCUTS (box, curly, circle) ==========
-        // First pass: collect all potential shortcuts with their children
         const potentialShortcuts = [];
         const shortcutTypes = [
           { include: true, labels: [STROKE_TYPE.SQUAREBRACKET, 4, "squarebracket"], type: "squarebracket" },
@@ -6644,41 +6729,32 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
         shortcutTypes.forEach(({ include, labels, type }) => {
           if (!include) return;
 
-          // Get the expected shortcut modifier color from settings
           const shortcutModifierColor = normalizeColor(modifiers?.[type]?.color || DEFAULT_MODIFIERS[type]?.color);
 
           content.forEach((group, groupIndex) => {
             if (!group.bbox || !Array.isArray(group.stroke)) return;
 
             const isShortcut = labels.includes(group.predictedLabel);
-            // Skip visibility=false unless it's a shortcut we're looking for
-            // (shortcuts have visibility=false but should still be collected)
             if (group.visibility === false && !isShortcut) return;
 
             if (isShortcut) {
               const children = [];
               const shortcutBox = group.bbox;
 
-              // Collect strokes within Y bounds (how shortcuts select - see classifyStroke)
-              // Exclude the shortcut modifier itself - only collect content strokes WITH matching color
               content.forEach(other => {
                 if (other.id !== group.id && other.bbox && Array.isArray(other.stroke) && other.visibility !== false) {
                   const otherBox = other.bbox;
-                  // Match classifyStroke logic: bbox.y > newBox.y && (bbox.y + bbox.h) < (newBox.y + newBox.h)
                   const isWithinYBounds = otherBox.y > shortcutBox.y &&
                                           (otherBox.y + otherBox.h) < (shortcutBox.y + shortcutBox.h);
 
-                  // Check if stroke color matches the shortcut modifier color
                   const strokeColor = normalizeColor(other.color);
                   const colorMatches = strokeColor === shortcutModifierColor;
-
                   if (isWithinYBounds && colorMatches) {
                     children.push(structuredClone(other));
                   }
                 }
               });
 
-               //Find whether this modifier contains the tape and which tape this modifier matches based on keywords 
               let matchResult = null;
 
               for (const [tapeId, keywordStrokes] of Object.entries(keywords)) {
@@ -6698,7 +6774,6 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
                 }
               }
 
-              // Store potential shortcut with its groupIndex for sorting
               if (children.length > 0 && matchResult) {
                 potentialShortcuts.push({
                   groupIndex,
@@ -6712,22 +6787,15 @@ function extractFlashcardsFromNote(notePath, content, folderName) {
           });
         });
 
-        // Deduplicate: newest shortcuts claim strokes first
-        // (if user corrects a shortcut, the newer one wins)
-
-        // Sort by groupIndex descending (most recent shortcut first)
+        // newest shortcuts claim strokes first
         potentialShortcuts.sort((a, b) => b.groupIndex - a.groupIndex);
 
         potentialShortcuts.forEach(item => {
-          // Filter children to only those not claimed by a more recent shortcut
           const unclaimedChildren = item.children.filter(c => !claimedStrokeIds.has(c.id));
+          if (unclaimedChildren.length === 0) return;
 
-          if (unclaimedChildren.length === 0) return; // Skip - all children already claimed
-
-          // Claim these stroke IDs
           unclaimedChildren.forEach(c => claimedStrokeIds.add(c.id));
 
-          // Calculate bounding box from unclaimed children only
           const childBboxes = unclaimedChildren.map(c => c.bbox);
           const combinedBbox = {
             x: Math.min(...childBboxes.map(b => b.x)),

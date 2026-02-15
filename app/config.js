@@ -92,7 +92,7 @@ const CONFIG = Object.freeze({
     CURLY_SHORTCUT: 'rgba(128,144,160,1)',
     FLASH_STICKY: '#908878',
     FLASH_LINK: '#708090',
-    FLASH_TAPE: '#908088',
+    FLASH_TAPE: '#c87090',
   }),
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -166,6 +166,8 @@ const TOOL_ID = Object.freeze({
   MEDIA: "media",
   TAPE: "tape",
   REMINDER: "reminder",
+  CUSTOM_COLOR: "customColor",
+  DEFAULT_PEN: "defaultPen",
 });
 
 
@@ -176,6 +178,8 @@ const TOOLBOX_SELECTION = {
     ERASER: "eraser",
     MEDIA: "media",
     PASTE: "paste",
+    CUSTOM_COLOR: "customColor",
+    DEFAULT_PEN: "defaultPen",
   }),
   squareBracket: Object.freeze({
     PEN: "pen",
@@ -187,6 +191,7 @@ const TOOLBOX_SELECTION = {
     COPY: "copy",
     PASTE: "paste",
     ERASER: "eraser",
+    CUSTOM_COLOR: "customColor",
   }),
   wavyBracket: Object.freeze({
     PEN: "pen",
@@ -198,6 +203,7 @@ const TOOLBOX_SELECTION = {
     COPY: "copy",
     PASTE: "paste",
     ERASER: "eraser",
+    CUSTOM_COLOR: "customColor",
   }),
   circleBracket: Object.freeze({
     PEN: "pen",
@@ -210,6 +216,7 @@ const TOOLBOX_SELECTION = {
     PASTE: "paste",
     ERASER: "eraser",
     REMINDER: "reminder",
+    CUSTOM_COLOR: "customColor",
   }),
   underline: Object.freeze({
     PEN: "pen",
@@ -226,6 +233,7 @@ const TOOLBOX_SELECTION = {
     TAPE: "tape",
     COPY: "copy",
     PASTE: "paste",
+    CUSTOM_COLOR: "customColor",
   }),
   box: Object.freeze({
     PEN: "pen",
@@ -243,6 +251,7 @@ const TOOLBOX_SELECTION = {
     COPY: "copy",
     PASTE: "paste",
     REMINDER: "reminder",
+    CUSTOM_COLOR: "customColor",
   }),
   curly: Object.freeze({
     PEN: "pen",
@@ -260,6 +269,7 @@ const TOOLBOX_SELECTION = {
     COPY: "copy",
     PASTE: "paste",
     REMINDER: "reminder",
+    CUSTOM_COLOR: "customColor",
   })
 }
 // ═══════════════════════════════════════════════════════════════════════════
@@ -394,6 +404,18 @@ const TOOL_REGISTRY = Object.freeze({
     colorCustomizable: true,
     sizeCustomizable: true,
     visibilityCustomizable: true
+  },
+  customColor: {
+    icon: "bxs-palette",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
+  },
+  defaultPen: {
+    icon: "bx-pen",
+    colorCustomizable: false,
+    sizeCustomizable: false,
+    visibilityCustomizable: false
   }
 });
 

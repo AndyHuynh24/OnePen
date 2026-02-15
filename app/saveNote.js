@@ -61,7 +61,7 @@ function saveNote(path, content, callback, options = {}) {
         path,
         content,
         created_at: existing.created_at || new Date().toISOString(),
-        isSummaryNote: options.isSummaryNote || existing.isSummaryNote || false,
+        isSummaryNote: 'isSummaryNote' in options ? !!options.isSummaryNote : (existing.isSummaryNote || false),
         summaryMetadata: newSummaryMetadata
       });
     };
@@ -479,6 +479,7 @@ function openSubFolder(container) {
 
 function promptNewNote(folderName) {
   if (title) saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
+  currentNoteIsSummary = false;
 
   const noteName = prompt("Enter new note name:");
   if (!noteName || !folderName) return;
@@ -567,6 +568,7 @@ function loadNoteOnBtn(path, selectedButton) {
     saveNote(title, allGroups, null, { isSummaryNote: currentNoteIsSummary });
   }
 
+  currentNoteIsSummary = false;
   title = path;
 
   viewportOffset.x = 0;

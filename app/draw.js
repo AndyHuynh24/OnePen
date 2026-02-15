@@ -199,8 +199,7 @@ function drawTapeGroup(ctx, group) {
 
   // Draw border when revealed (flashing indicator)
   if (revealed && fadeProgress >= 1) {
-    // Muted grayish color for tape border
-    ctx.strokeStyle = group.borderColor || "#888080";
+    ctx.strokeStyle = group.borderColor || "#c87090";
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 3]);
     const borderRadius = 6;
@@ -742,6 +741,7 @@ function drawEraserIndicator() {
 
 function toggleEraser() {
     eraserMode = !eraserMode;
+    erasing = false;
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
 }
 
@@ -1026,7 +1026,7 @@ function showEmbedFrame(link) {
   header.style.cssText = `
     display: flex;
     align-items: center;
-    padding: 6px 8px;
+    padding: 12px 8px;
     background: #2a2a2a;
     border-bottom: 1px solid #444;
     cursor: move;
@@ -2086,15 +2086,17 @@ function reDrawAll(ctx) {
 // Function to show toolbox at pointer position
 function hideToolbox() {
     nav.classList.remove("show");
-    nav.classList.remove("open");    
+    nav.classList.remove("open");
     nav.querySelectorAll(':scope > * span').forEach(span => span.remove());
     toggleBtn.classList.add("hidden"); // Optional: hide toggle icon
     toggleBtn.classList.remove("countdown");
-    pointerDownForToolbox = false; 
+    pointerDownForToolbox = false;
+    currentToolboxType = null;
 }
 
 function showToolbox(x, y, toolBox) {
     if (isClosingToolbox) return;
+    currentToolboxType = toolBox;
 
     const tools = toolboxLayout[toolBox];
 
@@ -2122,7 +2124,11 @@ function showToolbox(x, y, toolBox) {
 
         const icon = document.createElement('i');
         icon.className = `bx ${TOOL_REGISTRY[tool.id]?.icon ?? ""}`;
-        icon.setAttribute('data-label', tool.id);            // base tool ID
+        icon.setAttribute('data-label', tool.id);
+
+        const registry = TOOL_REGISTRY[tool.id];
+        const showSize = registry?.sizeCustomizable && tool.id !== "highlight";
+        icon.setAttribute('data-display', showSize ? `${tool.id} - ${tool.size}` : tool.id);
         icon.setAttribute('data-color', tool.color);
         icon.setAttribute('data-size', tool?.size ?? 0);
         icon.setAttribute('data-visibility', tool.visibility);
