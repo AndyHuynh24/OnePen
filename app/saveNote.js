@@ -1273,31 +1273,35 @@ function getDB() {
 function saveNoteFast(path, content) {
   return new Promise((resolve) => {
     getDB().then(db => {
-      const tx = db.transaction("notes", "readwrite");
-      const store = tx.objectStore("notes");
+      const tx = db.transaction(["notes", "setting"], "readwrite");
+      const noteStore = tx.objectStore("notes");
+      const settingStore = tx.objectStore("setting");
 
-      // First get existing note to preserve created_at and other metadata
-      const getReq = store.get(path);
+      // Save note content
+      const getReq = noteStore.get(path);
       getReq.onsuccess = () => {
         const existing = getReq.result;
-        store.put({
-          ...existing,  // Preserve all existing fields (isSummaryNote, summaryMetadata, etc.)
+        noteStore.put({
+          ...existing,
           path,
           content,
           created_at: existing?.created_at || new Date().toISOString()
         });
       };
 
+      // Save last-save setting in the SAME transaction (no extra DB connection)
+      settingStore.put({ path, viewportOffset, scale }, 'lastSaveNote');
+
       tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();  // Resolve anyway to not block
+      tx.onerror = () => resolve();
     });
-    saveSetting('lastSaveNote', { path, viewportOffset, scale });
   });
 }
 
 
 let autosaveTimer = null;
 let dirty = false;
+let flashcardScanTimer = null;
 
 function markDirty() {
   dirty = true;
@@ -1312,34 +1316,53 @@ function markDirty() {
     clearTimeout(autosaveTimer);
   }
 
-  autosaveTimer = setTimeout(async () => {
-    autosaveTimer = null; // Reset timer first
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null;
 
     // Defer autosave while actively drawing to avoid blocking pointer events
     if (typeof drawing !== 'undefined' && drawing) {
-      // Re-schedule after a short delay
       markDirty();
       return;
     }
 
     if (!dirty || !title) {
-      console.log('[Autosave] skipping (dirty:', dirty, ', title:', title, ')');
       return;
     }
 
-    console.log('[AutoSave] saving locally...');
+    // Use requestIdleCallback (or fallback) so the save runs when the
+    // browser is idle, preventing it from blocking pointer events mid-stroke
+    const doSave = () => {
+      // Re-check drawing state - user may have started a stroke while waiting for idle
+      if (typeof drawing !== 'undefined' && drawing) {
+        markDirty();
+        return;
+      }
 
-    // Wait for save to complete before scanning flashcards
-    await saveNoteFast(title, allGroups);
-    dirty = false;
-
-    // Now scan for flashcards after save is complete
-    if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
-      scanNotebookForFlashcards(selectedFolder).then(flashcards => {
-        if (typeof updateFlashcardButton === 'function') {
-          updateFlashcardButton(flashcards);
-        }
+      console.log('[AutoSave] saving locally...');
+      saveNoteFast(title, allGroups).then(() => {
+        dirty = false;
       });
+
+      // Debounce flashcard scan separately (3s) so it never piles up during writing
+      if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
+        if (flashcardScanTimer) clearTimeout(flashcardScanTimer);
+        flashcardScanTimer = setTimeout(() => {
+          flashcardScanTimer = null;
+          // Only scan if not drawing
+          if (typeof drawing !== 'undefined' && drawing) return;
+          scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+            if (typeof updateFlashcardButton === 'function') {
+              updateFlashcardButton(flashcards);
+            }
+          });
+        }, 3000);
+      }
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(doSave, { timeout: 1000 });
+    } else {
+      setTimeout(doSave, 0);
     }
   }, 500);
 }
