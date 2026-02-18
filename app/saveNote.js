@@ -1244,56 +1244,147 @@ async function showSharePopup() {
   modal.querySelector("#cancelBtn").onclick = () => overlay.remove();
 }
 
-//auto save
-let _dbPromise = null;
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOSAVE — Web Worker based to avoid blocking main thread
+// ═══════════════════════════════════════════════════════════════════════════
 
-function getDB() {
-  if (_dbPromise) return _dbPromise;
+// Inline Web Worker that handles IndexedDB writes off the main thread.
+// The main thread only does JSON.stringify (during idle time), then sends
+// the string to the worker. All structured cloning + DB writes happen in
+// the worker thread, so pointer events are never blocked.
+let _saveWorker = null;
+let _saveWorkerCallbacks = new Map();
+let _saveWorkerMsgId = 0;
 
-  _dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open("dsh-note-db", 2);
+function _getSaveWorker() {
+  if (_saveWorker) return _saveWorker;
 
-    req.onupgradeneeded = e => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains("notes")) {
-        db.createObjectStore("notes", { keyPath: "path" });
-      }
-      if (!db.objectStoreNames.contains("setting")) {
-        db.createObjectStore("setting");
+  const workerCode = `
+    let db = null;
+
+    function openDB() {
+      if (db) return Promise.resolve(db);
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("dsh-note-db", 2);
+        req.onupgradeneeded = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("notes")) d.createObjectStore("notes", { keyPath: "path" });
+          if (!d.objectStoreNames.contains("setting")) d.createObjectStore("setting");
+        };
+        req.onsuccess = e => { db = e.target.result; db.onversionchange = () => { db.close(); db = null; }; resolve(db); };
+        req.onerror = e => reject(e);
+      });
+    }
+
+    self.onmessage = async function(e) {
+      const { id, path, contentJson, viewportOffset, scale } = e.data;
+      try {
+        const database = await openDB();
+        const content = JSON.parse(contentJson);
+        const tx = database.transaction(["notes", "setting"], "readwrite");
+        const noteStore = tx.objectStore("notes");
+        const settingStore = tx.objectStore("setting");
+
+        const getReq = noteStore.get(path);
+        getReq.onsuccess = () => {
+          const existing = getReq.result || {};
+          noteStore.put({
+            ...existing,
+            path,
+            content,
+            created_at: existing.created_at || new Date().toISOString()
+          });
+        };
+
+        settingStore.put({ path, viewportOffset, scale }, "lastSaveNote");
+
+        tx.oncomplete = () => self.postMessage({ id, success: true });
+        tx.onerror = () => self.postMessage({ id, success: false });
+      } catch (err) {
+        self.postMessage({ id, success: false, error: String(err) });
       }
     };
+  `;
 
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = reject;
-  });
-
-  return _dbPromise;
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  _saveWorker = new Worker(URL.createObjectURL(blob));
+  _saveWorker.onmessage = (e) => {
+    const { id, success } = e.data;
+    const cb = _saveWorkerCallbacks.get(id);
+    if (cb) {
+      _saveWorkerCallbacks.delete(id);
+      cb(success);
+    }
+  };
+  // If the worker crashes, resolve all pending callbacks so saves don't get stuck
+  _saveWorker.onerror = (err) => {
+    console.error('[AutoSave] Worker error:', err);
+    for (const [id, cb] of _saveWorkerCallbacks) {
+      cb(false);
+    }
+    _saveWorkerCallbacks.clear();
+    _saveWorker = null; // Force recreation on next save
+  };
+  return _saveWorker;
 }
 
+// Save note via Web Worker (non-blocking).
+// JSON.stringify runs on main thread (during confirmed idle time).
+// Everything else (JSON.parse, structured clone, IndexedDB put) runs in worker.
 function saveNoteFast(path, content) {
   return new Promise((resolve) => {
-    getDB().then(db => {
+    try {
+      // JSON.stringify on main thread — only cost we pay here
+      const contentJson = JSON.stringify(content);
+      const worker = _getSaveWorker();
+      const id = _saveWorkerMsgId++;
+
+      // Timeout: if worker doesn't respond in 10s, resolve anyway to prevent stuck state
+      const timeout = setTimeout(() => {
+        if (_saveWorkerCallbacks.has(id)) {
+          console.warn('[AutoSave] Worker save timed out, falling back');
+          _saveWorkerCallbacks.delete(id);
+          _saveNoteFallback(path, content).then(resolve);
+        }
+      }, 10000);
+
+      _saveWorkerCallbacks.set(id, () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      worker.postMessage({
+        id,
+        path,
+        contentJson,
+        viewportOffset: { x: viewportOffset.x, y: viewportOffset.y },
+        scale
+      });
+    } catch (err) {
+      console.error('[AutoSave] worker save failed, falling back', err);
+      // Fallback: direct IndexedDB save (blocking but at least data is saved)
+      _saveNoteFallback(path, content).then(resolve);
+    }
+  });
+}
+
+// Fallback for environments where Web Workers are unavailable
+function _saveNoteFallback(path, content) {
+  return new Promise((resolve) => {
+    openNoteDB((db, done) => {
       const tx = db.transaction(["notes", "setting"], "readwrite");
       const noteStore = tx.objectStore("notes");
       const settingStore = tx.objectStore("setting");
 
-      // Save note content
       const getReq = noteStore.get(path);
       getReq.onsuccess = () => {
-        const existing = getReq.result;
-        noteStore.put({
-          ...existing,
-          path,
-          content,
-          created_at: existing?.created_at || new Date().toISOString()
-        });
+        const existing = getReq.result || {};
+        noteStore.put({ ...existing, path, content, created_at: existing.created_at || new Date().toISOString() });
       };
-
-      // Save last-save setting in the SAME transaction (no extra DB connection)
       settingStore.put({ path, viewportOffset, scale }, 'lastSaveNote');
 
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      tx.oncomplete = () => { done(); resolve(); };
+      tx.onerror = () => { done(); resolve(); };
     });
   });
 }
@@ -1302,69 +1393,80 @@ function saveNoteFast(path, content) {
 let autosaveTimer = null;
 let dirty = false;
 let flashcardScanTimer = null;
+let _savingInProgress = false;
+let _savingStartTime = 0;
+const SAVE_TIMEOUT_MS = 15000; // Force-reset _savingInProgress after 15s
+
+// Minimum idle time (ms) since last pointer activity before a save is allowed.
+const AUTOSAVE_IDLE_MS = 1500;
+const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 function markDirty() {
   dirty = true;
 
-  // Invalidate TOC cache when content changes
   if (typeof invalidateTitleCache === 'function') {
     invalidateTitleCache();
   }
 
-  // Clear existing timer and set a new one (debounce pattern)
   if (autosaveTimer) {
     clearTimeout(autosaveTimer);
   }
 
-  autosaveTimer = setTimeout(() => {
-    autosaveTimer = null;
+  autosaveTimer = setTimeout(_attemptAutosave, AUTOSAVE_DEBOUNCE_MS);
+}
 
-    // Defer autosave while actively drawing to avoid blocking pointer events
-    if (typeof drawing !== 'undefined' && drawing) {
-      markDirty();
-      return;
-    }
+function _attemptAutosave() {
+  autosaveTimer = null;
 
-    if (!dirty || !title) {
-      return;
-    }
+  if (!dirty || !title) return;
 
-    // Use requestIdleCallback (or fallback) so the save runs when the
-    // browser is idle, preventing it from blocking pointer events mid-stroke
-    const doSave = () => {
-      // Re-check drawing state - user may have started a stroke while waiting for idle
-      if (typeof drawing !== 'undefined' && drawing) {
-        markDirty();
-        return;
-      }
-
-      console.log('[AutoSave] saving locally...');
-      saveNoteFast(title, allGroups).then(() => {
-        dirty = false;
-      });
-
-      // Debounce flashcard scan separately (3s) so it never piles up during writing
-      if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
-        if (flashcardScanTimer) clearTimeout(flashcardScanTimer);
-        flashcardScanTimer = setTimeout(() => {
-          flashcardScanTimer = null;
-          // Only scan if not drawing
-          if (typeof drawing !== 'undefined' && drawing) return;
-          scanNotebookForFlashcards(selectedFolder).then(flashcards => {
-            if (typeof updateFlashcardButton === 'function') {
-              updateFlashcardButton(flashcards);
-            }
-          });
-        }, 3000);
-      }
-    };
-
-    if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(doSave, { timeout: 1000 });
+  if (_savingInProgress) {
+    // Safety: auto-reset if stuck for too long (worker crash, etc.)
+    if (Date.now() - _savingStartTime > SAVE_TIMEOUT_MS) {
+      console.warn('[AutoSave] Save stuck, force-resetting');
+      _savingInProgress = false;
     } else {
-      setTimeout(doSave, 0);
+      autosaveTimer = setTimeout(_attemptAutosave, AUTOSAVE_DEBOUNCE_MS);
+      return;
     }
-  }, 500);
+  }
+
+  // Check pointer idle time — don't save if user is actively writing
+  const idleTime = Date.now() - (typeof lastPointerActivityTime !== 'undefined' ? lastPointerActivityTime : 0);
+  if (idleTime < AUTOSAVE_IDLE_MS) {
+    autosaveTimer = setTimeout(_attemptAutosave, AUTOSAVE_IDLE_MS - idleTime + 50);
+    return;
+  }
+
+  if (typeof drawing !== 'undefined' && drawing) {
+    autosaveTimer = setTimeout(_attemptAutosave, AUTOSAVE_DEBOUNCE_MS);
+    return;
+  }
+
+  _savingInProgress = true;
+  _savingStartTime = Date.now();
+  console.log('[AutoSave] saving locally...');
+  saveNoteFast(title, allGroups).then(() => {
+    dirty = false;
+    _savingInProgress = false;
+  }).catch(() => {
+    _savingInProgress = false;
+  });
+
+  // Debounce flashcard scan separately (5s)
+  if (typeof scanNotebookForFlashcards === 'function' && selectedFolder) {
+    if (flashcardScanTimer) clearTimeout(flashcardScanTimer);
+    flashcardScanTimer = setTimeout(() => {
+      flashcardScanTimer = null;
+      const fIdle = Date.now() - (typeof lastPointerActivityTime !== 'undefined' ? lastPointerActivityTime : 0);
+      if (fIdle < AUTOSAVE_IDLE_MS) return;
+      scanNotebookForFlashcards(selectedFolder).then(flashcards => {
+        if (typeof updateFlashcardButton === 'function') {
+          updateFlashcardButton(flashcards);
+        }
+      });
+    }, 5000);
+  }
 }
 
 // Save immediately before page unload to prevent data loss

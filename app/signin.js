@@ -97,6 +97,18 @@ async function initiateGoogleSignIn() {
         updateAuthUI();
         showSyncStatus('idle');
 
+        // Reset drawing state after popup closes — the popup can leave
+        // pointer tracking in a stale state on some browsers (especially Safari)
+        if (typeof drawing !== 'undefined') drawing = false;
+        if (typeof drawingLock !== 'undefined') drawingLock = true;
+        if (typeof isPanning !== 'undefined') isPanning = false;
+        if (typeof erasing !== 'undefined') erasing = false;
+
+        // Force canvas redraw to recover rendering
+        if (typeof reDrawAll === 'function' && typeof drawCtx !== 'undefined') {
+            reDrawAll(drawCtx);
+        }
+
         // Auto-sync removed - user must manually sync
 
     } catch (error) {
@@ -623,7 +635,11 @@ function initGoogleAuth() {
             showSyncStatus('idle');
             // Load last sync time
             lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0', 10);
-            // Auto-sync removed - user must manually sync
+
+            // Ensure drawing state is valid after auth change (popup can disrupt it)
+            if (typeof drawingLock !== 'undefined' && !drawingLock) {
+                drawingLock = true;
+            }
         }
     });
 

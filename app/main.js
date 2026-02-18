@@ -16,6 +16,7 @@ const gridLineColorPicker = document.getElementById("gridLineColorPicker");
 let currentStroke = []; 
 let drawing = false;
 let drawingLock = false;
+let lastPointerActivityTime = 0; // Tracks last pointer event to prevent save during active writing
 let idCount = 0; // Unique ID for each group
 
 // Helper function to generate unique IDs safely
@@ -2222,6 +2223,8 @@ window.onload = async () => {
         // to be swallowed. All defaults are handled via CSS and targeted
         // event handlers (touchstart, mousedown, selectstart, dragstart).
 
+        lastPointerActivityTime = Date.now();
+
         // === Palm rejection: ignore touch input while pen is active ===
         if (e.pointerType === "touch" && activePenPointerId !== null) {
             return; // Ignore palm/finger touches during pen drawing
@@ -2439,6 +2442,7 @@ window.onload = async () => {
     window._hasRawPointer = moveEvent === "pointerrawupdate";
 
     canvasGroup.addEventListener(moveEvent, (e) => {
+        lastPointerActivityTime = Date.now();
         // Check if the pointer has moved significantly
         const movementDx = e.offsetX/scale - lastPointerX;
         const movementDy = e.offsetY/scale - lastPointerY;
@@ -2707,6 +2711,8 @@ window.onload = async () => {
 
     canvasGroup.addEventListener("pointerup", (e) => {
         // NOTE: Do NOT call e.preventDefault() on pointer events - see pointerdown note.
+
+        lastPointerActivityTime = Date.now();
 
         // Clear active pen tracking
         if (e.pointerId === activePenPointerId) {
