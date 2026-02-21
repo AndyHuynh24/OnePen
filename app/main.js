@@ -526,12 +526,12 @@ const tapePatternCache = new Map();
 // TOOL_ID, TOOL_REGISTRY, PEN_TYPES are defined in config.js
 
 const DEFAULT_MODIFIERS = {
-    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true},
-    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: true },
-    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
-    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.5, visibility: false},
+    defaultPen: {label: "Default Pen", color: "#ffffff", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: true},
+    box: { label: "Box", color: "#ffb6ff", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: true },
+    curly: { label: "Curly", color: "#fa6e6e", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: true },
+    squarebracket: { label: "Square Bracket", color: "#a3fba9", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: false},
+    wavybracket: { label: "Wavy Bracket", color: "#74d8ff", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: false},
+    circlebracket: { label: "Circle Bracket", color: "#ffc5d3", penType: PEN_TYPES.NORMAL, size: 2.3, visibility: false},
     backgroundCanvas: {canvasSetting: true, backgroundColor: "#201f1e", gridLineColor: "#153b57", gridWidth: 58, gridStyle: "square"},
     syncBracketToolboxes: true,
     syncStrokeSize: false,
@@ -571,7 +571,7 @@ const DEFAULT_TOOLBOX_LAYOUT = {
    curly: [
     { id: TOOL_ID.BOLD_DEFAULT, color: "#ffffff", size: 2 },
     { id: TOOL_ID.BOLD_CUSTOM, color: "#55ffd7ff", size: 4 },
-    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.5, visibility: false},
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.3, visibility: false},
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "stripes" },
     { id: TOOL_ID.REMINDER, color: "#ff6b6b", size: 2 },
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "hearts" },
@@ -579,34 +579,34 @@ const DEFAULT_TOOLBOX_LAYOUT = {
     { id: TOOL_ID.TAPE, color: "#ffffff", size: 2, tapePreset: "zigzag" },
   ],
   squareBracket: [
-    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.5},
+    { id: TOOL_ID.PEN, color: "#ffffff", size: 2.3},
     { id: TOOL_ID.PEN, color: "#ffffff", size: 3.5},
-    { id: TOOL_ID.PEN, color: "#a3fba9", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#a3fba9", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#74d8ff", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#fa6e6e", size: 2.3 },
     { id: TOOL_ID.TITLE1, color: "#f4c64a", size: 3},
     { id: TOOL_ID.COPY, color: "#ffffff", size: 2},
     { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2 },
   ],
   wavyBracket: [
-    { id: TOOL_ID.PEN, color: "#ff0000", size: 2.5},
-    { id: TOOL_ID.PEN, color: "#ff7700", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#fff700", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#00ff4c", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#000dff", size: 2.5},
-    { id: TOOL_ID.PEN, color: "#6200ff", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#bf00ff", size: 2.5 },
-    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.5 },
+    { id: TOOL_ID.PEN, color: "#ff0000", size: 2.3},
+    { id: TOOL_ID.PEN, color: "#ff7700", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#fff700", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#00ff4c", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#000dff", size: 2.3},
+    { id: TOOL_ID.PEN, color: "#6200ff", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#bf00ff", size: 2.3 },
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.3 },
   ],
   circleBracket: [
-    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2.5},
-    { id: TOOL_ID.PEN, color: "#ffa0a0", size: 2.5},
-    { id: TOOL_ID.PEN, color: "#ffcd8b", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#ffe190", size: 2.5 },
-    { id: TOOL_ID.PEN, color: "#92ffa6", size: 2.5 },
-    { id: TOOL_ID.TITLE3, color: "#91f6ff", size: 2.5},
-    { id: TOOL_ID.COPY, color: "#ffb1de", size: 2.5},
-    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.5 },
+    { id: TOOL_ID.ERASER, color: "#ffffff", size: 2.3},
+    { id: TOOL_ID.PEN, color: "#ffa0a0", size: 2.3},
+    { id: TOOL_ID.PEN, color: "#ffcd8b", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#ffe190", size: 2.3 },
+    { id: TOOL_ID.PEN, color: "#92ffa6", size: 2.3 },
+    { id: TOOL_ID.TITLE3, color: "#91f6ff", size: 2.3},
+    { id: TOOL_ID.COPY, color: "#ffb1de", size: 2.3},
+    { id: TOOL_ID.CUSTOM_COLOR, color: "#ffffff", size: 2.3 },
   ],
 };
 // -------------------- GLOBAL STATE --------------------
@@ -2317,60 +2317,64 @@ window.onload = async () => {
             return;
         }
 
-        // === Media Resize Handle Detection ===
+        // === Media Resize Handle Detection (touch only) ===
         // Check if clicking on a resize handle of selected media
-        const resizeHandleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
-        if (resizeHandleHit) {
-            e.preventDefault();
-            e.stopPropagation();
-            startMediaResize(resizeHandleHit, e.offsetX, e.offsetY);
-            return; // Prevents drawing
+        if (e.pointerType === "touch") {
+            const resizeHandleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
+            if (resizeHandleHit) {
+                e.preventDefault();
+                e.stopPropagation();
+                startMediaResize(resizeHandleHit, e.offsetX, e.offsetY);
+                return; // Prevents drawing
+            }
         }
 
-        // === Text/Media Click Detection ===
-        // Check for clicks on text or media blocks
-        const clickedGroup = findMediaGroupAt(worldX, worldY);
-        if (clickedGroup) {
-            e.preventDefault();
-            e.stopPropagation();
+        // === Text/Media Click Detection (touch only) ===
+        // Check for clicks on text or media blocks — pen draws through them
+        if (e.pointerType === "touch") {
+            const clickedGroup = findMediaGroupAt(worldX, worldY);
+            if (clickedGroup) {
+                e.preventDefault();
+                e.stopPropagation();
 
-            const now = Date.now();
+                const now = Date.now();
 
-            // Check for double-click to edit (text blocks only)
-            if (clickedGroup.type === 'text' &&
-                lastTextClickTarget === clickedGroup.id &&
-                now - lastTextClickTime < 400) {
-                startTextEditing(clickedGroup);
-                lastTextClickTarget = null;
-                lastTextClickTime = 0;
-                return;
-            }
-
-            // If already selected, check for resize handle first
-            if (selectedMedia && selectedMedia.id === clickedGroup.id) {
-                const handleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
-                if (handleHit) {
-                    startMediaResize(handleHit, e.offsetX, e.offsetY);
+                // Check for double-click to edit (text blocks only)
+                if (clickedGroup.type === 'text' &&
+                    lastTextClickTarget === clickedGroup.id &&
+                    now - lastTextClickTime < 400) {
+                    startTextEditing(clickedGroup);
+                    lastTextClickTarget = null;
+                    lastTextClickTime = 0;
                     return;
                 }
-                // Start drag
-                startMediaDrag(e.offsetX, e.offsetY);
-                // Track for double-click (text only)
+
+                // If already selected, check for resize handle first
+                if (selectedMedia && selectedMedia.id === clickedGroup.id) {
+                    const handleHit = getMediaResizeHandle(e.offsetX, e.offsetY);
+                    if (handleHit) {
+                        startMediaResize(handleHit, e.offsetX, e.offsetY);
+                        return;
+                    }
+                    // Start drag
+                    startMediaDrag(e.offsetX, e.offsetY);
+                    // Track for double-click (text only)
+                    if (clickedGroup.type === 'text') {
+                        lastTextClickTarget = clickedGroup.id;
+                        lastTextClickTime = now;
+                    }
+                    return;
+                }
+
+                // Select the group
+                selectedMedia = clickedGroup;
                 if (clickedGroup.type === 'text') {
                     lastTextClickTarget = clickedGroup.id;
                     lastTextClickTime = now;
                 }
+                reDrawAll(drawCtx);
                 return;
             }
-
-            // Select the group
-            selectedMedia = clickedGroup;
-            if (clickedGroup.type === 'text') {
-                lastTextClickTarget = clickedGroup.id;
-                lastTextClickTime = now;
-            }
-            reDrawAll(drawCtx);
-            return;
         }
 
         // === Media Selection Management ===
@@ -2511,9 +2515,9 @@ window.onload = async () => {
             return;
         }
 
-        // === Media Cursor Feedback ===
+        // === Media Cursor Feedback (touch only) ===
         // Show appropriate cursor when hovering over selected media
-        if (selectedMedia && !isPanning && !drawing) {
+        if (e.pointerType === "touch" && selectedMedia && !isPanning && !drawing) {
             const handleHover = getMediaResizeHandle(e.offsetX, e.offsetY);
             if (handleHover) {
                 const cursors = { nw: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', se: 'nwse-resize' };
@@ -3629,6 +3633,12 @@ function showCustomColorPanel(toolBox) {
         }
     }
 
+    // Show visibility toggle for modifier toolboxes (underline/box/curly)
+    const showVisibilityToggle = ["underline", "box", "curly"].includes(toolBox);
+    const currentVisibility = showVisibilityToggle && modifiedGroups?.modifiedGroups?.length > 0
+        ? modifiedGroups.modifiedGroups[0].visibility !== false
+        : true;
+
     panel.innerHTML = `
         <div class="ccp-header">
             <span class="ccp-title">Custom Color</span>
@@ -3653,6 +3663,13 @@ function showCustomColorPanel(toolBox) {
                     `<div class="ccp-swatch" data-color="${c}" style="background-color: ${c}"></div>`
                 ).join("")}
             </div>
+        </div>` : ''}
+        ${showVisibilityToggle ? `
+        <div class="ccp-section ccp-visibility-section">
+            <label class="ccp-visibility-label">
+                <input type="checkbox" id="ccpVisibilityToggle" ${currentVisibility ? 'checked' : ''}>
+                <span>Visible</span>
+            </label>
         </div>` : ''}
         <button class="ccp-apply-btn" id="ccpApplyBtn">Apply</button>
     `;
@@ -3686,9 +3703,14 @@ function showCustomColorPanel(toolBox) {
             defaultPenColor = chosenColor;
             defaultPenType = STROKE_TYPE.NONE;
         } else {
+            const visibilityToggle = panel.querySelector("#ccpVisibilityToggle");
+            const newVisibility = visibilityToggle ? visibilityToggle.checked : undefined;
             modifiedGroups.modifiedGroups.forEach(group => {
                 if (!isColorProtectedGroup(group)) {
                     group.color = chosenColor;
+                }
+                if (newVisibility !== undefined) {
+                    group.visibility = newVisibility;
                 }
             });
             syncTapeCoveredData();

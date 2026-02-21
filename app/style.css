@@ -706,6 +706,24 @@ html {
     border-color: #fff;
     transform: scale(1.15);
 }
+.custom-color-panel .ccp-visibility-section {
+    padding-top: 2px;
+}
+.custom-color-panel .ccp-visibility-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e0e0e0;
+    text-transform: none;
+}
+.custom-color-panel .ccp-visibility-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4a90d9;
+    cursor: pointer;
+}
 .custom-color-panel .ccp-apply-btn {
     width: 100%;
     padding: 8px;

@@ -203,7 +203,11 @@ function renderFolderList(folderName) {
   document.querySelector('.folder').appendChild(folderButton);
 }
 
+let _openFolderVersion = 0;
+
 function openFolder(folderName) {
+  const thisVersion = ++_openFolderVersion;
+
   selectedFolder = folderName;
   if (document.querySelector('.selected')) {
     document.querySelector('.selected').classList.toggle('selected')
@@ -216,6 +220,9 @@ function openFolder(folderName) {
 
   // Fetch notes with their creation dates
   listNotesInFolderWithDates(folderName, notes => {
+    // Stale callback — user clicked a different folder before this finished
+    if (thisVersion !== _openFolderVersion) return;
+
     // Sort notes by date (newest first)
     notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     notes.forEach(note => {
@@ -227,6 +234,7 @@ function openFolder(folderName) {
   // Scan for flashcards (tapes) in this notebook
   if (typeof scanNotebookForFlashcards === 'function') {
     scanNotebookForFlashcards(folderName).then(flashcards => {
+      if (thisVersion !== _openFolderVersion) return;
       if (typeof updateFlashcardButton === 'function') {
         updateFlashcardButton(flashcards);
       }
