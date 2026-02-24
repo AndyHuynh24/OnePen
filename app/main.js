@@ -623,7 +623,7 @@ const STROKE_SIZE_PRESETS = [
     { label: "Hair", size: 0.5 },
     { label: "Fine", size: 1 },
     { label: "Thin", size: 1.5 },
-    { label: "Regular", size: 2.5 },
+    { label: "Regular", size: 2.3 },
     { label: "Medium", size: 4 },
     { label: "Thick", size: 6 },
     { label: "Bold", size: 10 }
