@@ -212,7 +212,8 @@ function openFolder(folderName) {
   if (document.querySelector('.selected')) {
     document.querySelector('.selected').classList.toggle('selected')
   }
-  document.getElementById(folderName).classList.toggle('selected');
+  const folderEl = document.getElementById(folderName);
+  if (folderEl) folderEl.classList.toggle('selected');
   const notesContainer = document.querySelector('.notes');
   notesContainer.querySelector('#starter').style.display = 'none';
   notesContainer.querySelector('#menubar').style.display = 'flex';
