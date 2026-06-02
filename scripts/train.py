@@ -392,6 +392,52 @@ def main() -> int:
     logger.info(f"  Outputs: {output_dir}")
     logger.info("=" * 60)
 
+    # --- AkashTrainer integration ---------------------------------------------
+    # Publish metrics + model back to source GitHub repo so AkashTrainer's
+    # monitor picks them up. No-ops gracefully when REPO_URL / GITHUB_TOKEN
+    # aren't set (local dev path).
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from akash_train import publish_results
+
+        hist = history.history if hasattr(history, "history") else {}
+        arr = lambda k: [float(x) for x in (hist.get(k) or [])]
+
+        result = publish_results(
+            success=True,
+            metrics={
+                "test_accuracy": float(test_metrics["test_accuracy"]),
+                "test_loss": float(test_metrics["test_loss"]),
+                "val_accuracy": float(best_metrics["best_val_accuracy"]),
+                "val_loss": float(best_metrics["best_val_loss"]),
+                "macro_f1": float(report["macro avg"]["f1-score"]),
+                "macro_precision": float(report["macro avg"]["precision"]),
+                "macro_recall": float(report["macro avg"]["recall"]),
+                "weighted_f1": float(report["weighted avg"]["f1-score"]),
+                "epochs_trained": int(best_metrics["epochs_trained"]),
+                "final_train_accuracy": float(best_metrics["final_train_accuracy"]),
+                # Per-epoch curves render as overlaid training-curve charts in the UI
+                "train_acc_curve": arr("accuracy"),
+                "val_acc_curve": arr("val_accuracy"),
+                "train_loss_curve": arr("loss"),
+                "val_loss_curve": arr("val_loss"),
+            },
+            model_path=str(model_path) if Path(model_path).exists() else None,
+            hyperparams={
+                "model_type": model_type,
+                "backbone": backbone_name,
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "learning_rate": float(config.training.learning_rate),
+            },
+        )
+        if result:
+            logger.info(f"✅ Published to {result.branch_url}")
+        else:
+            logger.info(f"(akash_train) {result.reason}")
+    except Exception as e:
+        logger.warning(f"Could not publish results via akash_train: {e}")
+
     return 0
 
 
