@@ -1,0 +1,28 @@
+# Keep the Docker build context small. The trainer image only needs trainer/
+# and data/raw. Everything else is excluded.
+.git
+.venv
+node_modules
+**/node_modules
+app
+app-v2
+math-server
+docs
+notebooks
+outputs
+logs
+mlruns
+mlflow.db
+data/processed
+data/raw
+**/__pycache__
+**/*.pyc
+.DS_Store
+**/.DS_Store
+src
+scripts
+tests
+config
+trainer/out
+trainer/out_demo
+trainer/notebooks

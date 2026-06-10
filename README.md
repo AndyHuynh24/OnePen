@@ -82,30 +82,16 @@ OnePen/
 │   ├── tfjs/                  # Deployed TF.js model
 │   └── icons/                 # PWA icons
 │
-├── src/modifiers/             # ML Training Pipeline
-│   ├── models/
-│   │   ├── architecture.py    # Hybrid CNN + geometric model
-│   │   └── trainer.py         # Training loop with callbacks
-│   ├── features/
-│   │   └── geometric.py       # 12D feature extraction
-│   ├── data/
-│   │   ├── loader.py          # Dataset loading
-│   │   ├── augmenter.py       # Data augmentation
-│   │   └── preprocessor.py    # Image preprocessing
-│   └── utils/                 # Logging, config utilities
+├── trainer/                   # ML training pipeline (compact, self-contained)
+│   ├── data.py               # raw JSON → 96×96 image + 12-D features (+ augment)
+│   ├── model.py              # MobileNetV3-Small hybrid → 8-way softmax
+│   ├── train.py              # load → train → evaluate → export  (entry point)
+│   ├── export_tfjs.py        # Keras → SavedModel → TF.js graph-model
+│   ├── Dockerfile            # GPU image (TF 2.19) for Akash / any NVIDIA host
+│   └── akash-deploy.yaml     # Akash SDL to rent a GPU and run it
 │
-├── scripts/                   # CLI Tools
-│   ├── train.py              # Training with W&B tracking
-│   ├── export.py             # TF.js model conversion
-│   └── dataset.py            # Data preprocessing pipeline
+├── data/raw/                 # Raw stroke data by contributor (the dataset)
 │
-├── data/
-│   ├── raw/                  # Raw stroke data by contributor
-│   └── processed/            # Preprocessed training data
-│
-├── models/tfjs/              # Exported browser-ready model
-├── config/                   # Training hyperparameters (YAML)
-├── tests/                    # pytest test suite
 └── assets/                   # Documentation images
 ```
 
@@ -233,11 +219,6 @@ OnePen/
 git clone https://github.com/AndyHuynh24/OnePen.git
 cd OnePen
 
-# Setup Python environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
 # Run the app
 cd app && python -m http.server 8000
 # Open http://localhost:8000
@@ -245,15 +226,17 @@ cd app && python -m http.server 8000
 
 ### Train Your Own Model
 
+The training pipeline lives in `trainer/` — see [`trainer/README.md`](trainer/README.md)
+for full docs (local, Docker, and Akash GPU).
+
 ```bash
-# Preprocess data
-python scripts/dataset.py
+cd trainer
+pip install -r requirements.txt
+python train.py --finetune        # reads ../data/raw → writes ./out + app-v2/public/tfjs
 
-# Train (with W&B tracking)
-python scripts/train.py --epochs 200 --backbone mobilenetv3_small
-
-# Export to TensorFlow.js
-python scripts/export.py --model outputs/run_*/stroke_classifier.keras --quantize uint16
+# …or on a rented GPU via Docker (build from repo root):
+docker build -f trainer/Dockerfile -t onepen-trainer .
+docker run --gpus all -v "$PWD/out:/output" onepen-trainer --finetune
 ```
 
 ---

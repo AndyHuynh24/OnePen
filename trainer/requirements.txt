@@ -1,0 +1,7 @@
+# Pinned to the versions the deployed model was built with
+# (model.json: generatedBy TF 2.19.0, convertedBy tfjs 4.22.0).
+tensorflow==2.19.*
+tensorflowjs==4.22.*
+pillow>=10
+scikit-learn>=1.3
+numpy

@@ -1,0 +1,6 @@
+# Extra deps for the EDA notebooks (not needed to train)
+pandas>=2.0
+matplotlib>=3.7
+seaborn>=0.12
+jupyterlab>=4.0
+nbconvert>=7.0
