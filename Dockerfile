@@ -38,6 +38,11 @@ RUN mkdir -p /output
 
 ENV PYTHONPATH="/workspace/project"
 
+# This NVIDIA container enables oneDNN custom ops, which fuse LayerNorm into a
+# CPU-only `_MklLayerNorm` kernel and crash on GPU. Disable so every op has a
+# GPU kernel. (The trainer also sets this defensively before importing TF.)
+ENV TF_ENABLE_ONEDNN_OPTS=0
+
 # AkashTrainer overrides $TRAIN_CMD per run; the default trains the deployed app
 # model once. --no-export skips the TF.js conversion (tensorflowjs isn't installed
 # in this CUDA image; export the browser model locally with trainer/requirements.txt).

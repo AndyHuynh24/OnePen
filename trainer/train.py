@@ -17,6 +17,14 @@ No experiment trackers — just flags and good defaults.
 
 from __future__ import annotations
 
+import os
+
+# Must be set BEFORE TensorFlow is imported. The NVIDIA CUDA TF container enables
+# oneDNN custom ops, which fuse LayerNorm into a CPU-only `_MklLayerNorm` kernel
+# and then crash on GPU ("No registered '_MklLayerNorm' OpKernel for GPU"). Off =
+# LayerNorm uses the standard op (has a GPU kernel). Harmless on CPU.
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+
 import argparse
 import json
 import shutil
