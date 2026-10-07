@@ -1,0 +1,46 @@
+---
+# Akash SDL — OnePen math solver (Pix2Text + SymPy).
+# Deploy:
+#   1) docker build --platform linux/amd64 -t <dockerhub-user>/onepen-math:latest .
+#   2) docker push <dockerhub-user>/onepen-math:latest
+#   3) set image below to that tag
+#   4) akash tx deployment create deploy.yaml  (or use Cloudmos / Akash Console)
+# Then point the PWA at the lease's URI:
+#   VITE_MATH_API_URL=http://<lease-host>:<port>/predict
+version: "2.0"
+
+services:
+  math:
+    image: REPLACE_WITH_YOUR_DOCKERHUB_USER/onepen-math:latest
+    expose:
+      - port: 8000
+        as: 80
+        to:
+          - global: true
+    env:
+      # Lock CORS to your deployed PWA origin once you know it, e.g.
+      # - ALLOWED_ORIGINS=https://onepen.example.com
+      - ALLOWED_ORIGINS=*
+
+profiles:
+  compute:
+    math:
+      resources:
+        cpu:
+          units: 2.0
+        memory:
+          size: 4Gi
+        storage:
+          size: 8Gi
+  placement:
+    akash:
+      pricing:
+        math:
+          denom: uakt
+          amount: 10000
+
+deployment:
+  math:
+    akash:
+      profile: math
+      count: 1
