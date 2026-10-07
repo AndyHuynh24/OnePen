@@ -1,272 +1,96 @@
 <p align="center">
-  <img src="app/icons/icon-512.png" alt="OnePen Logo" width="120" />
+  <img src="app-v2/public/icons/icon-512.png" alt="OnePen" width="96" />
 </p>
 
 <h1 align="center">OnePen</h1>
 
 <p align="center">
-  <b>AI-Powered Handwriting App with Real-Time Gesture Recognition</b>
-</p>
-
-<p align="center">
-  <a href="#demo">Demo</a> •
-  <a href="#features">Features</a> •
-  <a href="#project-structure">Structure</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#getting-started">Get Started</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/accuracy-99.89%25-brightgreen?style=flat-square" />
-  <img src="https://img.shields.io/badge/inference-~20ms-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/model_size-2.5MB-orange?style=flat-square" />
-  <img src="https://img.shields.io/badge/PWA-offline_ready-5A0FC8?style=flat-square" />
-  <img src="https://img.shields.io/badge/🏆_HackUMASS_XII-Most_Novel_AI-gold?style=flat-square" />
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/TensorFlow-2.x-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
-  <img src="https://img.shields.io/badge/TensorFlow.js-Browser_ML-FF6F00?style=flat-square&logo=tensorflow&logoColor=white" />
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/W%26B-Tracking-FFBE00?style=flat-square&logo=weightsandbiases&logoColor=black" />
+  Handwriting notes where the pen strokes you draw are also the commands.<br/>
+  <a href="https://onepen-notes.web.app">onepen-notes.web.app</a> · Most Novel AI, HackUMass XII
 </p>
 
 ---
 
-## The Problem
-
-Handwritten note-taking apps force constant interruptions—switching tools, tapping buttons, navigating menus. Each micro-interaction breaks focus and slows you down.
-
-## The Solution
-
-**OnePen** eliminates toolbar dependency through real-time gesture recognition. Draw naturally, and ML interprets your intent—grouping content, applying styles, or triggering app features instantly.
+Most note apps make you stop writing to pick a tool. In OnePen you draw a box
+around some ink, underline it, bracket it or scribble over it, and a small model
+in the browser recognizes the shape and acts on it: recolor, delete, make it a
+heading, cover it with flashcard tape, attach a link, set a reminder, solve an
+equation.
 
 <p align="center">
-  <img src="app/assets/box.png" width="80" alt="Box" />
-  <img src="app/assets/curly.png" width="80" alt="Curly" />
-  <img src="app/assets/delete.png" width="80" alt="Delete" />
-  <img src="app/assets/underline.png" width="80" alt="Underline" />
-  <img src="app/assets/squareBracket.png" width="80" alt="Box Shortcut" />
-  <img src="app/assets/wavyBracket.png" width="80" alt="Curly Shortcut" />
-  <img src="app/assets/circleBracket.png" width="80" alt="Circle Shortcut" />
+  <img src="app-v2/public/assets/box.png" width="70" alt="box" />
+  <img src="app-v2/public/assets/curly.png" width="70" alt="curly" />
+  <img src="app-v2/public/assets/underline.png" width="70" alt="underline" />
+  <img src="app-v2/public/assets/delete.png" width="70" alt="delete" />
+  <img src="app-v2/public/assets/squareBracket.png" width="70" alt="square bracket" />
+  <img src="app-v2/public/assets/wavyBracket.png" width="70" alt="wavy bracket" />
+  <img src="app-v2/public/assets/circleBracket.png" width="70" alt="circle bracket" />
 </p>
 
-<p align="center"><i>6 gesture modifiers recognized in real-time → instant formatting & actions</i></p>
+Demo: https://github.com/user-attachments/assets/a4335d94-51ff-4345-89c7-b58fddd72268
 
-**One pen. Zero interruptions. ~30% faster note-taking.**
+## How it works
 
----
+- Draw a box, curly brace or bracket around ink and it's restyled with that
+  gesture's color and size. Scribble over ink to delete it.
+- Draw a gesture and hold the pen still: a radial menu opens with tools for
+  what you selected (pen colors, H1–H3 headings, highlight, bold, move,
+  copy/paste, tape, sticky note, link, reminder, math). Slide to a tool and lift.
+  Holding on empty space gives quick tools (pen, highlighter, eraser, paste, …).
+  Every menu is editable in Settings.
+- Tape hides part of a boxed group. The flashcard view turns each one into a
+  card: the rest of the group is the question, the taped part is the answer.
+- Headings feed a table of contents; reminders show up in a panel across all
+  notebooks.
+- Typed text, images and PDFs can sit on the page too. Export to PNG or PDF.
+- Notes live in IndexedDB and the app works offline. Signing in with Google
+  lets you back up to and restore from Drive.
 
-## Demo
-
-https://github.com/user-attachments/assets/a4335d94-51ff-4345-89c7-b58fddd72268
-
-> **[Try Live App →](https://onepen-notes.web.app)** · Works offline after first load
-
----
-
-## Project Structure
+## Repo
 
 ```
-OnePen/
-├── app/                        # Progressive Web App (Frontend)
-│   ├── index.html             # Main interface
-│   ├── main.js                # Core app logic & gesture handling
-│   ├── draw.js                # Canvas rendering engine
-│   ├── predict.js             # TensorFlow.js inference
-│   ├── saveNote.js            # IndexedDB persistence
-│   ├── signin.js              # Google Drive authentication
-│   ├── feedbackCollector.js   # Implicit feedback for data flywheel
-│   ├── config.js              # App configuration
-│   ├── sw.js                  # Service worker (offline support)
-│   ├── tfjs/                  # Deployed TF.js model
-│   └── icons/                 # PWA icons
-│
-├── trainer/                   # ML training pipeline (compact, self-contained)
-│   ├── data.py               # raw JSON → 96×96 image + 12-D features (+ augment)
-│   ├── model.py              # MobileNetV3-Small hybrid → 8-way softmax
-│   ├── train.py              # load → train → evaluate → export  (entry point)
-│   ├── export_tfjs.py        # Keras → SavedModel → TF.js graph-model
-│   ├── Dockerfile            # GPU image (TF 2.19) for Akash / any NVIDIA host
-│   └── akash-deploy.yaml     # Akash SDL to rent a GPU and run it
-│
-├── data/raw/                 # Raw stroke data by contributor (the dataset)
-│
-└── assets/                   # Documentation images
+app-v2/         the app: Vite + TypeScript + Svelte 5 PWA (see app-v2/README.md)
+math-server/    Pix2Text + SymPy service behind the math tool
+trainer/        gesture model training and TF.js export
+data/raw_jsonl/ stroke dataset, one file per contributor
+Dockerfile      GPU training image (used with akash_train.py)
+app/            the original v1, kept for reference
 ```
 
----
-
-## Features
-
-<table>
-<tr>
-<td width="50%">
-
-### Gesture Recognition
-- **7 gesture types** recognized in real-time
-- **Draw + Hold** opens radial tool menu
-- 1 delete gestures + 6 raw auto-style getures + 6 gestures + hold x 8 tools = **55 quick actions**
-- Fully customizable gesture-to-action mapping
-
-</td>
-<td width="50%">
-
-### Study Tools
-- **Tape Flashcards** — Cover keywords with decorative tape for active recall; tap to reveal. Each tape becomes a reviewable flashcard.
-- **Auto-Summaries** — Generate study sheets from highlights
-- **Table of Contents** — Auto-built from headings
-- **Reminders** — Time-based notifications
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### Smart Notes
-- **Sticky Notes** — Floating annotations with mini canvas
-- **Embed Links** — Clickable web previews
-- **Math Solver** — Handwritten → LaTeX → solved
-
-</td>
-<td width="50%">
-
-### Export & Sync
-- **Google Drive** auto-backup
-- **PDF Export** with full fidelity
-- **Offline-first** PWA architecture
-- **Cross-device** via portable JSON
-
-</td>
-</tr>
-</table>
-
----
-
-## Architecture
-
-### System Overview
-
-<p align="center">
-  <img src="assets/architecture.png" alt="System Architecture" width="800" />
-</p>
-
-### Model Architecture
-
-**Hybrid CNN + Geometric Features** — Combining visual and numerical inputs for robust gesture classification.
-
-```
-        Image Input (96×96)              Geometric Features (12D)
-              │                                   │
-              ▼                                   ▼
-    ┌───────────────────┐               ┌─────────────────┐
-    │   MobileNetV3     │               │   Dense 128→64  │
-    │  + SE Attention   │               │  + LayerNorm    │
-    └─────────┬─────────┘               └────────┬────────┘
-              │                                   │
-              └──────────────┬────────────────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │  Fusion Layer   │
-                    │   384 → 192     │
-                    └────────┬────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │   8 Classes     │
-                    │   (softmax)     │
-                    └─────────────────┘
-```
-
-<p align="center">
-  <img src="assets/sample_stroke.png" alt="Sample Strokes by Class" width="700" />
-</p>
-
-**Why hybrid?** Image-only models confused similar gestures (box vs bracket). Adding geometric features improved accuracy by **5-8%**.
-
-### Geometric Features
-
-| Feature | Purpose |
-|---------|---------|
-| Closure ratio | Detects closed loops (boxes) |
-| Aspect ratio | Distinguishes wide vs tall strokes |
-| Path length | Identifies wavy/complex strokes |
-| Verticality | Separates diagonal deletes from horizontal underlines |
-| Point density | Distinguishes quick strokes from deliberate ones |
-| + 7 more | Fine-grained disambiguation |
-
-### Performance
-
-| Metric | Value |
-|--------|-------|
-| **Accuracy** | 99.89% |
-| **Inference** | ~20ms |
-| **Model Size** | 2.5 MB |
-| **Classes** | 8 gesture types |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js (optional, for dev server)
-
-### Installation
+## Run it
 
 ```bash
-# Clone repository
-git clone https://github.com/AndyHuynh24/OnePen.git
-cd OnePen
-
-# Run the app
-cd app && python -m http.server 8000
-# Open http://localhost:8000
+cd app-v2
+npm install
+npm run dev
 ```
 
-### Train Your Own Model
+The dev server is exposed on the LAN, so a tablet can open it at your machine's
+IP. The math tool also needs `math-server/` running on port 8000.
 
-The training pipeline lives in `trainer/` — see [`trainer/README.md`](trainer/README.md)
-for full docs (local, Docker, and Akash GPU).
+## The model
+
+One stroke goes in and comes out as one of eight labels: underline, box, curly,
+delete, square/wavy/circle bracket, or none. The input is the stroke rendered at
+96×96 plus 12 geometric features (how closed the shape is, aspect ratio, path
+length, verticality and so on). A MobileNetV3-Small branch reads the image, a
+small dense branch reads the features, and the two are merged before the
+softmax. The features are there because the image alone kept mixing up boxes and
+brackets.
+
+It runs with TensorFlow.js in a Web Worker so it never blocks the pen. A stroke
+only goes to the model if it's big enough and encloses or crosses existing ink,
+so ordinary writing doesn't trigger it.
+
+Training, the architecture comparison and exporting a new model to the app are
+covered in [trainer/README.md](trainer/README.md):
 
 ```bash
 cd trainer
 pip install -r requirements.txt
-python train.py --finetune        # reads ../data/raw → writes ./out + app-v2/public/tfjs
-
-# …or on a rented GPU via Docker (build from repo root):
-docker build -f trainer/Dockerfile -t onepen-trainer .
-docker run --gpus all -v "$PWD/out:/output" onepen-trainer --finetune
+python train.py --model hybrid --finetune --app-tfjs-dir ../app-v2/public/tfjs
 ```
-
----
-
-## Tech Stack
-
-| Layer | Technologies |
-|-------|--------------|
-| **Frontend** | JavaScript, HTML5 Canvas API, TensorFlow.js, IndexedDB, Web Workers |
-| **ML/AI** | TensorFlow, Keras, MobileNetV3, Squeeze-and-Excitation Networks, Weights & Biases |
-| **Infrastructure** | Progressive Web App (PWA), Service Workers, Firebase Hosting, Google Drive API |
-| **Quality** | pytest, ruff, mypy, GitHub Actions CI/CD |
-
----
-
-## Key Learnings (This Project)
-
-- **Feature engineering > more layers** — Hand-crafted geometric features outperformed deeper CNNs for this use case
-- **Augmentation requires care** — Aggressive transforms broke class-specific characteristics
-- **Browser constraints shape design** — Model size directly impacts UX; MobileNet's efficiency was essential
-- **Diverse training data prevents overfitting** — Collecting from multiple handwriting styles was critical
-
----
 
 ## License
 
-MIT
-
----
-
-<p align="center">
-  Built by <a href="https://github.com/AndyHuynh24">Andy Huynh</a>
-</p>
+MIT. Built by [Andy Huynh](https://github.com/AndyHuynh24).

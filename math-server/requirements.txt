@@ -1,0 +1,10 @@
+flask>=3.0
+flask-cors>=4.0
+gunicorn>=21.2
+pillow>=10.0
+pix2text>=1.1
+sympy>=1.12
+# latex2sympy2 parses the full LaTeX grammar (fractions, roots, integrals,
+# derivatives, trig, equations). It pins antlr4 4.7.2 — keep them together.
+latex2sympy2==1.9.1
+antlr4-python3-runtime==4.7.2

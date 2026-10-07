@@ -23,7 +23,17 @@ import os
 # oneDNN custom ops, which fuse LayerNorm into a CPU-only `_MklLayerNorm` kernel
 # and then crash on GPU ("No registered '_MklLayerNorm' OpKernel for GPU"). Off =
 # LayerNorm uses the standard op (has a GPU kernel). Harmless on CPU.
-os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+# FORCE these (not setdefault) — the nvcr container pre-sets both, so setdefault
+# would be a no-op and the fixes wouldn't take. Must run before TensorFlow imports.
+#  - oneDNN off: LayerNorm -> CPU-only _MklLayerNorm kernel crashes on GPU.
+#  - XLA auto-JIT off: on H100 + this TF build XLA emits PTX the driver only
+#    half-recognizes ('+ptx85') and then DEADLOCKS around epoch 3. NOTE: this env
+#    flag alone is NOT enough — Keras 3 (TF 2.16+/nvcr) defaults jit_compile="auto"
+#    and turns XLA on per-model regardless. The real guard is jit_compile=False in
+#    models._compile() + tf.config.optimizer.set_jit(False); this flag just kills
+#    the graph-mode auto-clustering path. Models are tiny, so XLA buys nothing.
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
 
 import argparse
 import json
@@ -63,6 +73,14 @@ def parse_args() -> argparse.Namespace:
 def setup_gpu(mixed_precision: bool):
     import tensorflow as tf
 
+    # Hard-disable XLA JIT at the graph level too (the env flag + per-model
+    # jit_compile=False are the primary guards; this covers any auto-clustering
+    # path). XLA on this H100/TF build deadlocks ~epoch 3 with '+ptx85' PTX.
+    try:
+        tf.config.optimizer.set_jit(False)
+    except Exception:
+        pass
+
     gpus = tf.config.list_physical_devices("GPU")
     for g in gpus:
         try:
@@ -76,7 +94,36 @@ def setup_gpu(mixed_precision: bool):
     return gpus
 
 
-def train_one(name, ds, tr, va, class_weight, args, log=print):
+def ensure_gpu_or_warn(gpus):
+    """No GPU visible? Do NOT hard-exit. On Akash/Kubernetes a non-zero exit just
+    CrashLoopBackOffs the pod on the SAME node — it does not redeploy elsewhere — so
+    fail-fast turns a flaky provider into an infinite restart loop. Instead: wait a
+    bit (the GPU device plugin can attach a few seconds after the container starts),
+    then if it's still missing, warn loudly and continue. A slow CPU run that finishes
+    and publishes beats a crash loop; close the run and pick another provider."""
+    if gpus:
+        return gpus
+    import tensorflow as tf
+    for _ in range(12):  # ~60s, for a device-plugin race
+        time.sleep(5)
+        gpus = tf.config.list_physical_devices("GPU")
+        if gpus:
+            for g in gpus:
+                try:
+                    tf.config.experimental.set_memory_growth(g, True)
+                except RuntimeError:
+                    pass
+            print(f"[gpu] GPU attached after wait: {[g.name for g in gpus]}", flush=True)
+            return gpus
+    print("=" * 72, flush=True)
+    print("[warn] No CUDA GPU visible after 60s — training on CPU (very slow). If "
+          "this is a GPU lease, the provider didn't expose the GPU; close this run "
+          "and redeploy on another provider.", flush=True)
+    print("=" * 72, flush=True)
+    return gpus
+
+
+def train_one(name, train_set, val_set, class_weight, args, log=print):
     import tensorflow as tf
     from sklearn.metrics import f1_score
 
@@ -84,14 +131,27 @@ def train_one(name, ds, tr, va, class_weight, args, log=print):
 
     builder, supports_finetune = MODELS[name]
     model, input_keys = builder(lr=2e-4 if "image" in name or name == "hybrid" else 1e-3)
-    pool = {"img_input": ds.images, "feature_input": ds.features, "seq_input": ds.sequences}
+    ATTR = {"img_input": "images", "feature_input": "features", "seq_input": "sequences"}
 
-    def inputs(sel):
-        x = {k: pool[k][sel] for k in input_keys}
-        return x if len(x) > 1 else x[input_keys[0]]
+    # Memory-safe input pipeline: images are stored uint8 and normalized to [0,1]
+    # PER BATCH via tf.data, so the full float32 image array is never materialized
+    # — that's what keeps the image/hybrid models inside a Medium tier's RAM. Keras
+    # matches dict keys to Input-layer names, so a dict works for single- and
+    # multi-input models alike.
+    def make_ds(dset, shuffle):
+        feats = {k: getattr(dset, ATTR[k]) for k in input_keys}
+        d = tf.data.Dataset.from_tensor_slices((feats, dset.labels))
+        if "img_input" in input_keys:
+            d = d.map(lambda x, y: ({**x, "img_input": tf.cast(x["img_input"], tf.float32) / 255.0}, y),
+                      num_parallel_calls=tf.data.AUTOTUNE)
+        if shuffle:
+            d = d.shuffle(min(len(dset.labels), 8192), seed=args.seed, reshuffle_each_iteration=True)
+        # drop the partial last batch in training so every step has the same shape
+        # (uniform shape => no graph re-tracing each epoch). Keep all val samples.
+        return d.batch(args.batch_size, drop_remainder=shuffle).prefetch(tf.data.AUTOTUNE)
 
-    y_tr, y_va = ds.labels[tr], ds.labels[va]
-    val_data = (inputs(va), y_va)
+    y_va = val_set.labels
+    train_ds, val_ds = make_ds(train_set, True), make_ds(val_set, False)
     ckpt = Path(args.out_dir) / f"{name}.keras"
     cbs = [
         tf.keras.callbacks.ModelCheckpoint(str(ckpt), monitor="val_accuracy", save_best_only=True, mode="max"),
@@ -101,30 +161,31 @@ def train_one(name, ds, tr, va, class_weight, args, log=print):
 
     log(f"[{name}] params={model.count_params():,} inputs={input_keys}")
     t0 = time.time()
-    h1 = model.fit(inputs(tr), y_tr, validation_data=val_data, epochs=args.epochs,
-                   batch_size=args.batch_size, class_weight=class_weight, callbacks=cbs, verbose=2)
+    h1 = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs,
+                   class_weight=class_weight, callbacks=cbs, verbose=2)
     curves = {k: [float(x) for x in v] for k, v in h1.history.items()}
 
     if args.finetune and supports_finetune:
         log(f"[{name}] fine-tuning backbone @ lr/10")
         model.trainable = True
         model.compile(optimizer=tf.keras.optimizers.Adam(2e-5),
-                      loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-        h2 = model.fit(inputs(tr), y_tr, validation_data=val_data, epochs=max(8, args.epochs // 2),
-                       batch_size=args.batch_size, class_weight=class_weight, callbacks=cbs, verbose=2)
+                      loss="sparse_categorical_crossentropy", metrics=["accuracy"],
+                      jit_compile=False)  # keep XLA off on the 2nd pass too (see models._compile)
+        h2 = model.fit(train_ds, validation_data=val_ds, epochs=max(8, args.epochs // 2),
+                       class_weight=class_weight, callbacks=cbs, verbose=2)
         for k, v in h2.history.items():
             curves.setdefault(k, []).extend(float(x) for x in v)
     train_s = time.time() - t0
 
-    # metrics
-    probs = model.predict(inputs(va), batch_size=256, verbose=0)
+    # metrics (val_ds is unshuffled, so predictions line up with y_va)
+    probs = model.predict(val_ds, verbose=0)
     pred = probs.argmax(1)
     acc = float((pred == y_va).mean())
     macro_f1 = float(f1_score(y_va, pred, average="macro"))
 
     # single-sample forward-pass latency (median; direct call avoids predict() overhead)
-    one = {k: tf.convert_to_tensor(pool[k][va][:1]) for k in input_keys}
-    one = one if len(one) > 1 else one[input_keys[0]]
+    one = {k: (tf.cast(getattr(val_set, ATTR[k])[:1], tf.float32) / 255.0 if k == "img_input"
+               else tf.convert_to_tensor(getattr(val_set, ATTR[k])[:1])) for k in input_keys}
     for _ in range(5):
         model(one, training=False)  # warm
     times = []
@@ -179,10 +240,7 @@ def publish_to_akashtrainer(results, ckpts, curves, args, log=print):
             "train_loss_curve": c.get("loss", []),
         },
         model_path=str(ckpts.get(name)) if ckpts.get(name) else None,
-        hyperparams={
-            "model": name, "epochs": args.epochs, "augment": args.augment,
-            "batch_size": args.batch_size, "finetune": args.finetune,
-        },
+        hyperparams={**vars(args), "model": name},
         extra_files=[str(Path(args.out_dir) / "comparison.md")] if len(results) > 1 else None,
     )
     log(f"[akash] {res}")
@@ -203,13 +261,14 @@ def write_comparison(results, out_dir, log=print):
 
 def main() -> int:
     args = parse_args()
-    setup_gpu(args.mixed_precision)
+    gpus = setup_gpu(args.mixed_precision)
+    gpus = ensure_gpu_or_warn(gpus)  # wait for a late GPU, then warn (never crash-loop)
 
     import tensorflow as tf
     from sklearn.model_selection import train_test_split
     from sklearn.utils.class_weight import compute_class_weight
 
-    from data import CLASSES, FEATURE_DIM, IMG_SIZE, SEQ_CHANNELS, SEQ_LEN, build_dataset
+    from data import CLASSES, FEATURE_DIM, IMG_SIZE, SEQ_CHANNELS, SEQ_LEN, load_raw, build_arrays
     from models import MODELS, APP_MODEL
     from export_tfjs import convert
 
@@ -218,17 +277,23 @@ def main() -> int:
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    ds = build_dataset(args.data_dir, augment=args.augment, seed=args.seed)
-    idx = np.arange(len(ds.labels))
-    tr, va = train_test_split(idx, test_size=args.val_split, random_state=args.seed, stratify=ds.labels)
-    weights = compute_class_weight("balanced", classes=np.arange(len(CLASSES)), y=ds.labels[tr])
+    # Split on the BASE strokes (before augmentation) so augmented copies of a
+    # stroke never straddle train/val — no leakage, honest val metrics.
+    raw = load_raw(args.data_dir)
+    labels = np.asarray([lbl for lbl, _ in raw], dtype=np.int32)
+    base = np.arange(len(raw))
+    tr, va = train_test_split(base, test_size=args.val_split, random_state=args.seed, stratify=labels)
+    train_set = build_arrays([raw[i] for i in tr], augment=args.augment, seed=args.seed)  # augmented
+    val_set = build_arrays([raw[i] for i in va], augment=0, seed=args.seed)                # clean
+    weights = compute_class_weight("balanced", classes=np.arange(len(CLASSES)), y=train_set.labels)
     class_weight = {i: float(w) for i, w in enumerate(weights)}
-    print(f"[data] train={len(tr)} val={len(va)}")
+    print(f"[data] {len(raw)} base strokes -> train {len(tr)} (x{args.augment} aug = "
+          f"{len(train_set.labels)}) / val {len(va)} (clean)")
 
     targets = list(MODELS) if args.model == "all" else [args.model]
     results, ckpts, curves_by, app_ckpt, app_keys = [], {}, {}, None, None
     for name in targets:
-        res, ckpt, keys, curves = train_one(name, ds, tr, va, class_weight, args)
+        res, ckpt, keys, curves = train_one(name, train_set, val_set, class_weight, args)
         results.append(res)
         ckpts[name] = ckpt
         curves_by[name] = curves

@@ -80,7 +80,7 @@ firebase-adminsdk*.json
 
 # Node
 node_modules/
-package-lock.json
+
 
 # Testing
 .coverage
@@ -93,3 +93,8 @@ coverage.xml
 *.tmp
 *.temp
 .cache/
+
+# Markdown: only READMEs are committed
+*.md
+!README.md
+.claude/

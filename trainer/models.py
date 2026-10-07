@@ -30,6 +30,12 @@ def _compile(model: Model, lr: float) -> Model:
         optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
+        # CRITICAL: Keras 3 (TF 2.16+/nvcr) defaults jit_compile="auto", which turns
+        # XLA ON for the train step on GPU — independent of TF_XLA_FLAGS. On this H100
+        # + TF build XLA emits PTX the driver only half-recognizes ('+ptx85') and then
+        # DEADLOCKS (~epoch 3). The models are tiny, so the eager train step is plenty
+        # fast; force XLA off here (the only place that reliably disables it).
+        jit_compile=False,
     )
     return model
 

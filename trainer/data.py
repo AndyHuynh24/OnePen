@@ -143,7 +143,7 @@ def render_stroke(stroke: list[dict], img_size: int = IMG_SIZE, line_width: int 
 
     img = Image.new("RGB", (img_size, img_size), "white")
     if len(pts) == 0:
-        return np.asarray(img, dtype=np.float32) / 255.0
+        return np.asarray(img, dtype=np.uint8)  # uint8 [0,255]; normalized to [0,1] at train time
 
     xs = [p[0] for p in pts]
     ys = [p[1] for p in pts]
@@ -170,7 +170,7 @@ def render_stroke(stroke: list[dict], img_size: int = IMG_SIZE, line_width: int 
     r = line_width / 2.0
     for x, y in path:
         draw.ellipse((x - r, y - r, x + r, y + r), fill="black")
-    return np.asarray(img, dtype=np.float32) / 255.0
+    return np.asarray(img, dtype=np.uint8)  # uint8 [0,255]; normalized to [0,1] at train time
 
 
 def _sample_quadratic(p0, pc, p1, steps: int = 6) -> list[tuple[float, float]]:
@@ -234,7 +234,7 @@ def resample_sequence(stroke: list[dict], seq_len: int = SEQ_LEN) -> np.ndarray:
 # ─────────────────────────────────────────────────────────────────────────────
 @dataclass
 class Dataset:
-    images: np.ndarray     # (N, 96, 96, 3) float32 in [0,1]
+    images: np.ndarray     # (N, 96, 96, 3) uint8 [0,255] — normalized to [0,1] at train time
     features: np.ndarray   # (N, 12) float32
     sequences: np.ndarray  # (N, SEQ_LEN, SEQ_CHANNELS) float32
     labels: np.ndarray     # (N,) int32
@@ -307,15 +307,21 @@ def _parse_json(text: str):
         return None
 
 
-def build_dataset(raw_dir: str, augment: int = 4, seed: int = 42, log=print) -> Dataset:
-    """Load raw strokes → (images, features, labels). `augment` extra copies per
-    sample (0 = originals only)."""
-    rng = np.random.default_rng(seed)
-    raw = list(_iter_raw_samples(raw_dir))
+def load_raw(raw_dir: str, log=print) -> list[tuple[int, list]]:
+    """Load the raw (un-augmented) strokes as (label_idx, points). Splitting on
+    THESE — before augmentation — is what prevents augmented copies of one stroke
+    from leaking across the train/val boundary."""
+    raw = [(CLASS_TO_IDX[label], pts) for label, pts in _iter_raw_samples(raw_dir)]
     log(f"[data] {len(raw)} raw strokes from {raw_dir}")
     if not raw:
         raise SystemExit(f"No usable strokes found under {raw_dir}")
+    return raw
 
+
+def build_arrays(samples: list[tuple[int, list]], augment: int = 4, seed: int = 42) -> Dataset:
+    """Render + (optionally) augment a list of (label_idx, points) into a Dataset.
+    Pass `augment=0` for a clean validation set."""
+    rng = np.random.default_rng(seed)
     images, features, sequences, labels = [], [], [], []
 
     def add(stroke, idx):
@@ -324,18 +330,22 @@ def build_dataset(raw_dir: str, augment: int = 4, seed: int = 42, log=print) -> 
         sequences.append(resample_sequence(stroke))
         labels.append(idx)
 
-    for label, stroke in raw:
-        idx = CLASS_TO_IDX[label]
+    for idx, stroke in samples:
         add(stroke, idx)
         for _ in range(augment):
             add(augment_stroke(stroke, rng), idx)
 
-    ds = Dataset(
-        images=np.asarray(images, dtype=np.float32),
+    return Dataset(
+        images=np.asarray(images, dtype=np.uint8),
         features=np.asarray(features, dtype=np.float32),
         sequences=np.asarray(sequences, dtype=np.float32),
         labels=np.asarray(labels, dtype=np.int32),
     )
+
+
+def build_dataset(raw_dir: str, augment: int = 4, seed: int = 42, log=print) -> Dataset:
+    """Convenience: load + render the whole corpus (used by the EDA notebook)."""
+    ds = build_arrays(load_raw(raw_dir, log), augment=augment, seed=seed)
     counts = {CLASSES[i]: int((ds.labels == i).sum()) for i in range(len(CLASSES))}
     log(f"[data] built {len(ds.labels)} samples (augment x{augment}) — {counts}")
     return ds
