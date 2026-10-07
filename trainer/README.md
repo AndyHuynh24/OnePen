@@ -1,112 +1,112 @@
-# OnePen — stroke classifier trainer
+# trainer
 
-Compact, self-contained pipeline that trains the gesture model the app uses,
-compares it against baselines + candidate architectures, and exports the winner
-as a TensorFlow.js graph-model. No experiment trackers, no config files.
-
-> Full walkthrough (data collection → deploy): **[PIPELINE.md](PIPELINE.md)**.
+Trains the stroke classifier the app uses, compares it with a few other
+architectures, and exports it to TF.js.
 
 ```
-trainer/
-  data.py          raw strokes → 96×96 image + 12-D features + (64×4) sequence
-  models.py        geometric · image · hybrid · tcn · tcn_hybrid
-  train.py         train one model — or sweep all + comparison report   (entry point)
-  export_tfjs.py   Keras → SavedModel → TF.js graph-model
-  convert_data.py  legacy JSON → compact v2 JSONL
-  requirements.txt / Dockerfile / akash-deploy.yaml
+data.py          load strokes, render 96×96 images, 12 features, 64-step sequences, augmentation
+models.py        geometric, image, hybrid, tcn, tcn_hybrid
+train.py         train one model or all of them (entry point)
+export_tfjs.py   Keras -> SavedModel -> TF.js graph model
+convert_data.py  old per-label JSON files -> JSONL
+notebooks/       feature analysis
 ```
 
-## Models
-
-| name | input | role |
-|---|---|---|
-| `geometric` | 12 features | baseline |
-| `image` | 96×96 raster | baseline |
-| `hybrid` | image + features | **app model** (what the browser deploys) |
-| `tcn` | stroke sequence | candidate |
-| `tcn_hybrid` | sequence + features | candidate (usually strongest) |
-
-## What the app model produces
-
-The **hybrid** exports a drop-in replacement for `app-v2/public/tfjs/model.json`,
-with a fixed contract so the browser loads it unchanged:
-
-| | |
-|---|---|
-| inputs | `img_input` `(96,96,3)` in **[0,1]**, `feature_input` `(12,)` raw |
-| output | 8-way softmax: `underline, box, curly, delete, squarebracket, wavybracket, circlebracket, none` |
-| format | TF.js **graph-model** (`tf.loadGraphModel`) |
-
-The 96×96 rasterizer and the 12 features are 1:1 ports of the app's
-`canvas/render/raster.ts` and `modifiers/features.ts`, so training inputs match
-inference inputs exactly.
+Cloud GPU runs use the repo-root `Dockerfile` (see "GPU runs on Akash" below).
 
 ## Data
 
-Two formats are read (mix freely); label must be one of the 8 classes.
+Each sample is one stroke and its label. Labels, in this order (it's the
+model's output order, don't change it): `underline, box, curly, delete,
+squarebracket, wavybracket, circlebracket, none`.
 
-**v2 — JSONL (recommended, default).** One record per line in
-`data/raw_jsonl/<contributor>.jsonl`, points as `[x,y,p]` arrays (~5× smaller):
+`data/raw_jsonl/<contributor>.jsonl`, one stroke per line:
 
 ```json
 {"label":"box","stroke":[[135.0,112.3,0.7],[134.1,114.7,0.7]],"contributor":"Sang","pointer":"pen"}
 ```
 
-**v1 — legacy nested JSON** (`data/raw/<contributor>/*.json`) still loads. Migrate:
+Points are `[x, y, pressure]`. Only `label` and `stroke` are required; other
+fields are ignored. The old format (`data/raw/<contributor>/<label>.json`) still
+loads, and `python convert_data.py` converts it.
 
-```bash
-python convert_data.py --src ../data/raw --out ../data/raw_jsonl
-```
+Right now there are 4,936 strokes from 5 people. More variety (size, speed,
+slant, pen vs finger, different people) helps more than more of the same, and
+`none` needs plenty of ordinary writing so the model learns to leave it alone.
 
-## Run locally
+## Inputs
+
+- image: the stroke drawn at 96×96, line width 3, stretched to fill
+- features: 12 numbers (closure, compactness, aspect ratio, edge fraction, …)
+- sequence: 64 points resampled along the path, `[x, y, dx, dy]` (TCN models only)
+
+The renderer and the features are the same code as the app's
+`src/canvas/render/raster.ts` and `src/modifiers/features.ts`, ported to Python.
+If you change one side, change the other.
+
+Augmentation jitters the raw points (±8° rotation, 0.85–1.2× scale per axis,
+about 1 px of noise), so the image and features stay consistent. The
+train/validation split happens before augmentation, so copies of one stroke
+never end up on both sides.
+
+## Models
+
+| name | input | |
+|---|---|---|
+| geometric | features | baseline |
+| image | image | baseline (MobileNetV3-Small) |
+| hybrid | image + features | what the app ships |
+| tcn | sequence | candidate |
+| tcn_hybrid | sequence + features | candidate |
+
+Only `hybrid` matches what the app feeds the model (`img_input` 96×96×3 in
+[0,1], `feature_input` 12 → 8-way softmax). Shipping a TCN would mean changing
+`predict.ts` to send the sequence too.
+
+## Running
 
 ```bash
 cd trainer
-pip install -r requirements.txt          # Python 3.10–3.12; TF 2.19 + tfjs 4.22
+pip install -r requirements.txt     # Python 3.10–3.12, TF 2.19, tfjs 4.22
 
-python train.py --model hybrid --finetune        # train + tfjs-export the app model
-python train.py --model all --augment 5 --finetune   # sweep → out/comparison.md
+python train.py --model hybrid --finetune      # the app model
+python train.py --model all --augment 5        # everything, plus out/comparison.md
 ```
 
-Outputs in `out/`: `<model>.keras`, `comparison.md`/`.json` (sweep), and for the
-app model `tfjs/` + `labels.json`. GPU is used automatically; add
-`--mixed-precision` to speed it up. Other flags: `--epochs 40 --batch-size 64
---augment 5 --quantize uint16`.
+Defaults: `--epochs 40 --batch-size 64 --augment 4 --val-split 0.15 --quantize uint16`.
+`--finetune` adds a second, low learning-rate pass with the CNN unfrozen
+(image and hybrid). `--mixed-precision` uses float16 on a GPU.
 
-**Deploying to the app is explicit** (so a dev run never clobbers the live model):
+Output goes to `out/`: a `.keras` file per model, `comparison.md` / `.json`
+when several models ran (accuracy, macro-F1, size, CPU latency), and for the
+hybrid `tfjs/` + `labels.json`.
+
+## Putting a model in the app
+
+Nothing is copied into the app unless you ask for it:
 
 ```bash
 python train.py --model hybrid --finetune --app-tfjs-dir ../app-v2/public/tfjs
 ```
 
-## Run the sweep on cloud GPU (AkashTrainer)
+Reload the app and it loads the new `/tfjs/model.json`.
 
-Training runs through **AkashTrainer** — paste this repo's URL, it builds the
-repo-root `Dockerfile` and runs the sweep. `trainer/train.py` calls
-`akash_train.publish_results()`, so every run lands on the sweep leaderboard
-(scalars = sortable columns, curves = charts, hyperparams = parallel-coords).
+## GPU runs on Akash
 
-In AkashTrainer's **/sweep** wizard:
-
-| field | value |
-|---|---|
-| Repo URL | this GitHub repo |
-| Base command | `python3 trainer/train.py --no-export` |
-| Search space | param `--model` ∈ `geometric, image, hybrid, tcn, tcn_hybrid` |
-| Strategy | Grid or Manual → one GPU lease per model, all compared on the leaderboard |
-
-Each lease trains one model and pushes its metrics + best `.keras` to a
-`trained-output/…` branch. The v2 dataset is baked into the image — no upload.
-
-**Local GPU** (same root image):
+The repo-root `Dockerfile` bakes in the code and `data/raw_jsonl`, so rebuild
+and push after any change (Akash hosts are x86):
 
 ```bash
-docker build -t onepen-trainer .          # build from repo root
-docker run --gpus all -v "$PWD/out:/output" \
-  -e TRAIN_CMD="python3 trainer/train.py --model all --no-export --data-dir data/raw_jsonl --out-dir /output" \
-  onepen-trainer
+docker buildx build --platform linux/amd64 -t andyhuynh24/onepen-trainer:v2 --push .
 ```
 
-> The browser (`hybrid`) TF.js model is exported **locally**, not on the cloud
-> image (`--no-export` — `tensorflowjs` isn't in the CUDA base). Deploy it with
-> `python train.py --model hybrid --finetune --app-tfjs-dir ../app-v2/public/tfjs`.
+In AkashTrainer's sweep page use that image, base command
+`python3 trainer/train.py --no-export --epochs 15`, and sweep `--model` over the
+five models. Each run pushes its metrics and best `.keras` to a
+`trained-output/...` branch via `akash_train.publish_results()`. The image has
+no `tensorflowjs`, so export the app model locally (above).
+
+Why the Dockerfile looks the way it does: the nvcr base is the one that actually
+sees the GPU on Akash; oneDNN off avoids a LayerNorm crash on GPU; XLA off avoids
+a hang around epoch 2–3 on H100s; and the container sleeps after a successful
+run because Akash restarts anything that exits.
