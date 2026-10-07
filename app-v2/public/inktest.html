@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Ink latency test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fdfaf4; touch-action: none; }
+  #c { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+  #hud {
+    position: fixed; left: 8px; top: 8px; z-index: 10;
+    font: 13px/1.4 ui-monospace, monospace; white-space: pre;
+    background: rgba(0,0,0,.72); color: #1bff1b; padding: 7px 10px; border-radius: 6px;
+    pointer-events: none;
+  }
+  #ctrls { position: fixed; right: 8px; top: 8px; z-index: 10; display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: 13px ui-monospace, monospace; padding: 8px 12px; border: 0; border-radius: 6px;
+           background: #1f1d1c; color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="ctrls">
+  <button id="bMode">mode: incremental</button>
+  <button id="bDpr">dpr: 1.5</button>
+  <button id="bDesync">desync: off</button>
+  <button id="bClear">clear</button>
+</div>
+<script>
+(() => {
+  const c = document.getElementById('c');
+  const hud = document.getElementById('hud');
+
+  // ── tunables toggled by the buttons ──────────────────────────────────────
+  let mode = 'incremental';   // 'incremental' (draw only new segment, no clear)
+                              // 'redraw'      (clearRect + redraw whole stroke)
+  let dprMode = 1.5;          // 1, 1.5, or 'native'
+  let desync = false;         // desynchronized canvas context?
+
+  let ctx, DPR, rect = { left: 0, top: 0 };
+  function makeCtx() {
+    DPR = dprMode === 'native' ? (window.devicePixelRatio || 1) : dprMode;
+    ctx = c.getContext('2d', { desynchronized: desync });
+    resize();
+  }
+  function resize() {
+    c.width = Math.floor(innerWidth * DPR);
+    c.height = Math.floor(innerHeight * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1f1d1c'; ctx.lineWidth = 2.2;
+    rect = c.getBoundingClientRect(); // map clientX/Y → canvas-local coords
+  }
+  const px = (e) => e.clientX - rect.left;
+  const py = (e) => e.clientY - rect.top;
+
+  // ── drawing state ────────────────────────────────────────────────────────
+  let drawing = false;
+  let pts = [];
+  let drawnTo = 0; // index up to which we've already painted (incremental mode)
+
+  function redrawWhole() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    ctx.stroke();
+  }
+  function paintIncrementalTail() {
+    // draw only the newest segment(s) — no clear, so the GPU only re-uploads the
+    // small dirty rect around the new ink (cheapest possible per-frame cost).
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[Math.max(0, drawnTo - 1)].x, pts[Math.max(0, drawnTo - 1)].y);
+    for (let i = Math.max(1, drawnTo); i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+    drawnTo = pts.length;
+  }
+
+  // ── diagnostics ──────────────────────────────────────────────────────────
+  let evCount = 0, coalescedLast = 0, rawFired = false, ptrType = '?';
+
+  // ── pointer handlers ─────────────────────────────────────────────────────
+  function down(e) {
+    rect = c.getBoundingClientRect();
+    drawing = true; pts = [{ x: px(e), y: py(e) }]; drawnTo = 1;
+    ptrType = e.pointerType;
+    if (mode === 'incremental') { ctx.beginPath(); }
+  }
+  function move(e) {
+    if (!drawing) return;
+    evCount++;
+    const co = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    coalescedLast = co.length;
+    const src = co.length ? co : [e];
+    for (const ev of src) pts.push({ x: px(ev), y: py(ev) });
+    if (mode === 'incremental') paintIncrementalTail(); else redrawWhole();
+  }
+  function up() { drawing = false; }
+
+  c.addEventListener('pointerdown', down);
+  c.addEventListener('pointermove', move);
+  c.addEventListener('pointerrawupdate', (e) => { rawFired = true; move(e); });
+  c.addEventListener('pointerup', up);
+  c.addEventListener('pointercancel', up);
+  c.addEventListener('pointerleave', up);
+  window.addEventListener('resize', resize);
+
+  // ── fps + ev/s loop ──────────────────────────────────────────────────────
+  let frames = 0, last = performance.now(), fps = 0, eps = 0;
+  function loop(now) {
+    frames++;
+    const dt = now - last;
+    if (dt >= 500) {
+      fps = Math.round((frames * 1000) / dt);
+      eps = Math.round((evCount * 1000) / dt);
+      frames = 0; evCount = 0; last = now;
+      hud.textContent =
+        `fps ${fps}   ev/s ${eps}\n` +
+        `coalesced/ev ${coalescedLast}\n` +
+        `pointer ${ptrType}   raw ${rawFired ? 'YES' : 'no'}\n` +
+        `mode ${mode}   dpr ${DPR}   desync ${desync ? 'on' : 'off'}`;
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ── buttons ──────────────────────────────────────────────────────────────
+  document.getElementById('bMode').onclick = (ev) => {
+    mode = mode === 'incremental' ? 'redraw' : 'incremental';
+    ev.target.textContent = 'mode: ' + mode;
+  };
+  document.getElementById('bDpr').onclick = (ev) => {
+    dprMode = dprMode === 1.5 ? 1 : dprMode === 1 ? 'native' : 1.5;
+    ev.target.textContent = 'dpr: ' + dprMode;
+    makeCtx();
+  };
+  document.getElementById('bDesync').onclick = (ev) => {
+    desync = !desync;
+    ev.target.textContent = 'desync: ' + (desync ? 'on' : 'off');
+    makeCtx(); // recreate context with the new hint
+  };
+  document.getElementById('bClear').onclick = () => { pts = []; drawnTo = 0; ctx.clearRect(0,0,innerWidth,innerHeight); };
+
+  makeCtx();
+})();
+</script>
+</body>
+</html>

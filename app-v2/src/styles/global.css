@@ -1,0 +1,162 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   OnePen — design tokens
+   Paper-feel light theme by default, crisp dark theme on toggle.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme='light'] {
+  /* surface */
+  --surface-bg: #fdfaf4;              /* warm paper */
+  --surface-panel: #ffffff;
+  --surface-raised: #f6f1e8;
+  --surface-sunken: #efe7d8;
+  --surface-fg: #1a1714;
+  --surface-fg-muted: #6a635a;
+  --surface-fg-subtle: #9b9388;
+
+  /* canvas (drawing surface) */
+  --canvas-bg: #fbf6ec;
+  --canvas-grid: #d8cdb4;
+  --canvas-ink: #1a1714;
+
+  /* notebook page (inside an opened notebook) — always light/cream, so it
+     carries its own dark ink tokens independent of the surface theme */
+  --page: #fffdf8;
+  --page-line: rgba(26, 23, 20, 0.05);
+  --page-ink: #2a2520;
+  --page-ink-muted: #7a7064;
+  --page-ink-subtle: #a89e90;
+  --page-raised: rgba(26, 23, 20, 0.05);
+
+  /* accents — muted slate blue (leans gray), distinctive without the loud cobalt */
+  --accent: #5b7493;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(91, 116, 147, 0.15);
+
+  /* semantic */
+  --success: #2f9e6a;
+  --warning: #d9a02c;
+  --danger: #d04848;
+
+  /* lines & borders */
+  --border: rgba(26, 23, 20, 0.1);
+  --border-strong: rgba(26, 23, 20, 0.22);
+  --divider: rgba(26, 23, 20, 0.06);
+
+  /* shadow */
+  --shadow-sm: 0 1px 2px rgba(26, 23, 20, 0.06);
+  --shadow-md: 0 4px 12px rgba(26, 23, 20, 0.08), 0 1px 3px rgba(26, 23, 20, 0.05);
+  --shadow-lg: 0 12px 32px rgba(26, 23, 20, 0.12), 0 4px 8px rgba(26, 23, 20, 0.06);
+
+  /* scrims — backdrop dimming behind side panels (soft) and modal dialogs (strong) */
+  --scrim: rgba(20, 16, 12, 0.32);
+  --scrim-strong: rgba(20, 16, 12, 0.5);
+
+  /* radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
+
+  /* type */
+  --font-display: 'Mali', system-ui, sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+[data-theme='dark'] {
+  --surface-bg: #1f1d1c;
+  --surface-panel: #28252a;
+  --surface-raised: #2f2c32;
+  --surface-sunken: #1a1819;
+  --surface-fg: #f1ece1;
+  --surface-fg-muted: #a6a097;
+  --surface-fg-subtle: #6e6962;
+
+  --canvas-bg: #1c1a1a;
+  --canvas-grid: #153b57;
+  --canvas-ink: #ffffff;
+
+  --page: #efe9dd;
+  --page-line: rgba(26, 23, 20, 0.06);
+  --page-ink: #2a2520;
+  --page-ink-muted: #7a7064;
+  --page-ink-subtle: #a89e90;
+  --page-raised: rgba(26, 23, 20, 0.06);
+
+  --accent: #92a8c6;
+  --accent-fg: #11161d;
+  --accent-soft: rgba(146, 168, 198, 0.18);
+
+  --success: #4cc28b;
+  --warning: #e5b74e;
+  --danger: #e26a6a;
+
+  --border: rgba(241, 236, 225, 0.08);
+  --border-strong: rgba(241, 236, 225, 0.18);
+  --divider: rgba(241, 236, 225, 0.05);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.5);
+
+  --scrim: rgba(0, 0, 0, 0.45);
+  --scrim-strong: rgba(0, 0, 0, 0.62);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reset
+   ────────────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-bg);
+  color: var(--surface-fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

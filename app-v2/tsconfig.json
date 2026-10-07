@@ -1,0 +1,38 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "skipLibCheck": true,
+    "useDefineForClassFields": true,
+    "baseUrl": ".",
+    "paths": {
+      "$lib/*": ["src/lib/*"],
+      "$config/*": ["src/config/*"],
+      "$types/*": ["src/types/*"],
+      "$stores/*": ["src/stores/*"],
+      "$canvas/*": ["src/canvas/*"],
+      "$input/*": ["src/input/*"],
+      "$tools/*": ["src/tools/*"],
+      "$modifiers/*": ["src/modifiers/*"],
+      "$persistence/*": ["src/persistence/*"],
+      "$auth/*": ["src/auth/*"],
+      "$ml/*": ["src/ml/*"],
+      "$components/*": ["src/components/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
