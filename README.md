@@ -27,7 +27,9 @@ equation.
   <img src="app-v2/public/assets/circleBracket.png" width="70" alt="circle bracket" />
 </p>
 
-Demo: https://github.com/user-attachments/assets/a4335d94-51ff-4345-89c7-b58fddd72268
+Demo: 
+
+https://github.com/user-attachments/assets/9f11bcc9-8307-4f34-a4db-71970a35c88d
 
 ## How it works
 
