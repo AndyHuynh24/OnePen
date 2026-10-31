@@ -3,6 +3,7 @@
   import { CanvasEngine } from '$canvas/engine';
   import { attachPointer } from '$input/pointer';
   import { attachWheel } from '$input/wheel';
+  import { createScroller } from '$input/scroller';
   import { note } from '$stores/note.svelte';
   import { viewport } from '$stores/viewport.svelte';
   import { tools } from '$stores/tools.svelte';
@@ -46,8 +47,10 @@
     engine.gridStyle = grid.style;
     engine.gridSize = grid.size;
 
-    const pointer = attachPointer(liveEl, engine);
-    const wheel = attachWheel(liveEl, engine);
+    const scroller = createScroller(engine);
+    engine.onFrame = scroller.step;
+    const pointer = attachPointer(liveEl, engine, scroller);
+    const wheel = attachWheel(liveEl, engine, scroller);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -109,7 +112,7 @@
   $effect(() => {
     void viewport.scale;
     void viewport.offset;
-    untrack(() => engine?.invalidateAll());
+    untrack(() => engine?.onViewportChange());
   });
 
   // Feed the content extent (all four edges) to the viewport so panning is

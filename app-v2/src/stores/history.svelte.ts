@@ -159,6 +159,25 @@ function remember(g: Group, clone: Group) {
   });
 }
 
+// The first action on a note needs a clone of every group, which on a big note
+// froze the pen at the first pen-up. Fill the cache in short slices as soon as the
+// note opens instead. If the pen beats it, only the remainder is left to do.
+function warmCache() {
+  setTimeout(() => {
+    const session = note.session;
+    const groups = note.groups;
+    let i = 0;
+    const slice = () => {
+      if (note.session !== session) return;
+      const end = performance.now() + 3;
+      while (i < groups.length && performance.now() < end) cloneOf(groups[i++]);
+      if (i < groups.length) setTimeout(slice, 0);
+    };
+    slice();
+  }, 0);
+}
+note.onOpen(warmCache);
+
 interface State {
   map: Map<number, Group>;
   order: number[];

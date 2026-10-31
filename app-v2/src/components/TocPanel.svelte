@@ -17,7 +17,7 @@
     if (ui.tocOpen) anchors = buildToc();
   });
 
-  const PREVIEW_H = 56; // canvas display height (px)
+  const PREVIEW_H = 48; // canvas display height (px)
   const SCALE_CAP = 2.6;
 
   // Crisp vector render. Scales by HEIGHT only, so a long title keeps its natural
@@ -31,7 +31,7 @@
       const dpr = window.devicePixelRatio || 1;
       const cssH = PREVIEW_H;
       const padX = 10;
-      const padY = 8;
+      const padY = 7;
       if (!b || b.w <= 0 || b.h <= 0) {
         node.style.width = '0px';
         return;
@@ -160,7 +160,7 @@
   @keyframes fade { from { opacity: 0; } }
   .panel {
     position: fixed; top: 0; left: 0; bottom: 0;
-    width: min(360px, 90vw);
+    width: min(460px, 90vw);
     z-index: 120;
     /* same frosted-glass treatment as the notebook shelf, for consistency */
     background: color-mix(in oklab, var(--surface-panel) 96%, transparent);
@@ -202,7 +202,7 @@
   }
   /* the preview canvas keeps the title's natural width; long titles scroll here */
   .scroll {
-    flex: 1; min-width: 0; height: 56px;
+    flex: 1; min-width: 0; height: 48px;
     overflow-x: auto; overflow-y: hidden;
     background: var(--surface-bg);
     border: 1px solid var(--divider);
@@ -211,5 +211,5 @@
   }
   .scroll::-webkit-scrollbar { height: 5px; }
   .scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-  .preview { height: 56px; display: block; }
+  .preview { height: 48px; display: block; }
 </style>

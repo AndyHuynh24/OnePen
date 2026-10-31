@@ -103,6 +103,10 @@ export class CanvasEngine {
   private _zoomSnap: HTMLCanvasElement | null = null;
   private _snapView: { scale: number; offX: number; offY: number } | null = null;
 
+  /** Runs first in every frame, so a scroll and its paint land together. Returns
+   *  true to keep frames coming. */
+  onFrame: ((t: number) => boolean) | null = null;
+
   // grid config (mutable so settings can update without re-creating engine)
   gridSize = 58;
   gridColor = 'rgba(21,59,87, 1)';
@@ -149,6 +153,14 @@ export class CanvasEngine {
     if (this.liveBuf) setupHiDPICanvas(this.liveBuf, w, h);
     viewport.setScreenSize(w, h);
     this._lastDraw.groups = null; // backing stores were cleared → next draw is full
+    this.invalidateAll();
+  }
+
+  /** The viewport changed. A scroll has usually been painted by now (it moves
+   *  inside the frame); marking it dirty again would repaint the page for nothing. */
+  onViewportChange(): void {
+    const ld = this._lastDraw;
+    if (ld.scale === viewport.scale && ld.offX === viewport.offset.x && ld.offY === viewport.offset.y) return;
     this.invalidateAll();
   }
 
@@ -306,10 +318,17 @@ export class CanvasEngine {
 
   private scheduleFrame(): void {
     if (this.rafId !== null) return;
-    this.rafId = requestAnimationFrame(() => {
+    this.rafId = requestAnimationFrame((t) => {
       this.rafId = null;
+      const moving = this.onFrame?.(t) ?? false;
       this.render();
+      if (moving) this.scheduleFrame();
     });
+  }
+
+  /** Ask for a frame even though nothing is dirty yet (see onFrame). */
+  requestFrame(): void {
+    this.scheduleFrame();
   }
 
   private render(): void {

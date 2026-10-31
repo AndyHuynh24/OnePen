@@ -23,7 +23,7 @@
     renameFolder,
     renameNote,
   } from '$persistence/notes';
-  import { flushNow } from '$persistence/autosave';
+  import { flushNow, withSavesPaused } from '$persistence/autosave';
   import { deleteSetting, setSetting, SETTING_KEYS } from '$persistence/settings';
   import { colorAt, PALETTE_SIZE } from '$lib/notebookColor';
   import { notebookColors } from '$stores/notebookColors.svelte';
@@ -90,11 +90,13 @@
     });
     if (!ok) return;
     const openNoteInFolder = note.path?.startsWith(`${name}/`);
-    await deleteFolder(name);
+    await withSavesPaused(async () => {
+      await deleteFolder(name);
+      if (openNoteInFolder) note.close();
+    });
     notebookColors.clearOverride(name);
     if (expanded === name) expanded = null;
     if (openNoteInFolder) {
-      note.close();
       history.clear();
       await deleteSetting(SETTING_KEYS.LAST_SAVE_NOTE);
     }
@@ -111,12 +113,15 @@
       confirmText: 'Rename',
     });
     if (!next || next === current) return;
-    const newPath = await renameNote(path, next);
-    if (note.path === path) {
+    const isOpen = note.path === path;
+    if (isOpen && note.dirty) await flushNow();
+    const newPath = await withSavesPaused(async () => {
+      const renamed = await renameNote(path, next);
       // keep the open note pointed at its new path
-      note.set(note.groups, newPath, note.isSummary);
-      await setSetting(SETTING_KEYS.LAST_SAVE_NOTE, { path: newPath });
-    }
+      if (isOpen) note.set(note.groups, renamed, note.isSummary);
+      return renamed;
+    });
+    if (isOpen) await setSetting(SETTING_KEYS.LAST_SAVE_NOTE, { path: newPath });
     notebook.setNotesInFolder(await listNotesInFolder(folder));
     await refreshFolders();
   }
@@ -131,9 +136,12 @@
       danger: true,
     });
     if (!ok) return;
-    await deleteNote(path);
-    if (note.path === path) {
-      note.close();
+    const isOpen = note.path === path;
+    await withSavesPaused(async () => {
+      await deleteNote(path);
+      if (isOpen) note.close();
+    });
+    if (isOpen) {
       history.clear();
       await deleteSetting(SETTING_KEYS.LAST_SAVE_NOTE);
     }

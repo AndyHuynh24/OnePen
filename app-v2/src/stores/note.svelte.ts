@@ -20,6 +20,10 @@ let _idCounter = $state<number>(0);
 // Mutation generation (plain, non-reactive): bumped by every write path, so
 // history can tell "nothing changed since my last snapshot" in O(1).
 let _gen = 0;
+// Bumped whenever a different note (or path) opens, so a save in progress can tell
+// the note it started on has gone.
+let _session = 0;
+let _onOpen: (() => void) | null = null;
 
 export const note = {
   get groups() {
@@ -40,8 +44,12 @@ export const note = {
   get version() {
     return _version;
   },
+  get session() {
+    return _session;
+  },
 
   set(groups: Group[], path: string, isSummary = false) {
+    _session++;
     _gen++;
     _version = _gen;
     _groups = groups;
@@ -49,10 +57,17 @@ export const note = {
     _isSummary = isSummary;
     _dirty = false;
     _idCounter = groups.reduce((m, g) => Math.max(m, g.id), 0);
+    _onOpen?.();
+  },
+
+  /** Run `fn` whenever a note opens. */
+  onOpen(fn: () => void) {
+    _onOpen = fn;
   },
 
   /** Close the current note (e.g. after it's deleted) — blank canvas, no path. */
   close() {
+    _session++;
     _gen++;
     _version = _gen;
     _groups = [];
@@ -136,5 +151,10 @@ export const note = {
   /** Plain (non-proxy) deep copy of the current groups — for persistence. */
   snapshot(): Group[] {
     return $state.snapshot(_groups) as Group[];
+  },
+
+  /** Same, for one group. */
+  snapshotGroup(g: Group): Group {
+    return $state.snapshot(g) as Group;
   },
 };

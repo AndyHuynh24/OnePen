@@ -25,9 +25,12 @@ export const CONFIG = {
   WIDE_ENOUGH_HEIGHT: 52,
   MOVEMENT_THRESHOLD: 4,
 
-  // momentum scrolling
-  FRICTION: 0.92,
-  MIN_VELOCITY: 0.3,
+  // scrolling (see input/scroller.ts)
+  SCROLL_FOLLOW_MS: 20, // how tightly the view follows a finger / trackpad
+  SCROLL_WHEEL_MS: 70, // glide of a mouse wheel notch
+  SCROLL_FLICK_MS: 420, // momentum time constant (higher = coasts further)
+  SCROLL_FLICK_WINDOW_MS: 100, // movement before lift-off that sets flick speed
+  SCROLL_FLICK_MIN: 0.02, // px/ms; slower than this, momentum stops
 
   // eraser
   DEFAULT_ERASER_SIZE: 20,
@@ -77,9 +80,11 @@ export const CONFIG = {
     COLORS: ['#feff9c', '#ffb3ba', '#bafca6', '#a6e3fc', '#ffd6a6'],
   },
 
-  // autosave (debounced + idle-aware, see persistence/autosave.ts)
+  // autosave (debounced + idle-aware, see persistence/autosave.ts). MAX_WAIT keeps
+  // steady writing with no long pause from going unsaved.
   AUTOSAVE_IDLE_MS: 1500,
   AUTOSAVE_DEBOUNCE_MS: 1500,
+  AUTOSAVE_MAX_WAIT_MS: 5000,
 
   // math solver (Pix2Text + latex2sympy2/SymPy backend — /math-server).
   // Priority:
