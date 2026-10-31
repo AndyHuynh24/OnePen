@@ -4,15 +4,15 @@
 //   touch       : 1 finger pan (+ momentum) · 2 finger pinch-zoom + tap-to-undo
 //   any         : drag a move/paste selection when one is active
 //
-// Specs (friction, min-velocity, tap thresholds, pinch sensitivity) are ported
-// from the original; zoom is anchored to the cursor/pinch-midpoint (a UX
+// Specs (tap thresholds, pinch sensitivity) are ported from the original; zoom is anchored to the cursor/pinch-midpoint (a UX
 // improvement over the original's origin-anchored zoom) and pan is free 2D with
-// momentum rather than axis-locked.
+// momentum (input/scroller.ts) rather than axis-locked.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { APP_MODE } from '$config/strokeTypes';
 import { CONFIG } from '$config/constants';
 import { viewport } from '$stores/viewport.svelte';
+import type { Scroller } from './scroller';
 import { ui } from '$stores/ui.svelte';
 import { history } from '$stores/history.svelte';
 import { draw } from '$stores/draw.svelte';
@@ -61,7 +61,11 @@ interface TouchInfo {
   startTime: number;
 }
 
-export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: () => void } {
+export function attachPointer(
+  el: HTMLElement,
+  engine: CanvasEngine,
+  scroller: Scroller,
+): { detach: () => void } {
   // ── pen / mouse single-pointer state ──────────────────────────────────────
   let activePointerId: number | null = null;
   let mode: PenMode = null;
@@ -97,10 +101,6 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
   const originObserver = new ResizeObserver(readOrigin);
   originObserver.observe(el);
 
-  // momentum
-  let vel = { x: 0, y: 0 };
-  let panVelTime = 0;
-  let momentumRAF: number | null = null;
 
   // ── touch multi-pointer state ─────────────────────────────────────────────
   const touches = new Map<number, TouchInfo>();
@@ -424,38 +424,6 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
     mediaMoved = false;
   }
 
-  // ── momentum ───────────────────────────────────────────────────────────────
-  function cancelMomentum() {
-    if (momentumRAF !== null) {
-      cancelAnimationFrame(momentumRAF);
-      momentumRAF = null;
-    }
-  }
-  function startMomentum() {
-    if (Math.abs(vel.x) < CONFIG.MIN_VELOCITY && Math.abs(vel.y) < CONFIG.MIN_VELOCITY) return;
-    cancelMomentum();
-    // `vel` is in offset-units per 16ms frame. Decay + displacement are scaled
-    // by actual elapsed time so momentum feels identical at 30/60/120Hz.
-    let lastT = performance.now();
-    const step = () => {
-      const now = performance.now();
-      const f = Math.min((now - lastT) / 16, 3); // frames elapsed (clamped after stalls)
-      lastT = now;
-      const decay = Math.pow(CONFIG.FRICTION, f);
-      vel.x *= decay;
-      vel.y *= decay;
-      if (Math.abs(vel.x) < CONFIG.MIN_VELOCITY && Math.abs(vel.y) < CONFIG.MIN_VELOCITY) {
-        momentumRAF = null;
-        return;
-      }
-      viewport.pan(vel.x * f, vel.y * f);
-      scrollSignal.pingScroll();
-      engine.invalidateAll();
-      momentumRAF = requestAnimationFrame(step);
-    };
-    momentumRAF = requestAnimationFrame(step);
-  }
-
   // ── hold → toolbox ──────────────────────────────────────────────────────────
   function clearHold() {
     if (holdTimer !== null) {
@@ -619,15 +587,13 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
     armHold(s);
   }
   function beginPan(ev: PointerEvent) {
-    cancelMomentum();
+    scroller.stop();
     activePointerId = ev.pointerId;
     el.setPointerCapture(ev.pointerId);
     mode = 'pan';
     ui.setMode(APP_MODE.PANNING);
     const s = xy(ev);
     panLast = s;
-    vel = { x: 0, y: 0 };
-    panVelTime = performance.now();
   }
   function beginErase(ev: PointerEvent) {
     activePointerId = ev.pointerId;
@@ -663,7 +629,7 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
   // ─────────────────────────────────────────────────────────────────────────────
   function onDown(ev: PointerEvent) {
     noteActivity();
-    cancelMomentum();
+    scroller.stop();
     mediaTapCandidate = null;
     mathTapCandidate = null;
     if (toolbox.isOpen && ev.pointerType !== 'touch') {
@@ -819,18 +785,8 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
       return;
     }
     if (mode === 'pan' && panLast) {
-      const dxOff = -(s.x - panLast.x) / viewport.scale;
-      const dyOff = -(s.y - panLast.y) / viewport.scale;
-      viewport.pan(dxOff, dyOff);
-      const now = performance.now();
-      const dt = now - panVelTime;
-      if (dt > 0) {
-        vel = { x: dxOff / dt * 16, y: dyOff / dt * 16 };
-        panVelTime = now;
-      }
+      scroller.drag(panLast.x - s.x, panLast.y - s.y, ev.timeStamp);
       panLast = s;
-      scrollSignal.pingScroll();
-      engine.invalidateAll();
     }
   }
 
@@ -898,7 +854,7 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
       // user can re-adjust; the paste commits only on a tap OUTSIDE the box
       engine.invalidateLive();
     } else if (mode === 'pan') {
-      startMomentum();
+      scroller.release(ev.timeStamp);
     }
 
     endPointer(ev);
@@ -1006,7 +962,7 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
   // ── touch (multi-pointer) ────────────────────────────────────────────────────
   function onTouchDown(ev: PointerEvent) {
     if (isPalmTouch(ev) || isInPenCooldown()) return;
-    cancelMomentum();
+    scroller.stop();
     mediaTapCandidate = null;
     mathTapCandidate = null;
     const s = xy(ev);
@@ -1068,8 +1024,6 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
       panAxis = null;
       panCommitted = false;
       panLast = s;
-      vel = { x: 0, y: 0 };
-      panVelTime = performance.now();
     } else if (touches.size === 2) {
       // upgrade to pinch — cancel any single-finger pan + pending media tap
       touchGesture = 'pinch';
@@ -1166,20 +1120,10 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
           else panAxis = 'free';
         }
       }
-      let dxOff = -(s.x - panLast.x) / viewport.scale;
-      let dyOff = -(s.y - panLast.y) / viewport.scale;
-      if (panAxis === 'x') dyOff = 0;
-      else if (panAxis === 'y') dxOff = 0;
-      viewport.pan(dxOff, dyOff);
-      const now = performance.now();
-      const dt = now - panVelTime;
-      if (dt > 0) {
-        vel = { x: dxOff / dt * 16, y: dyOff / dt * 16 };
-        panVelTime = now;
-      }
+      const dx = panAxis === 'y' ? 0 : panLast.x - s.x;
+      const dy = panAxis === 'x' ? 0 : panLast.y - s.y;
+      scroller.drag(dx, dy, ev.timeStamp);
       panLast = s;
-      scrollSignal.pingScroll();
-      engine.invalidateAll();
       ev.preventDefault();
     }
   }
@@ -1241,8 +1185,6 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
         panAxis = null;
         panCommitted = true; // already mid-gesture after a pinch — no deadzone
         panLast = { x: only.x, y: only.y };
-        vel = { x: 0, y: 0 };
-        panVelTime = performance.now();
         tapStartTime = 0;
       }
       return;
@@ -1253,7 +1195,7 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
       // a genuinely stationary tap on locked media → double-tap-to-edit; any
       // real scroll movement (>6px) is treated as a pan, never a media tap
       if (mediaTapCandidate !== null && tapMovement < 6) handleMediaTap(mediaTapCandidate);
-      else startMomentum();
+      else scroller.release(ev.timeStamp);
     }
   }
 
@@ -1303,7 +1245,7 @@ export function attachPointer(el: HTMLElement, engine: CanvasEngine): { detach: 
   return {
     detach() {
       clearHold();
-      cancelMomentum();
+      scroller.stop();
       originObserver.disconnect();
       el.removeEventListener('contextmenu', onContextMenu);
       el.removeEventListener('touchstart', onTouchStartGuard);

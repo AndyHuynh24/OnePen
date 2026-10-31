@@ -6,20 +6,26 @@
 import { CONFIG } from '$config/constants';
 import { viewport } from '$stores/viewport.svelte';
 import type { CanvasEngine } from '$canvas/engine';
+import type { Scroller } from './scroller';
 import { screenToWorld } from '$canvas/transform';
 
 const ZOOM_SENSITIVITY = 0.0015;
+const NOTCH_PX = 50;
 
-export function attachWheel(el: HTMLElement, engine: CanvasEngine): { detach: () => void } {
+export function attachWheel(
+  el: HTMLElement,
+  engine: CanvasEngine,
+  scroller: Scroller,
+): { detach: () => void } {
   function onWheel(ev: WheelEvent) {
     ev.preventDefault();
 
-    const rect = el.getBoundingClientRect();
-    const sx = ev.clientX - rect.left;
-    const sy = ev.clientY - rect.top;
-
     // ── zoom: cmd/ctrl + wheel anchors zoom to cursor position
     if (ev.ctrlKey || ev.metaKey) {
+      scroller.stop();
+      const rect = el.getBoundingClientRect();
+      const sx = ev.clientX - rect.left;
+      const sy = ev.clientY - rect.top;
       const oldScale = viewport.scale;
       const factor = Math.exp(-ev.deltaY * ZOOM_SENSITIVITY);
       const newScale = Math.max(
@@ -56,8 +62,13 @@ export function attachWheel(el: HTMLElement, engine: CanvasEngine): { detach: ()
       dy *= 16;
     }
 
-    viewport.pan(dx / viewport.scale, dy / viewport.scale);
-    engine.invalidateAll();
+    // A mouse wheel moves in big steps (or whole 120-unit notches); a trackpad's
+    // small deltas are already smooth. A trackpad event that looks like a notch
+    // just glides a little more, so the guess can't do harm.
+    const raw = (ev as WheelEvent & { wheelDelta?: number }).wheelDelta ?? 0;
+    const notch =
+      ev.deltaMode !== 0 || (raw !== 0 && raw % 120 === 0) || Math.hypot(dx, dy) >= NOTCH_PX;
+    scroller.wheel(dx, dy, notch);
   }
 
   el.addEventListener('wheel', onWheel, { passive: false });
